@@ -25,6 +25,30 @@ unsafe extern "C" {
 /// Boot Qt, load the `TuneX` module's `App` shell, run until quit.
 /// Exits non-zero when Qt or the QML shell fails to start.
 fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("tunex=info")),
+        )
+        .init();
+
+    let config = match tunex_core::load_from(&tunex_core::config_file()) {
+        Ok(config) => config,
+        Err(err) => {
+            tracing::warn!(
+                name: "app.config.fallback",
+                error = %err,
+                "settings unreadable, starting with defaults"
+            );
+            tunex_core::TunexConfig::default()
+        }
+    };
+    tracing::info!(
+        name: "app.start",
+        version = env!("CARGO_PKG_VERSION"),
+        library_roots = config.library_roots.len(),
+        "tunex starting"
+    );
     // SAFETY: generated, idempotent initializers; called once on the main
     // thread before any Qt object exists. (`let ()` form satisfies both
     // semicolon lints at once.)

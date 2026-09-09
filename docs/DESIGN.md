@@ -40,7 +40,7 @@ typography:
     lineHeight: 1.33
   body-md:
     fontFamily: Inter
-    fontSize: 15px
+    fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
   body-sm:
@@ -240,12 +240,12 @@ Roles, darkest to brightest. Solid tokens below back every component; translucen
 
 ## Typography
 
-Inter throughout (weights 400/500/600/700), fallback `"Inter, 'Noto Sans', system-ui, sans-serif"` in QML font stacks. One family keeps a dense media UI coherent; character comes from scale and artwork, not font novelty.
+Inter throughout (weights 400/500/600/700), fallback `"Inter, 'Noto Sans', system-ui, sans-serif"` in QML font stacks. One family keeps a dense media UI coherent; character comes from scale and artwork, not font novelty. Sizes are px tokens consumed by the Theme singleton (consistent cross-platform rendering for a media app; revisit if OS font-scale issues arise).
 
 - `{typography.display-lg}` — hero greeting only ("Music feels different here."). 700, tight tracking. Never in lists or dialogs.
 - `{typography.headline-md}` — view titles (artist/album names in detail headers, Now Playing title at large size).
 - `{typography.title-md}` — section/rail headers ("Recently Played"), dialog titles, card titles at grid size.
-- `{typography.body-md}` — track rows, menu items, primary UI text. Default reading size is 15px, not 14 — lists stay legible over long sessions.
+- `{typography.body-md}` — track rows, menu items, primary UI text. Default reading size is 16px (desktop body minimum per skill guidance), not smaller — lists stay legible over long sessions.
 - `{typography.body-sm}` — secondary lines (artist under title in rows, toasts). Tabular numbers on (`tnum`) so durations don't jitter.
 - `{typography.label-md}` / `{typography.label-sm}` — buttons, nav items, chips, controls. Medium weight carries small sizes on dark.
 - `{typography.caption-md}` — metadata: durations, counts, scan %, status lines. Always `{colors.muted}`, never smaller than 12px. `tnum` on for times/counts.

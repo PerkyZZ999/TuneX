@@ -10,6 +10,8 @@
 //! - `tunex-library` and `tunex-player` communicate only through these types
 //!   plus channels; they never import each other.
 
+pub mod config;
 pub mod error;
 
+pub use config::{TunexConfig, config_dir, config_file, load_from, save_to};
 pub use error::{Error, Result};

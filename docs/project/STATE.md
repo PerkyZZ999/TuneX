@@ -22,7 +22,8 @@
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
 - Build: CMake 4.4 + Corrosion v0.6.1 + Qt 6.11.2 configure/build green; PKGBUILD skeleton namcap-clean (url `github.com/PerkyZZ999/TuneX`)
 - Bridge (W-002 done): cxx-qt 0.10 stack pinned; `TrackListModel` round-trip GUI-proven; module owned by build.rs; bridge code lives in binary; explicit init anchoring in main.rs
-- Repo reality: S1 W-001a/b + W-002 done; W-003 (window + nav + theme) next.
+- Shell (W-003 done): Theme singleton + nav shell + Home/empty states GUI-proven; `tunex-core::config` + tracing live; DESIGN.md body 16px (skill compliance)
+- Repo reality: S1 W-001a/b, W-002, W-003 done; W-004 (PlayerEngine + queue) next.
 
 ## Open loops
 - None
@@ -31,7 +32,7 @@
 - None. MVP + locks + GPLv3 confirmed; packaging switched to PKGBUILD/AUR per user.
 
 ## Next action
-- W-003: app window + nav skeleton + theme tokens from `docs/DESIGN.md` (+ XDG config, tracing).
+- W-004: PlayerEngine over GStreamer `playbin3` + in-memory queue (uses `gstreamer` crate; needs GStreamer dev libs + `gst-plugin-*` at build/run).
 
 ## Phase checklist
 - [x] 0 Intake

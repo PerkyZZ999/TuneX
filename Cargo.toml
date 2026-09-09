@@ -22,9 +22,15 @@ cxx = "1.0.198"
 cxx-qt = "0.10.0"
 cxx-qt-lib = { version = "0.10.0", features = ["qt_full"] }
 cxx-qt-build = { version = "0.10.0", features = ["link_qt_object_files"] }
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.1.5"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
-# Intra-workspace path deps (`tunex-core`, …) land here alongside their first
-# real `use` (W-002+), so `cargo-shear` never sees an unused workspace dep.
+# Intra-workspace path deps land here alongside their first real `use`,
+# so `cargo-shear` never sees an unused workspace dep.
+tunex-core = { path = "crates/tunex-core", version = "0.1.0" }
+# (library/player/app follow with behavior.)
 
 # Static verification baseline (M-STATIC-VERIFICATION).
 # The toolchain runs Clippy with `-D warnings`, so every `warn` below

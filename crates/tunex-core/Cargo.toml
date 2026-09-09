@@ -9,6 +9,8 @@ description = "TuneX domain types, errors, config, and AppEvent bus. No Qt, GStr
 
 [dependencies]
 thiserror.workspace = true
+serde.workspace = true
+toml.workspace = true
 
 [lints]
 workspace = true

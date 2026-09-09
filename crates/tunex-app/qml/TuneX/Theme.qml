@@ -1,0 +1,58 @@
+import QtQuick
+pragma Singleton
+
+// Centralized design tokens (docs/DESIGN.md "TuneX Frosted Obsidian").
+// Every color, radius, spacing, and type value in the UI must come from here;
+// never hardcode visual constants in components.
+QtObject {
+    // Canvas and surfaces.
+    readonly property color background: "#0A0D14"
+    readonly property color surface: "#121724"
+    readonly property color surfaceRaised: "#1A2133"
+    readonly property color chrome: "#141B2E"
+    readonly property color hover: "#1B2338"
+    readonly property color selected: "#1E2A4A"
+    // Text and dividers.
+    readonly property color foreground: "#F2F5FA"
+    readonly property color muted: "#9AA5BA"
+    readonly property color border: "#232C42"
+    // Actions and signals.
+    readonly property color primary: "#2F62E8"
+    // DESIGN.md token on-primary (`onX` names are reserved in QML).
+    readonly property color primaryText: "#FFFFFF"
+    readonly property color accent: "#5B8CFF"
+    readonly property color accentSecondary: "#6FD3FF"
+    readonly property color success: "#52D273"
+    readonly property color warning: "#F5B544"
+    readonly property color error: "#FF8585"
+    readonly property color focus: "#8FB4FF"
+    // Shape scale.
+    readonly property int radiusXs: 4
+    readonly property int radiusSm: 8
+    readonly property int radiusMd: 12
+    readonly property int radiusLg: 16
+    readonly property int radiusXl: 24
+    readonly property int radiusPill: 999
+    // Spacing scale (4px base).
+    readonly property int spaceXs: 4
+    readonly property int spaceSm: 8
+    readonly property int spaceMd: 16
+    readonly property int spaceLg: 24
+    readonly property int spaceXl: 32
+    readonly property int spaceXxl: 48
+    // Type scale (Inter with system fallback; px per DESIGN.md).
+    readonly property string fontFamily: "Inter"
+    readonly property int fontDisplay: 34
+    readonly property int fontHeadline: 24
+    readonly property int fontTitle: 18
+    readonly property int fontBody: 15
+    readonly property int fontBodySm: 13
+    readonly property int fontLabel: 14
+    readonly property int fontLabelSm: 13
+    readonly property int fontCaption: 12
+    // Shell geometry.
+    readonly property int windowMinWidth: 960
+    readonly property int windowMinHeight: 640
+    readonly property int railWidth: 240
+    readonly property int panelWidth: 320
+}

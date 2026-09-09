@@ -15,6 +15,9 @@ path = "src/main.rs"
 cxx.workspace = true
 cxx-qt.workspace = true
 cxx-qt-lib.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tunex-core.workspace = true
 
 [build-dependencies]
 cxx-qt-build.workspace = true
