@@ -15,11 +15,12 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: 5 Architecture (human-confirmed 2026-09-09)
-- Latest validation entry: 2026-09-09 design docs (brief + IA + DESIGN.md lint 0 errors + AGENTS.md)
+- Latest passed gate: `rust-tc sonar` (QG OK) for W-001a
+- Latest validation entry: 2026-09-09 toolchain gates (quick/doctor/sonar)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
-- Repo reality: docs-only foundation on `master` (no code yet).
+- Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
+- Repo reality: S1 W-001a done (workspace + toolchain + hook); W-001b (CMake/Corrosion/QML/PKGBUILD) next.
 
 ## Open loops
 - None
@@ -28,7 +29,7 @@
 - None. MVP + locks + GPLv3 confirmed; packaging switched to PKGBUILD/AUR per user.
 
 ## Next action
-- Start S1 W-001 (workspace + CMake/Corrosion + PKGBUILD skeleton) on user go-ahead.
+- W-001b: CMake top-level + Corrosion + `qt_add_qml_module` + PKGBUILD skeleton.
 
 ## Phase checklist
 - [x] 0 Intake

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# TuneX pre-commit gate.
+#
+# Runs every Rust-Toolchain check (`rust-tc doctor`) on each commit, plus
+# staged-area extras for QML and design tokens. Strict on Rust/QML, best
+# effort on the DESIGN.md lint when the CLI is not cached (offline).
+set -euo pipefail
+
+fail() { echo "pre-commit: $*" >&2; exit 1; }
+
+command -v rust-tc >/dev/null 2>&1 \
+    || fail "'rust-tc' not on PATH. See AGENTS.md setup, then scripts/install-git-hooks.sh."
+
+# Main gate: the full local Rust-Toolchain validation.
+rust-tc doctor
+
+# Staged QML files get linted.
+staged_qml="$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.qml$' || true)"
+if [[ -n "$staged_qml" ]]; then
+    command -v qmllint >/dev/null 2>&1 || fail "'qmllint' not on PATH."
+    # Unquoted on purpose: file list from git, one path per line.
+    # shellcheck disable=SC2086
+    qmllint $staged_qml
+fi
+
+# Staged design tokens get linted when the CLI is available locally.
+if git diff --cached --name-only | grep -q '^docs/DESIGN\.md$'; then
+    if npx --no-install @google/design.md --help >/dev/null 2>&1; then
+        npx --no-install @google/design.md lint docs/DESIGN.md \
+            || fail "docs/DESIGN.md lint reported errors."
+    else
+        echo "pre-commit: warning: design.md CLI not cached; skipping DESIGN lint." >&2
+    fi
+fi

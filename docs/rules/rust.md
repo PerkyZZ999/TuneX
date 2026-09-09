@@ -28,4 +28,4 @@ Load **only** when profiling data or Milestone 6 demands it:
 
 ## Checks (binding, see `AGENTS.md`)
 
-`cargo fmt --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test` — all green before commit.
+`rust-tc` is the public gate — never invoke `just` directly. `rust-tc quick` after edits, `rust-tc doctor` before finishing, `rust-tc sonar` when Sonar verification is requested.

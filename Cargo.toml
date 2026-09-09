@@ -1,0 +1,52 @@
+[workspace]
+members = ["crates/*"]
+# Explicit: virtual manifests do not inherit the edition-implied resolver.
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+# App-internal crates: never published to crates.io (V1 ships via AUR).
+# Also silences `cargo_common_metadata`, which only applies to publishables.
+publish = false
+
+[workspace.dependencies]
+# Latest compatible at introduction (`cargo add`); `cargo update` before releases.
+thiserror = "2.0.20"
+
+# Intra-workspace path deps (`tunex-core`, …) land here alongside their first
+# real `use` (W-002+), so `cargo-shear` never sees an unused workspace dep.
+
+# Static verification baseline (M-STATIC-VERIFICATION).
+# The toolchain runs Clippy with `-D warnings`, so every `warn` below
+# is a hard gate in CI and pre-commit.
+[workspace.lints.rust]
+ambiguous_negative_literals = "warn"
+missing_debug_implementations = "warn"
+redundant_imports = "warn"
+redundant_lifetimes = "warn"
+trivial_numeric_casts = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+unused_lifetimes = "warn"
+
+[workspace.lints.clippy]
+cargo = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+correctness = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+# Restriction subset: consistency without exoticism.
+allow_attributes_without_reason = "warn"
+deref_by_slicing = "warn"
+empty_drop = "warn"
+empty_structs_with_brackets = "warn"
+if_then_some_else_none = "warn"
+map_err_ignore = "warn"
+redundant_type_annotations = "warn"
+semicolon_outside_block = "warn"
+undocumented_unsafe_blocks = "warn"
+unneeded_field_pattern = "warn"

@@ -1,0 +1,11 @@
+[package]
+name = "tunex-player"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "TuneX player engine: GStreamer playbin3 abstraction, queue, shuffle/repeat."
+
+[lints]
+workspace = true

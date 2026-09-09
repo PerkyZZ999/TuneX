@@ -29,15 +29,25 @@ Coding rules live in `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, 
 ## Operating Rules (binding)
 
 1. **Work slice by slice.** Current queue is `docs/project/WORK_ITEMS.md` (S1 first). Do exactly one slice, keep requirement → slice → work item → evidence links current.
-2. **Checks + commit after every task/phase/slice.** "All checks" for the touched area, all green, then one commit per logical change:
-   - Rust: `cargo fmt --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test`
+2. **Checks + commit after every task/phase/slice.** `rust-tc` is the public gate — never invoke `just` directly. "All checks" for the touched area, all green, then one commit per logical change:
+   - Rust: `rust-tc doctor` (fmt + clippy + nextest + doctests + deny + shear + hack); fast loop: `rust-tc quick`. Sonar upload when requested: `rust-tc sonar` (never nests `doctor`).
    - QML: `qmllint` on touched files · `qmlformat --check` (or repo-configured verify) · CMake build passes
    - Design tokens touched: `npx @google/design.md lint docs/DESIGN.md` — 0 errors required
    - Packaging touched: `makepkg` / clean-chroot build check
    - Never commit with failing checks. Never commit secrets. Conventional Commits (`feat|fix|docs|refactor|test|chore(scope): …`).
+   - A pre-commit hook enforces this: install with `scripts/install-git-hooks.sh` (runs `rust-tc doctor` + staged QML/DESIGN lints on every commit).
 3. **Never silently change a locked decision** (`docs/project/DECISIONS.md` D-001–D-014). If a lock blocks you, run the change-impact loop: update the decision record + every downstream doc (SPEC, REQUIREMENTS, ARCHITECTURE, ROADMAP, design docs) in the same change, and say so in the commit message.
 4. **Keep docs in sync.** Slices that alter behavior update `REQUIREMENTS.md` acceptance, `VALIDATION.md` evidence, and `STATE.md` (current slice, blockers, next action) in the same commit as the code.
 5. **Perf numbers are aspirational until M6** — but keeping work off the UI thread is a correctness rule from day one.
+
+## Dependency Freshness (binding)
+
+Always build on the latest mutually-compatible versions — never pin old releases out of habit:
+
+- **Rust:** `stable` channel only (`rust-toolchain.toml` tracks it); run `rustup update` when starting significant work. `rust-version` in `Cargo.toml` is a *floor* (currently 1.85, the edition-2024 minimum), not a pin — bump it only when new language features are actually used.
+- **Crates:** introduce dependencies with `cargo add` (resolves latest), declare them in `[workspace.dependencies]` with caret requirements, and run `cargo update` before releases so `Cargo.lock` (committed) tracks latest semver-compatible. Upgrading a major version is a deliberate, tested change — full `rust-tc doctor` after.
+- **System/CI deps:** PKGBUILD `depends`/`makedepends` follow current Arch repos (no frozen snapshots); refresh the exact set whenever the native or clean-chroot build drifts.
+- **Stale check:** if a dependency is >1 minor version behind latest at release time, either update it or record why in the commit message / `DECISIONS.md`.
 
 ## Setup Commands (Arch Linux)
 

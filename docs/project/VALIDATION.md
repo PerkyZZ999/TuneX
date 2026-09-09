@@ -61,4 +61,11 @@
 - **Result:** pass
 - **Evidence:** `opencode.json` (`$schema` + 4 instructions, JSON-parsed OK) → `docs/rules/rust.md` (ms-rust/best-practices/reference mandatory, optimise gated to M6), `qt-qml.md` (per-task triggers; `qt6-qml-development` exact-name note; C++ skills excluded), `frontend.md` (trio + QML translations + gates), `testing-gui.md` (Kwin-MCP isolated-session workflow; no separate Computer Use tool in this env). `AGENTS.md` extended (doc map, GUI Testing section, Language Skill Triggers). Skill names verified against installed skill catalog.
 - **Waiver:** none
-- **Follow-up:** S1 W-001 on user go-ahead
+- **Follow-up:** S1 W-001 on user go-ahead (toolchain: see entry below)
+
+### 2026-09-09 — S1 W-001a: workspace + toolchain gates green
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** pass
+- **Evidence:** 4-crate workspace (edition 2024, `resolver="2"`, `publish=false`, workspace lints incl. pedantic) + `tunex-core::Error` (`thiserror` 2.0.20, latest via `cargo add --dry-run`) with 4 unit tests. `rust-tc quick` ✓ → `doctor` ✓ (`Rust-Toolchain: PASS`: fmt, clippy `-D warnings`, nextest, doctests, deny incl. project GPL-3.0-or-later allowance, shear, hack) → `sonar` ✓ (single Clippy JSON + single llvm-cov/nextest run + separate doctests, no `cargo-audit`; upload ANALYSIS SUCCESSFUL; Quality Gate `OK`). Fixes along the way: `publish=false` over invented repo metadata, backticked doc identifiers, resolver pin, GPL allow-listing, shear-honest dep declaration. Rust 1.95→1.98.1 via `rustup update`. Pre-commit hook installed (`scripts/install-git-hooks.sh`).
+- **Waiver:** none (zero-test scaffold stage resolved with real `Error` tests instead of weakening the gate)
+- **Follow-up:** W-001b (CMake/Corrosion/QML module/PKGBUILD)
