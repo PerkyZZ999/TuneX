@@ -15,7 +15,7 @@
 ## How to verify (TuneX specifics)
 
 1. Inspect before acting: `find_ui_elements` / `wait_for_element` / `accessibility_tree` — never blind-coordinate-click. Re-read UI state after every navigation or dialog.
-2. Drive with keyboard-first flows (Space, `/`, arrows, Enter, Esc) plus `playerctl` cross-checks from the shell for MPRIS assertions.
+2. Drive with keyboard-first flows (Space, `/`, arrows, Enter, Esc) plus `playerctl` cross-checks from the shell for MPRIS assertions. Prefer keyboard activation over EIS clicks for buttons: EIS press/release has been observed to highlight without firing `clicked()`; always verify the post-action state visually.
 3. Prove visual states with `screenshot` / `screenshot_after_ms` (glass hierarchy, artwork/placeholder, buffering, toasts, empty states).
 4. Media keys via `keyboard_key`; seek/volume via app controls; network-off DoD runs by disabling networking for the session host where possible, else assert no-network code paths by review.
 5. On failure: `read_app_log` first, then `wayland_info`/`dbus_call` if compositor-level. Record evidence (screenshots + tree snippets) in `docs/project/VALIDATION.md`.

@@ -75,4 +75,11 @@
 - **Result:** pass (skeleton scope; full `makepkg`/chroot deferred to S5)
 - **Evidence:** `cmake -B build` warning-free (Qt 6.11.2, Corrosion v0.6.1 pinned = latest, Rust 1.98.1); `cmake --build build` green — Corrosion compiled the workspace (`tunex` 0.1.0 binary runs) + `tunex_qml` static lib with `qmlcachegen`/type-registrar output; URI-mirroring layout (`qml/TuneX/`) fixed the only configure warning. `qmllint` + `qmlformat` clean on `App.qml` (bare-window shell; real window/theme in W-003). PKGBUILD: `url` + git source set from user-provided `github.com/PerkyZZ999/TuneX`; `makepkg --printsrcinfo` OK; `namcap` 0 findings. Known gaps recorded in-file: `package()` install rules (W-002 executable), Corrosion vendoring for chroot builds (S5).
 - **Waiver:** none
-- **Follow-up:** W-002 (cxx-qt bridge proof)
+- **Follow-up:** W-002 (cxx-qt bridge proof) — see entry below
+
+### 2026-09-09 — S1 W-002: cxx-qt bridge round-trip proven
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** pass (with coverage waiver below)
+- **Evidence:** `TrackListModel : QAbstractListModel` (cxx 1.0.198, cxx-qt/-lib/-build 0.10.0, Qt 6.11.2) + proof `App.qml`. 10 unit tests ✓ (`quick`/`doctor` green). KWin isolated GUI run ×3: window appears, keyboard-activated Add → `Tracks: 1` + `Signal received: row 0` + `Proof track 1  TuneX` row rendered (visually verified). `sonar` upload OK, 0 new violations / 0 duplication.
+- **Waiver:** `new_coverage` ~60% < 80% gate (owner: user pending confirm; risk: low — uncovered lines are exactly the FFI pairing wrappers, which need C++ instances, and `main` boot, both GUI-verified above; rationale: no in-process Qt test harness exists yet; expiry/revisit: S4 QML-test harness, or accept permanently for bridge glue).
+- **Follow-up:** W-003. Bridge learnings (binding): QML module defined ONLY in build.rs (deleted CMake `qt_add_qml_module`, QML tree moved to `crates/tunex-app/qml/` per cxx-qt-build containment); bridge code lives in the BINARY (linker gc-sections drops it from rlib-only linkage); explicit `#[link]` + direct `cxx_qt_init_*` calls in main.rs (build-script link-lib directives don't reach the bin target); `#[cxx_name]` required on every multi-word invokable (`append_track` → `appendTrack`); EIS clicks highlight without firing `clicked()` — verify GUI actions via keyboard + screenshots; copy KWin screenshots BEFORE `session_stop` (isolated home is cleaned); Qt logging is silent in the static Qt build — diagnose via behavior/probes, and keep the fail-fast null-object guard in main.rs.

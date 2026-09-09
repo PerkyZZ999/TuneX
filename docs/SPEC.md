@@ -239,7 +239,7 @@ Recommended extensions/features:
 - CMake is the top-level build driver because Qt/QML, `qmllint`/`qmlformat`, and PKGBUILD/AUR packaging expect it.
 - Rust is built via Corrosion (`corrosion_import_crate`) from the Cargo workspace.
 - `cxx-qt` Qt codegen runs as part of the Cargo/Corrosion build.
-- QML modules use `qt_add_qml_module` with explicit URIs and versioning.
+- The QML module (URI `TuneX`) is defined exactly once in `crates/tunex-app/build.rs` (`CxxQtBuilder` `QmlModule`); CMake must NOT redeclare it via `qt_add_qml_module` (duplicate registration). QML sources live in `qml/` and are checked with standalone `qmllint`/`qmlformat`.
 - CI must build both native (dev) and PKGBUILD (release check) via this same CMake entrypoint.
 
 ---

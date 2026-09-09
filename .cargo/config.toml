@@ -1,0 +1,7 @@
+# Machine-local Qt selection for cxx-qt-build.
+#
+# cxx-qt-build locates Qt via qmake, and /usr/bin/qmake is Qt 5 on Arch while
+# TuneX needs Qt 6 (cxx-qt 0.10 is Qt6-only). Pin the Qt 6 qmake explicitly.
+# A real QMAKE environment variable always overrides this default.
+[env]
+QMAKE = "/usr/bin/qmake6"

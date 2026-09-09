@@ -21,7 +21,8 @@
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
 - Build: CMake 4.4 + Corrosion v0.6.1 + Qt 6.11.2 configure/build green; PKGBUILD skeleton namcap-clean (url `github.com/PerkyZZ999/TuneX`)
-- Repo reality: S1 W-001a/b done (workspace + toolchain + CMake/QML/PKGBUILD); W-002 (cxx-qt bridge proof) next.
+- Bridge (W-002 done): cxx-qt 0.10 stack pinned; `TrackListModel` round-trip GUI-proven; module owned by build.rs; bridge code lives in binary; explicit init anchoring in main.rs
+- Repo reality: S1 W-001a/b + W-002 done; W-003 (window + nav + theme) next.
 
 ## Open loops
 - None
@@ -30,7 +31,7 @@
 - None. MVP + locks + GPLv3 confirmed; packaging switched to PKGBUILD/AUR per user.
 
 ## Next action
-- W-002: cxx-qt bridge proof (Rust QObject + QAbstractListModel + signal round-trip, pinned versions).
+- W-003: app window + nav skeleton + theme tokens from `docs/DESIGN.md` (+ XDG config, tracing).
 
 ## Phase checklist
 - [x] 0 Intake

@@ -72,7 +72,7 @@ cargo clippy --all-targets -- -D warnings
 
 - Start from `docs/project/WORK_ITEMS.md`. Before editing, inspect the relevant crates/views and state the slice's concrete done condition.
 - `tunex-core` must keep zero deps on Qt/GStreamer/SQLite/`notify`. `tunex-library`/`tunex-player` talk only via `tunex-core` types + channels. Only `tunex-app` depends on `cxx-qt`.
-- QML modules via `qt_add_qml_module` with explicit URIs; theme tokens centralized (S1 W-003 consumes `docs/DESIGN.md`).
+- QML module (URI `TuneX`) is defined once in `crates/tunex-app/build.rs` — never redeclare via `qt_add_qml_module`; theme tokens centralized (S1 W-003 consumes `docs/DESIGN.md`).
 - Logging: `tracing` (structured). Scan progress, GStreamer bus, and search latency at debug.
 - MPRIS smoke: `playerctl -p tunex play-pause / next / previous / metadata` while playing.
 

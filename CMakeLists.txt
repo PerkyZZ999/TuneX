@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Explicit minimum per project policy; 6.8 opts into the QML module
 # defaults this project relies on (QTP0001/QTP0005 via REQUIRES below).
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -28,4 +28,7 @@ FetchContent_MakeAvailable(Corrosion)
 
 corrosion_import_crate(MANIFEST_PATH Cargo.toml)
 
-add_subdirectory(qml)
+# No qt_add_qml_module here: the QML module (URI TuneX) is defined exactly
+# once in crates/tunex-app/build.rs (CxxQtBuilder QmlModule) and compiled into
+# the Rust binary. Redeclaring it in CMake would register TuneX twice.
+# QML sources live in qml/ and are linted via qmllint/qmlformat directly.
