@@ -1,0 +1,31 @@
+# Rust rules — TuneX (loaded via `opencode.json` instructions)
+
+## Mandatory skills
+
+Load **before** writing, reviewing, or refactoring any Rust (`.rs`, `Cargo.toml`):
+
+- `ms-rust` — implementation, refactoring, review, API design per Microsoft Pragmatic Rust Guidelines.
+- `rust-best-practices` — idiomatic ownership/borrowing, `Result` error handling, tests/docs.
+- `rust-reference` — language semantics, lifetimes, traits, macros, unsafe corner cases.
+
+Load **only** when profiling data or Milestone 6 demands it:
+
+- `rust-optimise` — hot-path allocation/iterator/async/data-structure optimization. Never pre-M6 on intuition (perf policy: functional first, D-012).
+
+## Hard crate rules (D-007, D-008)
+
+- `tunex-core`: zero deps on Qt/`cxx-qt`, GStreamer, SQLite, `notify`. Pure domain types + `AppEvent` + errors + config.
+- `tunex-library` / `tunex-player`: talk only via `tunex-core` types + `tokio` channels. Never import each other.
+- Only `tunex-app` depends on `cxx-qt`/Qt, and only it touches `QObject`s (always on the Qt thread).
+- Workers never block the UI thread; `notify` callbacks only enqueue paths.
+
+## Style
+
+- `rustfmt` default; `clippy --all-targets -- -D warnings` clean.
+- Errors: `thiserror` for library crate error enums, `anyhow` at app/wiring boundaries. No `println!` in library code — `tracing` everywhere.
+- `tokio` for all background workers; bounded channels; cancellable search queries.
+- Every behavior change ships with/updates `cargo test` coverage (state machines, `stable_key` reconcile, FTS5 ranking, playlist ops, migrations).
+
+## Checks (binding, see `AGENTS.md`)
+
+`cargo fmt --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test` — all green before commit.

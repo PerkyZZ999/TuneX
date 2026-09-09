@@ -24,6 +24,8 @@ Strict boundary: **QML = presentation only, Rust = logic.** QML never touches FS
 
 Doc map: `docs/SPEC.md` (source spec) · `docs/project/` (`STATE`, `BRIEF`, `REQUIREMENTS`, `DECISIONS`, `ARCHITECTURE`, `ROADMAP`, `WORK_ITEMS`, `VALIDATION`, `DISCOVERY`) · `docs/DESIGN_BRIEF.md` · `docs/INFORMATION_ARCHITECTURE.md` · `docs/DESIGN.md` (normative visual tokens) · `docs/mockup.png` (canonical layout reference).
 
+Coding rules live in `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`) and are auto-loaded as instructions. The sections below restate the binding parts; rule files hold the detailed load-triggers.
+
 ## Operating Rules (binding)
 
 1. **Work slice by slice.** Current queue is `docs/project/WORK_ITEMS.md` (S1 first). Do exactly one slice, keep requirement → slice → work item → evidence links current.
@@ -72,6 +74,11 @@ cargo clippy --all-targets -- -D warnings
 - 12k-track fixture for jank observation (numbers not gating pre-M6).
 - Add or update tests for every behavior change, even if unasked.
 
+## GUI Testing (binding for visual/DoD verification)
+
+- **Kwin-MCP is the GUI automation path** (there is no separate built-in Computer Use tool here). Load the `kwin-mcp` skill and follow `docs/rules/testing-gui.md`: isolated `session_start` by default, fixture libraries with `isolate_home`, semantic inspection before acting, keyboard-first flows + `playerctl` cross-checks, screenshot evidence into `docs/project/VALIDATION.md`, always `session_stop`.
+- GUI runs prove integration (slices' DoD, glass/grids/dialogs/empty states, MPRIS/keys, M5 X11 pass). Algorithms stay in `cargo test` / `qmltestrunner`.
+
 ## Frontend Rules (binding for any UI work)
 
 1. **Load the skill trio first** — `craft-beautiful-frontend`, `iconography-frontend-ui`, `responsive-design` — and follow them plus their references. Web/CSS specifics translate to QML: tokens live in `docs/DESIGN.md` + the Theme singleton (never ad-hoc hexes), motion uses QML Behaviors within the budgets in `docs/DESIGN.md`, responsive means the window classes in `docs/DESIGN_BRIEF.md` (desktop-first, 960×640 min; no mobile breakpoints).
@@ -92,6 +99,11 @@ cargo clippy --all-targets -- -D warnings
 - Rust: `rustfmt` default + `clippy -D warnings`; `thiserror`/`anyhow` error style per crate; `tokio` for workers; `tracing`, never `println!` in library code.
 - QML: `qmlformat` clean, `qmllint` clean; component names match `docs/DESIGN_BRIEF.md` inventory (`TrackRow`, `AlbumCard`, `MiniPlayer`, …); no business logic in QML — no direct imports of FS/DB/media.
 - Naming: domain `Track/Album/Artist/Queue/Playlist`; UI labels per IA glossary (`Songs` view, `Up Next` panel, `Music folders`).
+
+## Language Skill Triggers (binding)
+
+- Any Rust work (`.rs`, `Cargo.toml`): load `ms-rust` + `rust-best-practices` + `rust-reference` first. Load `rust-optimise` only for M6/profile-backed optimization — never on intuition.
+- Any QML/CMake work: load per `docs/rules/qt-qml.md` — always `qt-qml` for `.qml` edits and `qt-project` for CMake/targets; add `qt6-qml-development` (exact name) for Qt6 APIs/bridge patterns, `qt-ui-design` for screen implementation, `qt-qml-review` before committing QML, `qt-qml-test`/`qt-qml-test-run` for QML tests, `qt-qml-docs` for component docs, `qt-qml-profiler` for M6/perf hunts. Never `qt-cpp-review`/`qt-cpp-docs` for app code (no C++ — `cxx-qt`/Rust only).
 
 ## Build and Deployment
 

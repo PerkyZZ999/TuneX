@@ -18,6 +18,7 @@
 - Latest passed gate: 5 Architecture (human-confirmed 2026-09-09)
 - Latest validation entry: 2026-09-09 design docs (brief + IA + DESIGN.md lint 0 errors + AGENTS.md)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
+- Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Repo reality: docs-only foundation on `master` (no code yet).
 
 ## Open loops

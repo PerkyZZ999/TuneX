@@ -54,4 +54,11 @@
 - **Result:** pass
 - **Evidence:** `docs/DESIGN_BRIEF.md` + `docs/INFORMATION_ARCHITECTURE.md` (renamed per user) moved to `docs/`; `docs/DESIGN.md` moved to `docs/` and passes `npx @google/design.md lint` with 0 errors (1 info-level orphaned-`focus` warning kept deliberately — schema has no border/outline prop); `AGENTS.md` created at root (checks+commit rule, frontend skill trio, mockup adaptation rule, OpenRouter `openai/gpt-image-2.5-sunburst` asset rule). Review fixed: SPEC §3.7/§20/§35 stale Flatpak + palette-TBD lines; mini-player rule aligned to mockup (right panel ≥1280px, bottom bar below); 44px targets + dense-list exception; button loading/disabled + skeleton loading states; hero secondary-button + rail-label adaptations; W-003 now consumes `docs/DESIGN.md`.
 - **Waiver:** none
+- **Follow-up:** S1 W-001 on user go-ahead (rules wired: see entry below)
+
+### 2026-09-09 — Coding rules wired (opencode.json + docs/rules)
+- **Phase:** 5 (pre-S1 rules pass)
+- **Result:** pass
+- **Evidence:** `opencode.json` (`$schema` + 4 instructions, JSON-parsed OK) → `docs/rules/rust.md` (ms-rust/best-practices/reference mandatory, optimise gated to M6), `qt-qml.md` (per-task triggers; `qt6-qml-development` exact-name note; C++ skills excluded), `frontend.md` (trio + QML translations + gates), `testing-gui.md` (Kwin-MCP isolated-session workflow; no separate Computer Use tool in this env). `AGENTS.md` extended (doc map, GUI Testing section, Language Skill Triggers). Skill names verified against installed skill catalog.
+- **Waiver:** none
 - **Follow-up:** S1 W-001 on user go-ahead
