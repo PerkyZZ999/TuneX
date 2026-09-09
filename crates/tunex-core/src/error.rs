@@ -28,6 +28,11 @@ pub enum Error {
     #[error("invalid configuration: {0}")]
     Config(String),
 
+    /// Player subsystem failure (typed finer per slice as engine, queue,
+    /// and device handling land).
+    #[error("playback error: {0}")]
+    Player(String),
+
     /// Cancellable background work (scan, search) was asked to stop.
     ///
     /// Cancellation is routine control flow, never a malfunction: report it,

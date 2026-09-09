@@ -23,7 +23,8 @@
 - Build: CMake 4.4 + Corrosion v0.6.1 + Qt 6.11.2 configure/build green; PKGBUILD skeleton namcap-clean (url `github.com/PerkyZZ999/TuneX`)
 - Bridge (W-002 done): cxx-qt 0.10 stack pinned; `TrackListModel` round-trip GUI-proven; module owned by build.rs; bridge code lives in binary; explicit init anchoring in main.rs
 - Shell (W-003 done): Theme singleton + nav shell + Home/empty states GUI-proven; `tunex-core::config` + tracing live; DESIGN.md body 16px (skill compliance)
-- Repo reality: S1 W-001a/b, W-002, W-003 done; W-004 (PlayerEngine + queue) next.
+- Player (W-004 done): `PlayerEngine` playbin3 + `PlayerEvent` bus, 14 fakesink tests green, S3776 fixed
+- Repo reality: S1 through W-004 done; W-005 (queue + gapless preload) next.
 
 ## Open loops
 - None
@@ -32,7 +33,7 @@
 - None. MVP + locks + GPLv3 confirmed; packaging switched to PKGBUILD/AUR per user.
 
 ## Next action
-- W-004: PlayerEngine over GStreamer `playbin3` + in-memory queue (uses `gstreamer` crate; needs GStreamer dev libs + `gst-plugin-*` at build/run).
+- W-005: in-memory queue (add/remove/reorder/clear/play-next, shuffle/repeat) + `about-to-finish` gapless preload driving the engine.
 
 ## Phase checklist
 - [x] 0 Intake

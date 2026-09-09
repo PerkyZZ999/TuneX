@@ -1,9 +1,12 @@
 //! `tunex-player`: audio engine for `TuneX`.
 //!
-//! Owns the `PlayerEngine` abstraction over `GStreamer` `playbin3` (gapless via
-//! `about-to-finish` preloading) plus the queue with shuffle/repeat modes.
-//! Emits playback state as `tunex_core::AppEvent`s; the `GStreamer` bus is polled
-//! on its own thread.
-//!
-//! Wiring to `tunex-core` types and `GStreamer` lands with the first behavior
-//! (S1 W-004+); this scaffold intentionally declares no dependencies yet.
+//! [`PlayerEngine`] wraps `GStreamer` `playbin3` behind a stable,
+//! UI-thread-friendly API: synchronous control methods plus a bounded event
+//! channel for state changes, errors, and end-of-track. The `GStreamer` bus is
+//! polled on its own thread; the queue (W-005) advances on `EndOfTrack`.
+
+pub mod engine;
+pub mod uri;
+
+pub use engine::PlayerEngine;
+pub use uri::path_to_uri;

@@ -7,5 +7,11 @@ license.workspace = true
 publish.workspace = true
 description = "TuneX player engine: GStreamer playbin3 abstraction, queue, shuffle/repeat."
 
+[dependencies]
+gstreamer.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tunex-core.workspace = true
+
 [lints]
 workspace = true
