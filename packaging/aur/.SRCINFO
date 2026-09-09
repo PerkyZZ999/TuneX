@@ -1,0 +1,21 @@
+pkgbase = tunex
+	pkgdesc = Local-first music player for Linux (Rust + Qt Quick)
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/PerkyZZ999/TuneX
+	arch = x86_64
+	license = GPL-3.0-or-later
+	makedepends = cmake
+	makedepends = ninja
+	makedepends = rust
+	makedepends = git
+	makedepends = qt6-shadertools
+	depends = qt6-base
+	depends = qt6-declarative
+	depends = gstreamer
+	depends = gst-plugins-base
+	depends = sqlite
+	source = tunex::git+https://github.com/PerkyZZ999/TuneX.git
+	sha256sums = SKIP
+
+pkgname = tunex

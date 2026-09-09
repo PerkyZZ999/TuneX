@@ -1,4 +1,7 @@
 /target/
 /build/
+packaging/aur/src/
+packaging/aur/pkg/
+*.pkg.tar*
 .env.sonar
 .scannerwork/

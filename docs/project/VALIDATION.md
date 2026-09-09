@@ -68,4 +68,11 @@
 - **Result:** pass
 - **Evidence:** 4-crate workspace (edition 2024, `resolver="2"`, `publish=false`, workspace lints incl. pedantic) + `tunex-core::Error` (`thiserror` 2.0.20, latest via `cargo add --dry-run`) with 4 unit tests. `rust-tc quick` ✓ → `doctor` ✓ (`Rust-Toolchain: PASS`: fmt, clippy `-D warnings`, nextest, doctests, deny incl. project GPL-3.0-or-later allowance, shear, hack) → `sonar` ✓ (single Clippy JSON + single llvm-cov/nextest run + separate doctests, no `cargo-audit`; upload ANALYSIS SUCCESSFUL; Quality Gate `OK`). Fixes along the way: `publish=false` over invented repo metadata, backticked doc identifiers, resolver pin, GPL allow-listing, shear-honest dep declaration. Rust 1.95→1.98.1 via `rustup update`. Pre-commit hook installed (`scripts/install-git-hooks.sh`).
 - **Waiver:** none (zero-test scaffold stage resolved with real `Error` tests instead of weakening the gate)
-- **Follow-up:** W-001b (CMake/Corrosion/QML module/PKGBUILD)
+- **Follow-up:** W-001b (CMake/Corrosion/QML module/PKGBUILD) — see entry below
+
+### 2026-09-09 — S1 W-001b: CMake + QML module + PKGBUILD green
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** pass (skeleton scope; full `makepkg`/chroot deferred to S5)
+- **Evidence:** `cmake -B build` warning-free (Qt 6.11.2, Corrosion v0.6.1 pinned = latest, Rust 1.98.1); `cmake --build build` green — Corrosion compiled the workspace (`tunex` 0.1.0 binary runs) + `tunex_qml` static lib with `qmlcachegen`/type-registrar output; URI-mirroring layout (`qml/TuneX/`) fixed the only configure warning. `qmllint` + `qmlformat` clean on `App.qml` (bare-window shell; real window/theme in W-003). PKGBUILD: `url` + git source set from user-provided `github.com/PerkyZZ999/TuneX`; `makepkg --printsrcinfo` OK; `namcap` 0 findings. Known gaps recorded in-file: `package()` install rules (W-002 executable), Corrosion vendoring for chroot builds (S5).
+- **Waiver:** none
+- **Follow-up:** W-002 (cxx-qt bridge proof)

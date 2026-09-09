@@ -1,0 +1,29 @@
+# Maintainer: TuneX Contributors
+# S1 W-001b skeleton: metadata + dependency sets + git source. `package()`
+# install rules land with the executable (W-002); full `makepkg` + clean-chroot
+# verification lands in the S5 packaging pass. Verified here via
+# `makepkg --printsrcinfo` + `namcap`.
+pkgname=tunex
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Local-first music player for Linux (Rust + Qt Quick)"
+arch=('x86_64')
+url="https://github.com/PerkyZZ999/TuneX"
+license=('GPL-3.0-or-later')
+depends=('qt6-base' 'qt6-declarative' 'gstreamer' 'gst-plugins-base' 'sqlite')
+makedepends=('cmake' 'ninja' 'rust' 'git' 'qt6-shadertools')
+# NOTE: Corrosion is fetched via FetchContent at configure time. A clean-chroot
+# build has no network, so S5 must vendor Corrosion (or otherwise eliminate the
+# fetch) before this package can build in a chroot. Tracked for the M5 slice.
+source=("tunex::git+${url}.git")
+sha256sums=('SKIP')
+
+build() {
+    cmake -B build -S tunex -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    cmake --build build
+}
+
+package() {
+    # Install rules land with the executable in W-002.
+    :
+}

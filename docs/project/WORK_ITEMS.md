@@ -7,7 +7,7 @@ S1 — Shell + real playback (M0+M1). Goal: prove R1/R2 feasibility (cxx-qt + pl
 
 ## Queue
 - [x] W-001a — 4-crate Cargo workspace (workspace deps/lints, `publish=false`, core `Error` + tests) + Rust-Toolchain install (justfile, deny incl. GPL-3.0-or-later, nextest, rust-toolchain stable, Sonar `tunex` project + token) + pre-commit hook (`rust-tc doctor` gate). Gates: `quick` ✓ `doctor` ✓ `sonar` ✓ (QG OK). (R-001 part)
-- [ ] W-001b — CMake top-level + Corrosion + `qt_add_qml_module` + PKGBUILD skeleton (R-001, R-016)
+- [x] W-001b — CMake top-level (Qt 6.8+, Corrosion v0.6.1 pinned, `qt_add_qml_module` URI `TuneX` + `App.qml` shell) + PKGBUILD skeleton (url + git source `github.com/PerkyZZ999/TuneX`, namcap clean). Verified: configure warning-free, full build green (Corrosion Rust + QML module), `tunex` binary runs, `qmllint`/`qmlformat` clean, `printsrcinfo` OK. Full `makepkg` + chroot deferred to S5 (needs executable + Corrosion vendoring). (R-001, R-016)
 - [ ] W-002 — cxx-qt bridge proof: 1 Rust QObject + QAbstractListModel + signal round-trip to QML, pinned versions (D-003)
 - [ ] W-003 — App window + nav skeleton + theme tokens (consumes `docs/DESIGN.md` + `docs/mockup.png` layout) + tracing + XDG config load/save (R-001, R-015)
 - [ ] W-004 — PlayerEngine over playbin3: load/play/pause/stop/seek/volume + bus thread → AppEvent (R-009, R-011)

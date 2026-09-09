@@ -20,7 +20,8 @@
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
-- Repo reality: S1 W-001a done (workspace + toolchain + hook); W-001b (CMake/Corrosion/QML/PKGBUILD) next.
+- Build: CMake 4.4 + Corrosion v0.6.1 + Qt 6.11.2 configure/build green; PKGBUILD skeleton namcap-clean (url `github.com/PerkyZZ999/TuneX`)
+- Repo reality: S1 W-001a/b done (workspace + toolchain + CMake/QML/PKGBUILD); W-002 (cxx-qt bridge proof) next.
 
 ## Open loops
 - None
@@ -29,7 +30,7 @@
 - None. MVP + locks + GPLv3 confirmed; packaging switched to PKGBUILD/AUR per user.
 
 ## Next action
-- W-001b: CMake top-level + Corrosion + `qt_add_qml_module` + PKGBUILD skeleton.
+- W-002: cxx-qt bridge proof (Rust QObject + QAbstractListModel + signal round-trip, pinned versions).
 
 ## Phase checklist
 - [x] 0 Intake
