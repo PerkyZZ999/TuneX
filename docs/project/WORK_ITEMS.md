@@ -1,11 +1,17 @@
-# Work items (current slice: S4 — Player UI complete)
+# Work items (current slice: S5 — Linux integration hardens)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5–S6 seeded when S5 planning lands.
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S6 seeded when S5 completes.
 
 ## Current slice
-S4 — Player UI complete (M4). Goal: MiniPlayer + expanded now-playing, keyboard map, best-effort position restore — persistent transport, Space/media keys, last-track+position when the file still exists.
+S5 — Linux integration hardens (M5). Goal: real-engine MPRIS (seek/volume/metadata/status + art URL), desktop notifications, Wayland + X11 verified, high-DPI + native dialogs, AUR package verified on clean Arch — full `playerctl` matrix + network-off DoD rehearsal at the gate.
 
 ## Queue
+- [ ] W-032 — MPRIS engine wiring: PlaybackStatus/Position/Volume/Metadata from the real engine + controller (track id/title/artist/album/art URL, CanSeek/CanControl, PropertiesChanged on AppEvent); seek/volume methods live (R-013 full, S1-skeleton wiring deferred here by design)
+- [ ] W-033 — MPRIS full-matrix verification: play/pause/stop/next/prev/seek/volume/metadata/status via `playerctl` (`qdbus6`/`busctl` substitution where the binary is absent) + KDE widget check (R-013, R-017)
+- [ ] W-034 — Desktop notifications over D-Bus (track change + playback errors), minimal and non-intrusive, offline-safe (R-017, SPEC M5)
+- [ ] W-035 — PKGBUILD final: `package()` install rules + Corrosion vendoring for chroot builds + clean-chroot `makepkg` + namcap clean (R-016 final; closes W-001b deferrals)
+- [ ] W-036 — Wayland + X11 verification pass + high-DPI + native dialogs check (FoldersDrawer FolderDialog both sessions) (R-017, R-NFR-02/04)
+- [ ] W-037 — S5 gate: network-off DoD rehearsal + `playerctl` matrix + Wayland/X11 sessions + clean-chroot PKGBUILD; close or loop back
 - [x] W-026 — MiniPlayer persistent transport: art thumb, title/artist, play/pause, next/prev, read-only progress, volume, queue toggle; 76px opaque bottom bar below 1280px (R-010, R-011 volume, R-018 functional). Verified: QueueModel currentTitle/currentArtist/durationMs/volumePct/mute + config persist; MiniPlayer bar (<1280, hidden pre-first-play) + docked QueuePanel now-playing summary (≥1280); read-only progress (no seek); 185 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations); qmllint/qmlformat/CMake green + offscreen smoke clean; KWin proof deferred to W-031 gate.
 - [x] W-027 — Async seek (event + AsyncDone) so a FLUSH seek never wedges an EOS pipeline — required before any UI slider (R-011, W-021 follow-up). Verified: `seek` posts a flush `gst::event::Seek` and returns immediately; `AsyncDone` clears `seek_pending`; paused seek still lands 1400–1600 ms; post-EOS seek returns in under 500 ms (no `seek_simple` hang). 186 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations).
 - [x] W-028 — Expanded Now Playing overlay: blurred art, full controls, progress scrub (depends on W-027) (R-018). Verified: `QueueModel.seekMs` posts the W-027 async seek; overlay `NowPlayingView` (MultiEffect 32px blur + 68% tint, opaque `surface` when `reduce_transparency`) opens from MiniPlayer art/title or docked/drawer now-playing row; Close/Esc; live scrub skips poll while dragged; shuffle/prev/64px play/next/repeat + volume + Up Next; reduce-motion zeros overlay duration. 188 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations); qmllint/qmlformat/CMake green + offscreen smoke clean; KWin proof deferred to W-031.

@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Seed S5 work items (Linux integration hardens) from ROADMAP, then W-032 first.
+- W-032: MPRIS engine wiring — real PlaybackStatus/Position/Volume/Metadata + live seek/volume (S5 first).
 
 ## Phase checklist
 - [x] 0 Intake
