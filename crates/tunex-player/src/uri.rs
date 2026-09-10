@@ -26,6 +26,15 @@ pub fn path_to_uri(path: &Path) -> Result<String> {
         })
 }
 
+/// Decode a `file://` URI back to a local path. Non-file URIs and malformed
+/// values return `None` (callers skip restore rather than crash).
+#[must_use]
+pub fn uri_to_path(uri: &str) -> Option<std::path::PathBuf> {
+    gstreamer::glib::filename_from_uri(uri)
+        .ok()
+        .map(|(path, _hostname)| path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -46,5 +55,13 @@ mod tests {
         assert!(!uri.contains(' '), "no raw spaces");
         assert!(!uri.contains('#'), "no raw fragment marker");
         assert!(uri.contains("Caf"), "stem survives encoding");
+    }
+
+    #[test]
+    fn file_uri_round_trips_to_path() {
+        let path = PathBuf::from("/music/Nova Rae/Still Here.flac");
+        let uri = path_to_uri(&path).expect("valid path converts");
+        assert_eq!(uri_to_path(&uri).as_deref(), Some(path.as_path()));
+        assert!(uri_to_path("https://example.invalid/x.flac").is_none());
     }
 }

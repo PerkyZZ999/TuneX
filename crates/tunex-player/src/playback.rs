@@ -16,13 +16,20 @@
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use tokio::sync::mpsc;
 use tunex_core::{Error, PlaybackState, PlayerEvent, RepeatMode, Result};
 
 use super::{Advance, NextUriProvider, PlayerEngine, Queue, QueueItem, Rewind};
+
+/// Give playbin time to leave STOPPED before treating restore as failed.
+const RESTORE_SEEK_DEADLINE: Duration = Duration::from_secs(5);
+/// Minimum gap between restore seek retries (poll is ~16–50 ms).
+const RESTORE_SEEK_RETRY: Duration = Duration::from_millis(80);
+/// Position close enough to the saved restore target counts as landed.
+const RESTORE_SEEK_SLACK: Duration = Duration::from_millis(100);
 
 /// Lock the queue, recovering from a poisoned mutex.
 ///
@@ -65,6 +72,10 @@ pub struct PlaybackController {
     events: Mutex<mpsc::Receiver<PlayerEvent>>,
     /// Skip failures queued for the next [`poll`](Self::poll).
     pending: Mutex<Vec<PlayerEvent>>,
+    /// Restart position to re-seek after preroll; `None` once it lands.
+    pending_restore: Option<Duration>,
+    restore_started: Option<Instant>,
+    last_restore_seek: Option<Instant>,
 }
 
 impl std::fmt::Debug for PlaybackController {
@@ -95,6 +106,9 @@ impl PlaybackController {
             queue,
             events: Mutex::new(events_rx),
             pending: Mutex::new(Vec::new()),
+            pending_restore: None,
+            restore_started: None,
+            last_restore_seek: None,
         })
     }
 
@@ -145,6 +159,34 @@ impl PlaybackController {
             return Err(Error::Player("queue lost the play-now item".to_owned()));
         };
         self.load_and_play(&current.uri)
+    }
+
+    /// Restore one track paused at `position` (restart resume). Missing
+    /// files error explicitly so the caller can skip without blocking.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Player`] when the item is missing or cannot load.
+    pub fn restore_paused(&mut self, item: QueueItem, position: Duration) -> Result<()> {
+        if local_path_missing(&item.uri) {
+            return Err(Error::Player(format!("file is missing: {}", item.title)));
+        }
+        let at = lock_queue(&self.queue).push_back(item);
+        lock_queue(&self.queue).jump(at);
+        let Some(current) = lock_queue(&self.queue).current().cloned() else {
+            return Err(Error::Player("queue lost the restored item".to_owned()));
+        };
+        self.engine.load_uri(&current.uri)?;
+        self.engine.pause()?;
+        if position.is_zero() {
+            self.pending_restore = None;
+        } else {
+            self.pending_restore = Some(position);
+            self.restore_started = Some(Instant::now());
+            self.last_restore_seek = None;
+            let _ = self.engine.seek(position);
+        }
+        Ok(())
     }
 
     /// Play the entry at `index` now (Up Next direct play). Out-of-range
@@ -317,7 +359,14 @@ impl PlaybackController {
     /// Returns [`Error::Player`] when nothing is loaded, the position is out
     /// of range, or the seek fails.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
+        self.pending_restore = None;
         self.engine.seek(position)
+    }
+
+    /// Whether a restart seek is still catching up after preroll.
+    #[must_use]
+    pub fn restore_pending(&self) -> bool {
+        self.pending_restore.is_some()
     }
 
     /// Set output volume, clamped to `0.0` (mute) through `1.0` (full).
@@ -393,11 +442,44 @@ impl PlaybackController {
                 _ => out.push(event),
             }
         }
+        self.retry_restore_seek();
         out
+    }
+
+    /// Re-issue the restore seek once the pipeline has prerolled. The first
+    /// seek at load time races PAUSED; poll retries until it lands or 5 s.
+    fn retry_restore_seek(&mut self) {
+        let Some(target) = self.pending_restore else {
+            return;
+        };
+        if self
+            .restore_started
+            .is_some_and(|started| started.elapsed() > RESTORE_SEEK_DEADLINE)
+        {
+            self.pending_restore = None;
+            return;
+        }
+        if self
+            .last_restore_seek
+            .is_some_and(|at| at.elapsed() < RESTORE_SEEK_RETRY)
+        {
+            return;
+        }
+        if self.engine.state() == PlaybackState::Stopped {
+            return;
+        }
+        let current = self.engine.position().unwrap_or_default();
+        if current + RESTORE_SEEK_SLACK >= target {
+            self.pending_restore = None;
+            return;
+        }
+        let _ = self.engine.seek(target);
+        self.last_restore_seek = Some(Instant::now());
     }
 
     /// Load a URI and start it.
     fn load_and_play(&mut self, uri: &str) -> Result<()> {
+        self.pending_restore = None;
         self.engine.load_uri(uri)?;
         self.engine.play()
     }
@@ -743,6 +825,52 @@ mod tests {
             ],
             "gapless handoff without intermediate stop"
         );
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn restore_paused_loads_missing_file_as_error() {
+        let mut controller = test_controller(false);
+        let err = controller
+            .restore_paused(
+                QueueItem::new("file:///nonexistent-tunex-restore.flac", "Gone"),
+                Duration::from_millis(800),
+            )
+            .expect_err("missing file is explicit");
+        assert!(
+            err.to_string().contains("missing"),
+            "unexpected restore error: {err}"
+        );
+        assert_eq!(controller.queue_len(), 0);
+    }
+
+    #[test]
+    fn restore_paused_holds_track_without_playing() {
+        let (dir, items) = two_clip_album("restore", 2000);
+        let mut controller = test_controller(true);
+        controller
+            .restore_paused(items[0].clone(), Duration::from_millis(1500))
+            .expect("restore loads");
+        assert_eq!(controller.queue_len(), 1);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let _ = controller.poll();
+            let paused = controller.state() == PlaybackState::Paused
+                || controller.state() == PlaybackState::Loading;
+            let position = controller.position().unwrap_or_default();
+            if paused && position >= Duration::from_millis(1400) {
+                break;
+            }
+            assert!(
+                controller.state() != PlaybackState::Playing,
+                "restore must not start audible playback"
+            );
+            assert!(
+                std::time::Instant::now() < deadline,
+                "restored position never settled"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

@@ -821,6 +821,21 @@ pub fn track_by_id(db: &Connection, id: i64) -> Result<Option<TrackRow>> {
     Ok(tracks_by_ids(db, &[id])?.pop())
 }
 
+/// One indexed track by canonical path (session restore).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn track_by_path(db: &Connection, path: &str) -> Result<Option<TrackRow>> {
+    let mut statement = db
+        .prepare(&format!("{TRACK_LIST_SELECT} WHERE tracks.path = ?1"))
+        .map_err(|err| db_error(&err))?;
+    let mut rows = statement
+        .query_map([path], TrackRow::from_row)
+        .map_err(|err| db_error(&err))?;
+    rows.next().transpose().map_err(|err| db_error(&err))
+}
+
 /// Album rows for the given titles that own at least one of `track_ids`
 /// (same-titled albums by different artists all resolve, but only when their
 /// own tracks matched — a shared title never drags in an unrelated album).
@@ -1053,6 +1068,13 @@ mod tests {
         let found = track_by_id(&db, id).expect("lookup works");
         assert_eq!(found.and_then(|row| row.title).as_deref(), Some("Solo"));
         assert!(track_by_id(&db, id + 1000).expect("lookup works").is_none());
+        let by_path = track_by_path(&db, "/music/solo.flac").expect("path lookup works");
+        assert_eq!(by_path.and_then(|row| row.title).as_deref(), Some("Solo"));
+        assert!(
+            track_by_path(&db, "/music/absent.flac")
+                .expect("missing path lookup works")
+                .is_none()
+        );
     }
 
     #[test]

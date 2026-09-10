@@ -25,6 +25,12 @@ pub struct PlaybackConfig {
     pub shuffle: bool,
     /// Queue repeat behavior.
     pub repeat_mode: RepeatMode,
+    /// Last playing URI (`file://…`). Empty/absent means nothing to restore.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_uri: Option<String>,
+    /// Last playback position in milliseconds (best-effort).
+    #[serde(default)]
+    pub last_position_ms: u64,
 }
 
 /// Appearance and accessibility settings.
@@ -179,6 +185,8 @@ mod tests {
                 muted: true,
                 shuffle: true,
                 repeat_mode: RepeatMode::All,
+                last_uri: None,
+                last_position_ms: 0,
             },
             appearance: AppearanceConfig {
                 reduce_motion: true,
@@ -188,6 +196,23 @@ mod tests {
         save_to(&path, &config).expect("save works");
         let back = load_from(&path).expect("reload works");
         assert_eq!(back, config);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn last_track_round_trips() {
+        let dir = scratch_dir("last-track");
+        let path = dir.join("config.toml");
+        let mut config = TunexConfig::default();
+        config.playback.last_uri = Some("file:///music/still-here.flac".to_owned());
+        config.playback.last_position_ms = 12_345;
+        save_to(&path, &config).expect("save works");
+        let back = load_from(&path).expect("reload works");
+        assert_eq!(
+            back.playback.last_uri.as_deref(),
+            Some("file:///music/still-here.flac")
+        );
+        assert_eq!(back.playback.last_position_ms, 12_345);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

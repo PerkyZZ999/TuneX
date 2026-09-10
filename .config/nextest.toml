@@ -11,11 +11,11 @@ fail-fast = false
 gstreamer = { max-threads = 1 }
 
 [[profile.default.overrides]]
-filter = 'package(tunex-player)'
+filter = 'package(tunex-player) or (package(tunex-app) and (test(queue_model) or test(scan_fixtures) or test(playback::tests::enqueue)))'
 test-group = 'gstreamer'
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 [[profile.ci.overrides]]
-filter = 'package(tunex-player)'
+filter = 'package(tunex-player) or (package(tunex-app) and (test(queue_model) or test(scan_fixtures) or test(playback::tests::enqueue)))'
 test-group = 'gstreamer'
 slow-timeout = { period = "30s", terminate-after = 2 }

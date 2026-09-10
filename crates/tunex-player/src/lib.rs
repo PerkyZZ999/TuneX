@@ -13,4 +13,4 @@ pub mod uri;
 pub use engine::{NextUriProvider, PlayerEngine};
 pub use playback::PlaybackController;
 pub use queue::{Advance, Queue, QueueItem, Rewind};
-pub use uri::path_to_uri;
+pub use uri::{path_to_uri, uri_to_path};

@@ -15,13 +15,18 @@ use super::models::qobject;
 
 use core::pin::Pin;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
 use crate::playback::queue_item_from_row;
-use tunex_player::PlaybackController;
+use tunex_player::{PlaybackController, uri_to_path};
+
+/// How often the same-track position is flushed to disk.
+/// Frequent enough that a crash loses at most a couple of seconds; rare
+/// enough not to rewrite `config.toml` on every poll tick.
+const SESSION_SAVE_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
 /// permitted on `#[qenum]` items, so this is written by hand).
@@ -55,6 +60,9 @@ pub struct QueueModelRust {
     last_len: usize,
     last_cursor: Option<usize>,
     last_error: Option<String>,
+    saved_uri: String,
+    saved_position_ms: i32,
+    saved_at: Option<Instant>,
 }
 
 impl Default for QueueModelRust {
@@ -67,6 +75,9 @@ impl Default for QueueModelRust {
             last_len: 0,
             last_cursor: None,
             last_error: None,
+            saved_uri: String::new(),
+            saved_position_ms: 0,
+            saved_at: None,
         }
     }
 }
@@ -109,7 +120,10 @@ impl QueueModelRust {
                     let config = tunex_core::load_from(&self.config_path).unwrap_or_default();
                     controller.set_volume(config.volume);
                     controller.set_muted(config.playback.muted);
+                    controller.set_shuffle(config.playback.shuffle);
+                    controller.set_repeat(config.playback.repeat_mode);
                     self.controller = Some(controller);
+                    self.restore_last_track(&config);
                 }
                 Err(err) => {
                     tracing::warn!(name = "queue.engine_failed", error = %err, "audio unavailable");
@@ -165,15 +179,72 @@ impl QueueModelRust {
                 self.last_error = Some(message.clone());
             }
         }
-        let Some(controller) = &self.controller else {
-            return false;
+        let unchanged = {
+            let Some(controller) = &self.controller else {
+                return false;
+            };
+            controller.queue_len() == self.last_len
+                && controller.current_index() == self.last_cursor
         };
-        if controller.queue_len() == self.last_len && controller.current_index() == self.last_cursor
-        {
-            return false;
+        if !unchanged {
+            self.sync_rows();
+        }
+        self.maybe_persist_session(false);
+        !unchanged
+    }
+
+    /// Best-effort last-track restore: load paused at the saved position when
+    /// the file still exists. Missing files are skipped, never an error toast.
+    fn restore_last_track(&mut self, config: &tunex_core::TunexConfig) {
+        let Some(uri) = config
+            .playback
+            .last_uri
+            .as_deref()
+            .filter(|uri| !uri.is_empty())
+        else {
+            return;
+        };
+        let item = self.item_for_uri(uri);
+        let position = Duration::from_millis(config.playback.last_position_ms);
+        let Some(controller) = self.controller.as_mut() else {
+            return;
+        };
+        if let Err(err) = controller.restore_paused(item, position) {
+            tracing::debug!(
+                name = "queue.restore_skipped",
+                error = %err,
+                "last track not restored"
+            );
+            return;
         }
         self.sync_rows();
-        true
+        uri.clone_into(&mut self.saved_uri);
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "UI position is i32 milliseconds"
+        )]
+        let saved = config.playback.last_position_ms.min(i32::MAX as u64) as i32;
+        self.saved_position_ms = saved;
+        self.saved_at = Some(Instant::now());
+    }
+
+    /// Hydrate a restored URI from the index when possible (filename fallback).
+    fn item_for_uri(&self, uri: &str) -> tunex_player::QueueItem {
+        if let Some(path) = uri_to_path(uri) {
+            if let Ok(db) = tunex_library::open_file(&self.index_path) {
+                if let Ok(Some(row)) = tunex_library::track_by_path(&db, &path.to_string_lossy()) {
+                    if let Some(item) = queue_item_from_row(&row) {
+                        return item;
+                    }
+                }
+            }
+            let title = path.file_name().map_or_else(
+                || "Unknown Title".to_owned(),
+                |name| name.to_string_lossy().into_owned(),
+            );
+            return tunex_player::QueueItem::new(uri, &title);
+        }
+        tunex_player::QueueItem::new(uri, "Unknown Title")
     }
 
     /// Start or resume playback; refreshes rows on success.
@@ -186,6 +257,7 @@ impl QueueModelRust {
             Some(Ok(())) | None => {
                 self.last_error = None;
                 self.sync_rows();
+                self.maybe_persist_session(true);
             }
             Some(Err(err)) => self.last_error = Some(err.to_string()),
         }
@@ -201,6 +273,7 @@ impl QueueModelRust {
                 self.last_error = Some(err.to_string());
             }
         }
+        self.maybe_persist_session(true);
     }
 
     /// Toggle play/pause from the panel transport.
@@ -226,6 +299,7 @@ impl QueueModelRust {
             Some(Ok(())) | None => {
                 self.last_error = None;
                 self.sync_rows();
+                self.maybe_persist_session(true);
             }
             Some(Err(err)) => self.last_error = Some(err.to_string()),
         }
@@ -246,6 +320,7 @@ impl QueueModelRust {
             Some(Ok(())) | None => {
                 self.last_error = None;
                 self.sync_rows();
+                self.maybe_persist_session(true);
             }
             Some(Err(err)) => self.last_error = Some(err.to_string()),
         }
@@ -268,6 +343,7 @@ impl QueueModelRust {
             Some(Ok(())) => {
                 self.last_error = None;
                 self.sync_rows();
+                self.maybe_persist_session(true);
             }
             Some(Err(err)) => self.last_error = Some(err.to_string()),
             None => {}
@@ -320,7 +396,9 @@ impl QueueModelRust {
             return false;
         };
         controller.set_shuffle(!controller.is_shuffle());
-        controller.is_shuffle()
+        let shuffle = controller.is_shuffle();
+        self.write_audio_config();
+        shuffle
     }
 
     /// Whether shuffle is on.
@@ -335,7 +413,7 @@ impl QueueModelRust {
         if !self.ensure_controller() {
             return 0;
         }
-        self.controller.as_mut().map_or(0, |controller| {
+        let mode = self.controller.as_mut().map_or(0, |controller| {
             let next = match controller.repeat_mode() {
                 tunex_core::RepeatMode::Off => tunex_core::RepeatMode::All,
                 tunex_core::RepeatMode::All => tunex_core::RepeatMode::One,
@@ -343,7 +421,9 @@ impl QueueModelRust {
             };
             controller.set_repeat(next);
             repeat_to_int(next)
-        })
+        });
+        self.write_audio_config();
+        mode
     }
 
     /// Repeat mode as 0 (off), 1 (all), 2 (one).
@@ -458,6 +538,7 @@ impl QueueModelRust {
                 Err(err) => self.last_error = Some(err.to_string()),
             }
         }
+        self.maybe_persist_session(true);
     }
 
     /// Whether glass should fall back to opaque surfaces.
@@ -476,7 +557,7 @@ impl QueueModelRust {
             .reduce_motion
     }
 
-    /// Write volume + mute into the settings file (best-effort).
+    /// Write volume, mute, shuffle/repeat, and last-track into settings.
     fn write_audio_config(&self) {
         let Some(controller) = &self.controller else {
             return;
@@ -487,13 +568,55 @@ impl QueueModelRust {
         let volume = controller.volume().clamp(0.0, 1.0) as f32;
         config.volume = volume;
         config.playback.muted = controller.muted();
+        config.playback.shuffle = controller.is_shuffle();
+        config.playback.repeat_mode = controller.repeat_mode();
+        if let Some(item) = controller.current_item() {
+            config.playback.last_uri = Some(item.uri);
+            config.playback.last_position_ms =
+                u64::try_from(self.position_ms().max(0)).unwrap_or(0);
+        }
         if let Err(err) = tunex_core::save_to(&self.config_path, &config) {
             tracing::warn!(
-                name = "queue.volume_persist_failed",
+                name = "queue.session_persist_failed",
                 error = %err,
-                "volume not saved"
+                "playback session not saved"
             );
         }
+    }
+
+    /// Persist last-track + position. `force` writes immediately (pause/seek);
+    /// otherwise position ticks are coalesced to ~2 s.
+    fn maybe_persist_session(&mut self, force: bool) {
+        let Some(item) = self
+            .controller
+            .as_ref()
+            .and_then(PlaybackController::current_item)
+        else {
+            return;
+        };
+        if self
+            .controller
+            .as_ref()
+            .is_some_and(PlaybackController::restore_pending)
+        {
+            return;
+        }
+        let position = self.position_ms();
+        let uri_changed = item.uri != self.saved_uri;
+        let pos_changed = position != self.saved_position_ms;
+        if !force && !uri_changed && !pos_changed {
+            return;
+        }
+        let elapsed = self
+            .saved_at
+            .is_none_or(|at| at.elapsed() >= SESSION_SAVE_INTERVAL);
+        if !force && !uri_changed && !elapsed {
+            return;
+        }
+        self.write_audio_config();
+        self.saved_uri = item.uri;
+        self.saved_position_ms = position;
+        self.saved_at = Some(Instant::now());
     }
 
     /// Cursor position (-1 when idle).
@@ -612,6 +735,7 @@ impl QueueModelRust {
         }
         self.sync_rows();
         self.last_error = None;
+        self.maybe_persist_session(true);
     }
 
     /// Enqueue one album in disc/track order. Returns the number enqueued.
@@ -1084,6 +1208,37 @@ mod tests {
         (model, guard)
     }
 
+    /// Seeded index plus a real fixture file so restore/play paths have audio.
+    fn model_with_playable_track(
+        case: &str,
+    ) -> (QueueModelRust, crate::bridge::test_support::Guard, i64) {
+        let (model, guard) = model_with_seeded_library(case);
+        let wav = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/sine.wav");
+        let dest = guard.0.join("sine.wav");
+        std::fs::copy(&wav, &dest).expect("copy fixture");
+        let mut db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        tunex_library::upsert_track(
+            &mut db,
+            &tunex_library::NewTrack {
+                path: dest.to_string_lossy().into_owned(),
+                stable_key: "sine.wav".to_owned(),
+                title: Some("Sine".to_owned()),
+                artist: Some("Fixture".to_owned()),
+                album: Some("Tones".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("upsert sine");
+        let id = tunex_library::list_tracks(&db)
+            .expect("list works")
+            .into_iter()
+            .find(|track| track.path.ends_with("sine.wav"))
+            .expect("sine indexed")
+            .id;
+        (model, guard, id)
+    }
+
     #[test]
     fn row_data_returns_every_role() {
         let mut model = QueueModelRust::default();
@@ -1140,6 +1295,7 @@ mod tests {
             std::env::temp_dir().join(format!("tunex-queue-noindex-{}", std::process::id()));
         let mut model = QueueModelRust {
             index_path: missing.join("library.db"),
+            config_path: missing.join("config.toml"),
             ..Default::default()
         };
         assert_eq!(model.do_enqueue_track(1), 0);
@@ -1213,7 +1369,7 @@ mod tests {
 
     #[test]
     fn shuffle_and_repeat_toggle_state() {
-        let mut model = QueueModelRust::default();
+        let (mut model, _guard) = model_with_seeded_library("queue-shuffle");
         assert!(!model.is_shuffle());
         assert_eq!(model.volume_pct(), 100, "idle volume reads full");
         assert!(!model.is_muted());
@@ -1224,6 +1380,9 @@ mod tests {
         assert_eq!(model.do_cycle_repeat(), 1);
         assert_eq!(model.do_cycle_repeat(), 2);
         assert_eq!(model.do_cycle_repeat(), 0);
+        let saved = tunex_core::load_from(&model.config_path).expect("modes saved");
+        assert!(saved.playback.shuffle);
+        assert_eq!(saved.playback.repeat_mode, tunex_core::RepeatMode::Off);
         assert_eq!(model.playback_state(), 0, "idle engine reads stopped");
         assert_eq!(model.current_index(), -1, "idle cursor reads -1");
         assert_eq!(model.position_ms(), 0);
@@ -1282,5 +1441,73 @@ mod tests {
         tunex_core::save_to(&model.config_path, &config).expect("appearance saved");
         assert!(model.reduce_transparency());
         assert!(model.reduce_motion());
+    }
+
+    #[test]
+    fn last_track_persists_after_play() {
+        let (mut model, _guard, id) = model_with_playable_track("queue-session-save");
+        model.do_play_track_now(id);
+        model.do_pause();
+        let loaded = tunex_core::load_from(&model.config_path).expect("session saved");
+        let uri = loaded.playback.last_uri.expect("last uri written");
+        assert!(uri.contains("sine.wav"), "unexpected last uri: {uri}");
+    }
+
+    #[test]
+    fn last_track_restores_paused_on_new_model() {
+        let (model, guard, _id) = model_with_playable_track("queue-session-restore");
+        let dest = guard.0.join("sine.wav");
+        let uri = tunex_player::path_to_uri(&dest).expect("fixture uri");
+        let mut config = tunex_core::TunexConfig::default();
+        config.playback.last_uri = Some(uri.clone());
+        config.playback.last_position_ms = 1_500;
+        tunex_core::save_to(&model.config_path, &config).expect("session seeded");
+        let config_path = model.config_path.clone();
+        let index_path = model.index_path.clone();
+        drop(model);
+
+        let mut restored = QueueModelRust {
+            index_path,
+            config_path,
+            ..Default::default()
+        };
+        restored.poll_queue();
+        assert_eq!(restored.row_count(), 1, "restored one track");
+        assert!(
+            restored.error_message().is_none(),
+            "missing file would toast"
+        );
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let _ = restored.poll_queue();
+            let state = restored.playback_state();
+            assert_ne!(state, 2, "restore must not auto-play");
+            let paused = state == 1 || state == 3;
+            if paused && restored.position_ms() >= 1_400 {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "restored position never settled (state={state} pos={})",
+                restored.position_ms()
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn missing_last_track_skips_restore_without_error() {
+        let (mut model, _guard) = model_with_seeded_library("queue-session-missing");
+        let mut config = tunex_core::TunexConfig::default();
+        config.playback.last_uri = Some("file:///nonexistent-tunex-restore-w030.flac".to_owned());
+        config.playback.last_position_ms = 800;
+        tunex_core::save_to(&model.config_path, &config).expect("missing uri seeded");
+        model.poll_queue();
+        assert!(
+            model.error_message().is_none(),
+            "missing last track must not toast: {:?}",
+            model.error_message()
+        );
+        assert_eq!(model.row_count(), 0);
     }
 }

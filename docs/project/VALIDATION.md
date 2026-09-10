@@ -272,3 +272,10 @@
 - **Evidence:** Window shortcuts — Space play/pause (`ApplicationShortcut`, disabled while a text field has focus); media play/pause/next/previous; volume up/down (±5) and mute; `/` and Ctrl+K skip when typing so slash can be entered; Alt+Left/Right plus Back/Forward walk view history; Esc closes Now Playing (Popup), then search-field unwind, then `goBack`. Settings stub documents the list. 188/188 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations), `qmllint`/`qmlformat`/CMake green, offscreen smoke clean (started, MPRIS name owned).
 - **Waiver:** none (KWin keyboard walkthrough deferred to the W-031 gate by design)
 - **Follow-up:** W-030 last-track + position restore.
+
+### 2026-09-10 — S4 W-030: last-track + position restore green
+- **Phase:** 6 (Implement, slice S4)
+- **Result:** pass
+- **Evidence:** Restart resume is one paused track (L-012 queue-across-restart still out of V1). `PlaybackConfig.last_uri`/`last_position_ms` round-trip with volume/mute/shuffle/repeat; `QueueModel` writes on play/pause/seek/URI change and throttles same-track position to ~2 s; idle writes do not wipe the last URI. `PlaybackController::restore_paused` loads paused (never auto-plays); poll retries the preroll-racy seek until it lands or 5 s. Missing files skip with a debug log and no `errorText` toast. Tests: persist after play, second model restores ~1500 ms paused, missing URI skipped. 195/195 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (81.2% new coverage, 0 violations). nextest gstreamer group now also serializes `tunex-app` queue/scan GST tests so they cannot deadlock playbin next to `tunex-player`.
+- **Waiver:** none (KWin restart walkthrough deferred to the W-031 gate by design)
+- **Follow-up:** W-031 S4 gate (keyboard, offline, a11y/contrast/blur-off).
