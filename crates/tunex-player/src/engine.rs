@@ -47,6 +47,10 @@ struct Inner {
     /// Set by [`PlayerEngine::pause`], consumed by the next observed pause.
     /// Distinguishes user pauses from preroll transients (see `on_state_changed`).
     pause_requested: bool,
+    /// A flush seek is in flight; [`gst::MessageView::AsyncDone`] clears it.
+    /// The control method only *posts* the seek event — it never waits for
+    /// the streaming thread, so an EOS-wedged pipeline cannot hang the caller.
+    seek_pending: bool,
 }
 
 impl std::fmt::Debug for Inner {
@@ -58,6 +62,7 @@ impl std::fmt::Debug for Inner {
             .field("next_provider", &self.next_provider.is_some())
             .field("queued_uri", &self.queued_uri)
             .field("pause_requested", &self.pause_requested)
+            .field("seek_pending", &self.seek_pending)
             .finish()
     }
 }
@@ -104,6 +109,7 @@ impl PlayerEngine {
             next_provider: None,
             queued_uri: None,
             pause_requested: false,
+            seek_pending: false,
         }));
         let shutdown = Arc::new(AtomicBool::new(false));
         let about_to_finish = connect_about_to_finish(&playbin, &inner);
@@ -214,21 +220,40 @@ impl PlayerEngine {
 
     /// Seek to an absolute position.
     ///
+    /// Posts a flush seek event and returns as soon as the pipeline accepts
+    /// it. Completion arrives as [`gst::MessageView::AsyncDone`] on the bus
+    /// (the UI polls position). Never calls blocking `seek_simple`, which
+    /// can hang forever against an EOS-wedged pipeline.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::Player`] when nothing is loaded, the position is out
-    /// of range, or the seek fails.
+    /// of range, or the pipeline refuses the event.
     pub fn seek(&self, position: Duration) -> Result<()> {
         if !self.has_track() {
             return Err(Error::Player("nothing loaded".to_owned()));
         }
-        let position = gst::ClockTime::try_from(position).map_err(|err| {
+        let start = gst::ClockTime::try_from(position).map_err(|err| {
             Error::Player(format!("position out of range: {position:?} ({err:?})"))
         })?;
-        self.playbin
-            .seek_simple(gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT, position)
-            .map_err(|err| Error::Player(format!("seek failed: {err}")))?;
-        Ok(())
+        let event = gst::event::Seek::new(
+            1.0,
+            gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT,
+            gst::SeekType::Set,
+            start,
+            gst::SeekType::End,
+            gst::ClockTime::ZERO,
+        );
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.seek_pending = true;
+        }
+        if self.playbin.send_event(event) {
+            return Ok(());
+        }
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.seek_pending = false;
+        }
+        Err(Error::Player("seek refused".to_owned()))
     }
 
     /// Set output volume, clamped to `0.0` (mute) through `1.0` (full).
@@ -432,6 +457,9 @@ fn handle_message(
         }
         MessageView::StateChanged(..) => on_state_changed(playbin, inner, events),
         MessageView::DurationChanged(..) | MessageView::AsyncDone(..) => {
+            if let Ok(mut guard) = inner.lock() {
+                guard.seek_pending = false;
+            }
             on_duration_discovery(playbin, inner, events);
         }
         _ => {}
@@ -689,6 +717,30 @@ mod tests {
             assert!(tokio::time::Instant::now() < deadline, "seek never landed");
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[tokio::test]
+    async fn seek_after_eos_returns_without_hanging() {
+        let dir = std::env::temp_dir().join(format!("tunex-seek-eos-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        let clip = dir.join("short.wav");
+        write_sine_wav(&clip, 200, 440.0);
+
+        let (engine, mut receiver) = test_engine();
+        engine.load_path(&clip).expect("fixture loads");
+        engine.play().expect("playback starts");
+        wait_for_state(&mut receiver, PlaybackState::Playing).await;
+        wait_for_state(&mut receiver, PlaybackState::Stopped).await;
+
+        let started = tokio::time::Instant::now();
+        let outcome = engine.seek(Duration::from_millis(50));
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "EOS flush seek must not block the caller"
+        );
+        // Refused or posted: either is fine so long as this returns.
+        drop(outcome);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

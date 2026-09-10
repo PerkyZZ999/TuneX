@@ -251,3 +251,10 @@
 - **Evidence:** Persistent player — `MiniPlayer` 76px opaque bar below 1280px (hidden until first play) + docked 320px `QueuePanel` at ≥1280 with now-playing summary (monogram art, title/artist, read-only progress, volume/mute). `QueueModel` exposes `currentTitle`/`currentArtist`/`durationMs`/`volumePct`/`isMuted`/`setVolumePct`/`setMuted`; volume+mute persist to config and reload on engine init. Seek slider not wired (W-027). 185/185 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations), `qmllint`/`qmlformat`/CMake green, offscreen smoke clean (started, MPRIS name owned). qt-qml-review: focus rings avoid transparent fills; drawer panel tracking gated on `opened`.
 - **Waiver:** none (KWin visual proof deferred to the W-031 gate by design)
 - **Follow-up:** W-027 async seek. W-026 learnings: MiniPlayer is compact-only — the wide shell needs the same transport on the docked panel or volume/progress vanish at ≥1280; `currentTitle` must read the `isCurrent` row, not `data()` from QML.
+
+### 2026-09-10 — S4 W-027: async seek green
+- **Phase:** 6 (Implement, slice S4)
+- **Result:** pass
+- **Evidence:** `PlayerEngine::seek` posts `gst::event::Seek` (FLUSH|KEY_UNIT) via `send_event` and returns without waiting; bus `AsyncDone` clears `seek_pending`. Existing paused seek still lands 1400–1600 ms; new `seek_after_eos_returns_without_hanging` finishes in well under 500 ms (the old `seek_simple` path could block the caller on an EOS pipeline). Slider still unwired until W-028. 186/186 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations).
+- **Waiver:** none
+- **Follow-up:** W-028 Now Playing overlay can scrub through this seek.

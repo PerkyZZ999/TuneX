@@ -7,7 +7,7 @@ S4 — Player UI complete (M4). Goal: MiniPlayer + expanded now-playing, keyboar
 
 ## Queue
 - [x] W-026 — MiniPlayer persistent transport: art thumb, title/artist, play/pause, next/prev, read-only progress, volume, queue toggle; 76px opaque bottom bar below 1280px (R-010, R-011 volume, R-018 functional). Verified: QueueModel currentTitle/currentArtist/durationMs/volumePct/mute + config persist; MiniPlayer bar (<1280, hidden pre-first-play) + docked QueuePanel now-playing summary (≥1280); read-only progress (no seek); 185 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations); qmllint/qmlformat/CMake green + offscreen smoke clean; KWin proof deferred to W-031 gate.
-- [ ] W-027 — Async seek (event + AsyncDone) so a FLUSH seek never wedges an EOS pipeline — required before any UI slider (R-011, W-021 follow-up)
+- [x] W-027 — Async seek (event + AsyncDone) so a FLUSH seek never wedges an EOS pipeline — required before any UI slider (R-011, W-021 follow-up). Verified: `seek` posts a flush `gst::event::Seek` and returns immediately; `AsyncDone` clears `seek_pending`; paused seek still lands 1400–1600 ms; post-EOS seek returns in under 500 ms (no `seek_simple` hang). 186 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations).
 - [ ] W-028 — Expanded Now Playing overlay: blurred art, full controls, progress scrub (depends on W-027) (R-018)
 - [ ] W-029 — Keyboard map: Space play/pause, media next/prev/volume, search `/`+Ctrl+K already live, Esc/back, documented list (R-014)
 - [ ] W-030 — Best-effort last-track + position restore on restart when the file still exists (R-011, R-015)
