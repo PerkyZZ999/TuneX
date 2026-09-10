@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-035: PKGBUILD final (`package()` install rules + Corrosion vendoring + clean-chroot `makepkg`).
+- W-036: Wayland + X11 verification pass (FoldersDrawer dialogs, high-DPI, native dialogs).
 
 ## Phase checklist
 - [x] 0 Intake

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=TuneX
+Comment=Local-first music player for Linux
+Exec=tunex
+Icon=tunex
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;
+StartupNotify=true
