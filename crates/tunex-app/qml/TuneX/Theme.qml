@@ -55,4 +55,10 @@ QtObject {
     readonly property int windowMinHeight: 640
     readonly property int railWidth: 240
     readonly property int panelWidth: 320
+    // DESIGN.md: three-column shell at ≥1280; 76px opaque mini-player below.
+    readonly property int shellWide: 1280
+    readonly property int miniPlayerHeight: 76
+    readonly property int progressTrack: 4
+    readonly property int targetMin: 44
+    readonly property int artThumb: 48
 }

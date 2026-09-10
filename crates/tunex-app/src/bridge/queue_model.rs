@@ -51,6 +51,7 @@ pub struct QueueModelRust {
     rows: Vec<QueueRow>,
     controller: Option<PlaybackController>,
     index_path: PathBuf,
+    config_path: PathBuf,
     last_len: usize,
     last_cursor: Option<usize>,
     last_error: Option<String>,
@@ -62,6 +63,7 @@ impl Default for QueueModelRust {
             rows: Vec::new(),
             controller: None,
             index_path: tunex_core::library_db_path(),
+            config_path: tunex_core::config_file(),
             last_len: 0,
             last_cursor: None,
             last_error: None,
@@ -103,7 +105,12 @@ impl QueueModelRust {
     fn ensure_controller(&mut self) -> bool {
         if self.controller.is_none() {
             match PlaybackController::new() {
-                Ok(controller) => self.controller = Some(controller),
+                Ok(mut controller) => {
+                    let config = tunex_core::load_from(&self.config_path).unwrap_or_default();
+                    controller.set_volume(config.volume);
+                    controller.set_muted(config.playback.muted);
+                    self.controller = Some(controller);
+                }
                 Err(err) => {
                     tracing::warn!(name = "queue.engine_failed", error = %err, "audio unavailable");
                     self.last_error = Some(err.to_string());
@@ -360,6 +367,101 @@ impl QueueModelRust {
             .and_then(PlaybackController::position)
             .and_then(|position| i32::try_from(position.as_millis()).ok())
             .unwrap_or(0)
+    }
+
+    /// Playing row, when the cursor is on a synced entry.
+    fn current_row(&self) -> Option<&QueueRow> {
+        self.rows.iter().find(|row| row.4)
+    }
+
+    /// Known duration: engine first, then the playing row, else 0.
+    fn duration_ms(&self) -> i32 {
+        let from_engine = self
+            .controller
+            .as_ref()
+            .and_then(PlaybackController::duration)
+            .and_then(|duration| i32::try_from(duration.as_millis()).ok())
+            .unwrap_or(0);
+        if from_engine > 0 {
+            return from_engine;
+        }
+        self.current_row().map_or(0, |row| row.3)
+    }
+
+    /// Title of the playing row (empty when idle).
+    fn current_title(&self) -> QString {
+        self.current_row()
+            .map(|row| row.0.clone())
+            .unwrap_or_default()
+    }
+
+    /// Artist of the playing row (empty when idle).
+    fn current_artist(&self) -> QString {
+        self.current_row()
+            .map(|row| row.1.clone())
+            .unwrap_or_default()
+    }
+
+    /// Output volume as 0–100 (100 when the engine is not up yet).
+    fn volume_pct(&self) -> i32 {
+        self.controller.as_ref().map_or(100, |controller| {
+            let scaled = (controller.volume().clamp(0.0, 1.0) * 100.0).round();
+            // Clamped to 0..=100 before the integer cast.
+            #[expect(clippy::cast_possible_truncation, reason = "volume percent is 0..=100")]
+            let pct = scaled.clamp(0.0, 100.0) as i32;
+            pct
+        })
+    }
+
+    /// Set output volume (clamped 0–100) and persist it to config.
+    fn set_volume_pct(&mut self, pct: i32) {
+        if !self.ensure_controller() {
+            return;
+        }
+        let clamped = u8::try_from(pct.clamp(0, 100)).unwrap_or(100);
+        let volume = f32::from(clamped) / 100.0;
+        if let Some(controller) = &mut self.controller {
+            controller.set_volume(volume);
+        }
+        self.write_audio_config();
+    }
+
+    /// Whether output is muted.
+    fn is_muted(&self) -> bool {
+        self.controller
+            .as_ref()
+            .is_some_and(PlaybackController::muted)
+    }
+
+    /// Mute or unmute and persist.
+    fn set_muted(&mut self, muted: bool) {
+        if !self.ensure_controller() {
+            return;
+        }
+        if let Some(controller) = &mut self.controller {
+            controller.set_muted(muted);
+        }
+        self.write_audio_config();
+    }
+
+    /// Write volume + mute into the settings file (best-effort).
+    fn write_audio_config(&self) {
+        let Some(controller) = &self.controller else {
+            return;
+        };
+        let mut config = tunex_core::load_from(&self.config_path).unwrap_or_default();
+        // Pipeline volume is 0..=1; f32 is the config field width.
+        #[expect(clippy::cast_possible_truncation, reason = "volume is 0..=1")]
+        let volume = controller.volume().clamp(0.0, 1.0) as f32;
+        config.volume = volume;
+        config.playback.muted = controller.muted();
+        if let Err(err) = tunex_core::save_to(&self.config_path, &config) {
+            tracing::warn!(
+                name = "queue.volume_persist_failed",
+                error = %err,
+                "volume not saved"
+            );
+        }
     }
 
     /// Cursor position (-1 when idle).
@@ -709,6 +811,41 @@ impl qobject::QueueModel {
         self.rust().position_ms()
     }
 
+    /// Known duration in milliseconds (engine, else current row, else 0).
+    pub fn duration_ms(&self) -> i32 {
+        self.rust().duration_ms()
+    }
+
+    /// Title of the playing row (empty when idle).
+    pub fn current_title(&self) -> QString {
+        self.rust().current_title()
+    }
+
+    /// Artist of the playing row (empty when idle).
+    pub fn current_artist(&self) -> QString {
+        self.rust().current_artist()
+    }
+
+    /// Output volume as 0–100.
+    pub fn volume_pct(&self) -> i32 {
+        self.rust().volume_pct()
+    }
+
+    /// Set output volume (clamped 0–100) and persist it.
+    pub fn set_volume_pct(mut self: Pin<&mut Self>, pct: i32) {
+        self.as_mut().rust_mut().set_volume_pct(pct);
+    }
+
+    /// Whether output is muted.
+    pub fn is_muted(&self) -> bool {
+        self.rust().is_muted()
+    }
+
+    /// Mute or unmute (independent of the volume level) and persist.
+    pub fn set_muted(mut self: Pin<&mut Self>, muted: bool) {
+        self.as_mut().rust_mut().set_muted(muted);
+    }
+
     /// Cursor position (-1 when idle).
     pub fn current_index(&self) -> i32 {
         self.rust().current_index()
@@ -891,8 +1028,10 @@ mod tests {
         case: &str,
     ) -> (QueueModelRust, crate::bridge::test_support::Guard) {
         let (guard, path) = seeded_index(case);
+        let config_path = guard.0.join("config.toml");
         let model = QueueModelRust {
             index_path: path,
+            config_path,
             ..Default::default()
         };
         (model, guard)
@@ -1029,6 +1168,9 @@ mod tests {
     fn shuffle_and_repeat_toggle_state() {
         let mut model = QueueModelRust::default();
         assert!(!model.is_shuffle());
+        assert_eq!(model.volume_pct(), 100, "idle volume reads full");
+        assert!(!model.is_muted());
+        assert_eq!(model.duration_ms(), 0);
         assert!(model.do_toggle_shuffle());
         assert!(model.is_shuffle());
         assert_eq!(model.repeat_mode(), 0);
@@ -1038,5 +1180,36 @@ mod tests {
         assert_eq!(model.playback_state(), 0, "idle engine reads stopped");
         assert_eq!(model.current_index(), -1, "idle cursor reads -1");
         assert_eq!(model.position_ms(), 0);
+    }
+
+    #[test]
+    fn current_track_reads_from_playing_row() {
+        let mut model = QueueModelRust::default();
+        model.rows.push((
+            QString::from("Midnight"),
+            QString::from("Nova Rae"),
+            QString::from("Night Tapes"),
+            273_000,
+            true,
+            7,
+        ));
+        assert_eq!(model.current_title(), QString::from("Midnight"));
+        assert_eq!(model.current_artist(), QString::from("Nova Rae"));
+        assert_eq!(model.duration_ms(), 273_000);
+    }
+
+    #[test]
+    fn volume_clamps_and_persists() {
+        let (mut model, _guard) = model_with_seeded_library("queue-volume");
+        model.set_volume_pct(150);
+        assert_eq!(model.volume_pct(), 100);
+        model.set_volume_pct(-4);
+        assert_eq!(model.volume_pct(), 0);
+        let loaded = tunex_core::load_from(&model.config_path).expect("volume saved");
+        assert!((loaded.volume - 0.0).abs() < f32::EPSILON);
+        model.set_muted(true);
+        assert!(model.is_muted());
+        let loaded = tunex_core::load_from(&model.config_path).expect("mute saved");
+        assert!(loaded.playback.muted);
     }
 }

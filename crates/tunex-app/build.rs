@@ -32,6 +32,7 @@ fn main() {
                 "qml/TuneX/FoldersDrawer.qml",
                 "qml/TuneX/SearchView.qml",
                 "qml/TuneX/QueuePanel.qml",
+                "qml/TuneX/MiniPlayer.qml",
                 "qml/TuneX/TrackMenu.qml",
                 "qml/TuneX/PlaylistsView.qml",
                 "qml/TuneX/PlaylistNameDialog.qml",

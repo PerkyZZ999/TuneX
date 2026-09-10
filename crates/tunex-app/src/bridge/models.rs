@@ -476,6 +476,46 @@ pub mod qobject {
         #[cxx_name = "positionMs"]
         fn position_ms(self: &QueueModel) -> i32;
 
+        /// Known duration in milliseconds (engine, else current row, else 0).
+        /// Exposed to QML as `durationMs`.
+        #[qinvokable]
+        #[cxx_name = "durationMs"]
+        fn duration_ms(self: &QueueModel) -> i32;
+
+        /// Title of the playing row (empty when idle).
+        /// Exposed to QML as `currentTitle`.
+        #[qinvokable]
+        #[cxx_name = "currentTitle"]
+        fn current_title(self: &QueueModel) -> QString;
+
+        /// Artist of the playing row (empty when idle).
+        /// Exposed to QML as `currentArtist`.
+        #[qinvokable]
+        #[cxx_name = "currentArtist"]
+        fn current_artist(self: &QueueModel) -> QString;
+
+        /// Output volume as 0–100. Exposed as `volumePct`.
+        #[qinvokable]
+        #[cxx_name = "volumePct"]
+        fn volume_pct(self: &QueueModel) -> i32;
+
+        /// Set output volume (clamped 0–100) and persist it.
+        /// Exposed to QML as `setVolumePct`.
+        #[qinvokable]
+        #[cxx_name = "setVolumePct"]
+        fn set_volume_pct(self: Pin<&mut QueueModel>, pct: i32);
+
+        /// Whether output is muted. Exposed as `isMuted`.
+        #[qinvokable]
+        #[cxx_name = "isMuted"]
+        fn is_muted(self: &QueueModel) -> bool;
+
+        /// Mute or unmute (independent of the volume level) and persist.
+        /// Exposed to QML as `setMuted`.
+        #[qinvokable]
+        #[cxx_name = "setMuted"]
+        fn set_muted(self: Pin<&mut QueueModel>, muted: bool);
+
         /// Cursor position (-1 when idle). Exposed as `currentIndex`.
         #[qinvokable]
         #[cxx_name = "currentIndex"]
