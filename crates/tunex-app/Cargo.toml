@@ -20,11 +20,13 @@ cxx.workspace = true
 cxx-qt.workspace = true
 cxx-qt-lib.workspace = true
 mpris-server.workspace = true
+rusqlite.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tunex-core.workspace = true
 tunex-library.workspace = true
+tunex-player.workspace = true
 
 [dev-dependencies]
 gstreamer.workspace = true

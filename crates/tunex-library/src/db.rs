@@ -581,6 +581,31 @@ pub fn list_tracks_in_album(db: &Connection, album_id: i64) -> Result<Vec<TrackR
         .map_err(|err| db_error(&err))
 }
 
+/// Tracks by one artist in album order (release year, album title, then
+/// disc/track), for artist enqueue. Untagged years sort last.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_tracks_for_artist(db: &Connection, artist: &str) -> Result<Vec<TrackRow>> {
+    let mut statement = db
+        .prepare(&format!(
+            "{TRACK_LIST_SELECT}
+             WHERE artists.name = ?1
+             ORDER BY COALESCE(tracks.year, 9999),
+                      albums.title COLLATE NOCASE,
+                      COALESCE(tracks.disc_number, 1),
+                      COALESCE(tracks.track_number, 1000000),
+                      tracks.path"
+        ))
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([artist], TrackRow::from_row)
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
 /// First `limit` tracks by path (songs tab over large libraries stays
 /// bounded; full paging and search arrive in S3).
 ///
@@ -1027,6 +1052,47 @@ mod tests {
         let capped = list_tracks_capped(&db, 2).expect("capped list");
         assert_eq!(capped.len(), 2);
         assert!(list_tracks_capped(&db, 0).expect("empty cap").is_empty());
+    }
+
+    #[test]
+    fn artist_tracks_list_in_album_order() {
+        let mut db = open_memory().expect("in-memory opens");
+        for (path, title, artist, album, year, number) in [
+            ("b2.flac", "Two", "Nova Rae", "Night Tapes", 2024, 2),
+            ("b1.flac", "One", "Nova Rae", "Night Tapes", 2024, 1),
+            ("solo.flac", "Solo", "Solo Act", "Only", 2020, 1),
+            ("day.flac", "Day", "Nova Rae", "Day Tapes", 2022, 1),
+        ] {
+            upsert_track(
+                &mut db,
+                &NewTrack {
+                    path: format!("/music/{path}"),
+                    stable_key: path.to_owned(),
+                    title: Some(title.to_owned()),
+                    artist: Some(artist.to_owned()),
+                    album: Some(album.to_owned()),
+                    year: Some(year),
+                    track_number: Some(number),
+                    ..Default::default()
+                },
+            )
+            .expect("upsert works");
+        }
+        let rows = list_tracks_for_artist(&db, "Nova Rae").expect("artist tracks list");
+        let titles: Vec<&str> = rows
+            .iter()
+            .map(|row| row.title.as_deref().unwrap_or("<unknown>"))
+            .collect();
+        assert_eq!(
+            titles,
+            ["Day", "One", "Two"],
+            "year, then album, then track number"
+        );
+        assert!(
+            list_tracks_for_artist(&db, "Nobody")
+                .expect("unknown artist lists")
+                .is_empty()
+        );
     }
 
     #[test]

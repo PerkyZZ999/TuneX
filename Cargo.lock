@@ -1902,6 +1902,7 @@ dependencies = [
  "cxx-qt-lib",
  "gstreamer",
  "mpris-server",
+ "rusqlite",
  "tokio",
  "tracing",
  "tracing-subscriber",

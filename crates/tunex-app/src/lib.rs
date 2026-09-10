@@ -19,6 +19,9 @@ pub mod library;
 /// MPRIS D-Bus presence and transport surface (engine wiring lands in S5).
 pub mod mpris;
 
+/// Library-to-queue bridging (index rows become playable queue items).
+pub mod playback;
+
 /// Debounced search orchestration (keystrokes in, grouped results out).
 pub mod search;
 

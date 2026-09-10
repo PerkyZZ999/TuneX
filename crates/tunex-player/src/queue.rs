@@ -16,24 +16,68 @@ const RESTART_THRESHOLD: Duration = Duration::from_secs(3);
 /// Oldest entries drop first; only `previous` navigation reads history.
 const HISTORY_CAP: usize = 512;
 
-/// One queued entry. Today: URI plus display title; S2 enriches entries from
-/// the library without changing this interface.
+/// One queued entry: playback URI plus library display data.
+///
+/// Entries from the library carry their row identity and tags (W-021); ad-hoc
+/// entries (tests, future URL drops) carry URI + title with the rest `None`.
+/// Artwork is intentionally absent: Up Next renders the monogram placeholder
+/// until the lazy art pipeline lands (S2 deferral), never a blocking decode.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueueItem {
     /// Playback URI (`file://` for local tracks).
     pub uri: String,
-    /// Display title.
+    /// Display title (filename fallback when untagged — never fabricated tags).
     pub title: String,
+    /// Library row id, when the item came from the index.
+    pub track_id: Option<i64>,
+    /// Display artist, when tagged.
+    pub artist: Option<String>,
+    /// Display album, when tagged.
+    pub album: Option<String>,
+    /// Tagged duration, when known.
+    pub duration: Option<Duration>,
 }
 
 impl QueueItem {
-    /// Convenience constructor for tests and early slices.
+    /// Convenience constructor for ad-hoc items and tests.
     #[must_use]
     pub fn new(uri: &str, title: &str) -> Self {
         Self {
             uri: uri.to_owned(),
             title: title.to_owned(),
+            track_id: None,
+            artist: None,
+            album: None,
+            duration: None,
         }
+    }
+
+    /// Attach the library row id (Up Next identity, missing-state joins).
+    #[must_use]
+    pub fn with_track_id(mut self, track_id: i64) -> Self {
+        self.track_id = Some(track_id);
+        self
+    }
+
+    /// Attach the display artist.
+    #[must_use]
+    pub fn with_artist(mut self, artist: impl Into<String>) -> Self {
+        self.artist = Some(artist.into());
+        self
+    }
+
+    /// Attach the display album.
+    #[must_use]
+    pub fn with_album(mut self, album: impl Into<String>) -> Self {
+        self.album = Some(album.into());
+        self
+    }
+
+    /// Attach the tagged duration.
+    #[must_use]
+    pub fn with_duration(mut self, duration: Duration) -> Self {
+        self.duration = Some(duration);
+        self
     }
 }
 
@@ -104,6 +148,45 @@ impl Queue {
     #[must_use]
     pub fn current(&self) -> Option<&QueueItem> {
         self.current.and_then(|index| self.items.get(index))
+    }
+
+    /// Cursor position, for Up Next highlight and controller handoffs.
+    #[must_use]
+    pub fn current_index(&self) -> Option<usize> {
+        self.current
+    }
+
+    /// Entry by position, for Up Next rows.
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<&QueueItem> {
+        self.items.get(index)
+    }
+
+    /// Jump the cursor to an entry (play-now, Up Next direct play). The
+    /// previous cursor (if any) lands on history, so `previous` steps back
+    /// to it. Returns false when out of range (cursor unchanged).
+    pub fn jump(&mut self, index: usize) -> bool {
+        if index >= self.items.len() {
+            return false;
+        }
+        if let Some(current) = self.current {
+            self.push_history(current);
+        }
+        self.current = Some(index);
+        true
+    }
+
+    /// Error-aware advance: like [`next`](Self::next), but repeat-one steps
+    /// forward instead of replaying — a broken track must not replay itself
+    /// forever through the skip path.
+    pub fn advance_past_error(&mut self) -> Advance {
+        if self.repeat != RepeatMode::One {
+            return self.next();
+        }
+        let saved = std::mem::replace(&mut self.repeat, RepeatMode::Off);
+        let outcome = self.next();
+        self.repeat = saved;
+        outcome
     }
 
     /// Append to the end of the queue; returns the item index.
@@ -522,5 +605,64 @@ mod tests {
         assert!(queue.is_empty());
         assert_eq!(queue.current(), None);
         assert_eq!(queue.next(), Advance::End);
+    }
+
+    #[test]
+    fn enrichment_chainers_attach_library_data() {
+        let item = QueueItem::new("file:///a.flac", "A")
+            .with_track_id(7)
+            .with_artist("Nova Rae")
+            .with_album("Night Tapes")
+            .with_duration(Duration::from_secs(273));
+        assert_eq!(item.track_id, Some(7));
+        assert_eq!(item.artist.as_deref(), Some("Nova Rae"));
+        assert_eq!(item.album.as_deref(), Some("Night Tapes"));
+        assert_eq!(item.duration, Some(Duration::from_secs(273)));
+        assert_ne!(
+            item,
+            QueueItem::new("file:///a.flac", "A"),
+            "enrichment participates in identity"
+        );
+    }
+
+    #[test]
+    fn jump_moves_cursor_with_history() {
+        let mut queue = three_track_queue();
+        assert_eq!(queue.next(), Advance::Item(0));
+        assert!(queue.jump(2));
+        assert_eq!(queue.current_index(), Some(2));
+        assert_eq!(queue.current().map(|item| item.title.as_str()), Some("C"));
+        assert!(!queue.jump(99), "out-of-range jumps fail loudly");
+        assert_eq!(queue.current_index(), Some(2));
+        assert_eq!(
+            queue.previous(Duration::ZERO),
+            Rewind::Item(0),
+            "jumped-from track stays reachable via previous"
+        );
+    }
+
+    #[test]
+    fn advance_past_error_steps_forward_under_repeat_one() {
+        let mut queue = three_track_queue();
+        queue.set_repeat(RepeatMode::One);
+        assert_eq!(queue.next(), Advance::Item(0));
+        assert_eq!(
+            queue.advance_past_error(),
+            Advance::Item(1),
+            "broken tracks skip forward instead of replaying"
+        );
+        assert_eq!(queue.repeat(), RepeatMode::One, "mode preserved");
+        assert_eq!(
+            queue.next(),
+            Advance::Item(1),
+            "normal advance still replays"
+        );
+    }
+
+    #[test]
+    fn get_reads_entries_by_position() {
+        let queue = three_track_queue();
+        assert_eq!(queue.get(1).map(|item| item.title.as_str()), Some("B"));
+        assert!(queue.get(99).is_none());
     }
 }
