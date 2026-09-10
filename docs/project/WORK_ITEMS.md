@@ -6,7 +6,7 @@
 S3 — Search + queue depth + playlists (M3+M4 core). Goal: find anything instantly, queue everything fluidly, playlists persist — FTS5 search with debounce + stale-cancel, full queue ops wired to the library, playlist CRUD + play.
 
 ## Queue
-- [ ] W-019 — Search backend: multi-term FTS5 parser (AND across 7 fields, quoted literals, prefix tails) + debounced worker (~150 ms) with generation stale-cancel + grouped results (tracks/albums/artists, LIMIT 200/group) + TrackRow hydration (R-008, R-NFR-01)
+- [x] W-019 — Search backend: multi-term FTS5 parser (AND across 7 fields, quoted literals, prefix tails) + debounced worker (~150 ms) with generation stale-cancel + grouped results (tracks/albums/artists, LIMIT 200/group) + TrackRow hydration (R-008, R-NFR-01). Verified: multi-term AND narrows, punctuation literal, prefix stems, empty short-circuits, groups resolve with counts, dup-title ownership guard; burst coalesces to latest, stale dropped worker- and controller-side, missing→empty, corrupt→surfaced-then-cleared; 134 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (S3776 split into coalesce/supersede helpers).
 - [ ] W-020 — Search UI: search field + shortcut focus, results views reusing TrackRow/AlbumCard/ArtistCard, QML search models fed by controller, loading/empty/no-result states, Esc clears (R-008, R-014 part)
 - [ ] W-021 — Queue depth backend: QueueItem library enrichment (track id/artist/album/duration/art key) + enqueue-from-library helpers (tracks/album/artist, play-next/play-now) + engine advance/end-of-track wiring + gapless album check (R-010 full)
 - [ ] W-022 — Queue UI: Up Next panel (reorder/remove/clear, row play-next/play-now actions, shuffle/repeat toggles, now-playing highlight, empty state); queue survives navigation (R-010 full)

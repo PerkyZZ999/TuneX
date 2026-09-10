@@ -19,6 +19,9 @@ pub mod library;
 /// MPRIS D-Bus presence and transport surface (engine wiring lands in S5).
 pub mod mpris;
 
+/// Debounced search orchestration (keystrokes in, grouped results out).
+pub mod search;
+
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QUrl};
 
 // Anchor the cxx-qt generated initializers into every final link.

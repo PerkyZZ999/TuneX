@@ -491,6 +491,29 @@ pub struct AlbumRow {
     pub track_count: i64,
 }
 
+/// Shared album-list projection: attributed artist plus track counts.
+/// Callers append their own `WHERE` before [`ALBUM_LIST_TAIL`].
+const ALBUM_LIST_SELECT: &str = "SELECT albums.id AS id, albums.title AS title,
+                    artists.name AS artist, albums.year AS year,
+                    COUNT(tracks.id) AS track_count
+             FROM albums
+             LEFT JOIN artists ON artists.id = albums.artist_id
+             LEFT JOIN tracks ON tracks.album_id = albums.id";
+
+/// Grouping + ordering tail shared by every album-list query.
+const ALBUM_LIST_TAIL: &str = "GROUP BY albums.id ORDER BY albums.title COLLATE NOCASE";
+
+/// Shared artist-list projection: album/track counts per name. Callers append
+/// their own `WHERE` before [`ARTIST_LIST_TAIL`].
+const ARTIST_LIST_SELECT: &str = "SELECT artists.name AS name,
+                    COUNT(DISTINCT tracks.album_id) AS album_count,
+                    COUNT(tracks.id) AS track_count
+             FROM artists
+             LEFT JOIN tracks ON tracks.artist_id = artists.id";
+
+/// Grouping + ordering tail shared by every artist-list query.
+const ARTIST_LIST_TAIL: &str = "GROUP BY artists.id ORDER BY artists.name COLLATE NOCASE";
+
 /// Every attributed artist with album/track counts, ordered by name.
 ///
 /// # Errors
@@ -498,15 +521,7 @@ pub struct AlbumRow {
 /// Returns [`Error::Database`] when the query fails.
 pub fn list_artists(db: &Connection) -> Result<Vec<ArtistRow>> {
     let mut statement = db
-        .prepare(
-            "SELECT artists.name AS name,
-                    COUNT(DISTINCT tracks.album_id) AS album_count,
-                    COUNT(tracks.id) AS track_count
-             FROM artists
-             LEFT JOIN tracks ON tracks.artist_id = artists.id
-             GROUP BY artists.id
-             ORDER BY artists.name COLLATE NOCASE",
-        )
+        .prepare(&format!("{ARTIST_LIST_SELECT} {ARTIST_LIST_TAIL}"))
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], |row| {
@@ -527,16 +542,7 @@ pub fn list_artists(db: &Connection) -> Result<Vec<ArtistRow>> {
 /// Returns [`Error::Database`] when the query fails.
 pub fn list_albums(db: &Connection) -> Result<Vec<AlbumRow>> {
     let mut statement = db
-        .prepare(
-            "SELECT albums.id AS id, albums.title AS title,
-                    artists.name AS artist, albums.year AS year,
-                    COUNT(tracks.id) AS track_count
-             FROM albums
-             LEFT JOIN artists ON artists.id = albums.artist_id
-             LEFT JOIN tracks ON tracks.album_id = albums.id
-             GROUP BY albums.id
-             ORDER BY albums.title COLLATE NOCASE",
-        )
+        .prepare(&format!("{ALBUM_LIST_SELECT} {ALBUM_LIST_TAIL}"))
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], |row| {
@@ -684,28 +690,159 @@ fn db_error(err: &rusqlite::Error) -> Error {
     Error::Database(err.to_string())
 }
 
+/// Per-group result cap: every search group (tracks, albums, artists) returns
+/// at most this many rows (SPEC §11.3). Raising it grows per-keystroke query
+/// and hydration work linearly; the UI never pages past it in V1.
+pub(crate) const GROUP_LIMIT: u32 = 200;
+
+/// `?, ?, …` placeholders for an IN-list of `count` bindings. Callers skip
+/// the query entirely when the list is empty (`IN ()` is invalid SQL).
+fn placeholders(count: usize) -> String {
+    vec!["?"; count].join(", ")
+}
+
+/// Run one FTS5 MATCH expression against the search index, best matches
+/// first (BM25), capped at [`GROUP_LIMIT`] rows.
+///
+/// The expression must already be quoted literal-by-literal (see
+/// [`match_query`](super::search::match_query)): raw user text would parse
+/// as FTS5 syntax and error on punctuation.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub(crate) fn matched_ids(db: &Connection, expression: &str) -> Result<Vec<i64>> {
+    let mut statement = db
+        .prepare(
+            "SELECT rowid FROM track_search
+             WHERE track_search MATCH ?1 ORDER BY bm25(track_search) LIMIT ?2",
+        )
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map(rusqlite::params![expression, GROUP_LIMIT], |row| row.get(0))
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<i64>>>()
+        .map_err(|err| db_error(&err))
+}
+
 /// Prefix search over the FTS5 index, best matches first (BM25).
 ///
-/// Single-term queries only in this slice; the S3 search controller builds
-/// multi-term parsing on top. The term is quoted so filename punctuation
-/// (dots, dashes) searches literally instead of erroring; results cap at
-/// 200 rows per SPEC §11.3.
+/// Single-term queries only; the S3 search module builds multi-term parsing
+/// on top. The term is quoted so filename punctuation (dots, dashes)
+/// searches literally instead of erroring; results cap at [`GROUP_LIMIT`]
+/// rows per SPEC §11.3.
 ///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
 pub fn search_track_ids(db: &Connection, term: &str) -> Result<Vec<i64>> {
+    matched_ids(db, &super::search::match_query([term]))
+}
+
+/// Hydrate track ids to rows with resolved display names. Returned in index
+/// order — callers needing rank order reorder in memory.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub(crate) fn tracks_by_ids(db: &Connection, ids: &[i64]) -> Result<Vec<TrackRow>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut statement = db
-        .prepare(
-            "SELECT rowid FROM track_search
-             WHERE track_search MATCH ?1 ORDER BY bm25(track_search) LIMIT 200",
+        .prepare(&format!(
+            "{TRACK_LIST_SELECT} WHERE tracks.id IN ({})",
+            placeholders(ids.len())
+        ))
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map(
+            rusqlite::params_from_iter(ids.iter().copied()),
+            TrackRow::from_row,
         )
         .map_err(|err| db_error(&err))?;
-    let query = format!("\"{}\"*", term.replace('"', "\"\""));
-    let rows = statement
-        .query_map([query], |row| row.get(0))
+    rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// Album rows for the given titles that own at least one of `track_ids`
+/// (same-titled albums by different artists all resolve, but only when their
+/// own tracks matched — a shared title never drags in an unrelated album).
+/// Returned in title order — callers needing rank order reorder in memory.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub(crate) fn albums_for_tracks(
+    db: &Connection,
+    titles: &[String],
+    track_ids: &[i64],
+) -> Result<Vec<AlbumRow>> {
+    if titles.is_empty() || track_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = db
+        .prepare(&format!(
+            "{ALBUM_LIST_SELECT}
+             WHERE albums.title IN ({}) AND albums.id IN (
+                SELECT album_id FROM tracks WHERE tracks.id IN ({})
+             )
+             {ALBUM_LIST_TAIL}",
+            placeholders(titles.len()),
+            placeholders(track_ids.len())
+        ))
         .map_err(|err| db_error(&err))?;
-    rows.collect::<rusqlite::Result<Vec<i64>>>()
+    // Mixed bindings (titles then ids) go through `Value`: the two IN-lists
+    // share one positional parameter sequence.
+    let params: Vec<rusqlite::types::Value> = titles
+        .iter()
+        .map(|title| rusqlite::types::Value::Text(title.clone()))
+        .chain(track_ids.iter().copied().map(rusqlite::types::Value::from))
+        .collect();
+    let rows = statement
+        .query_map(rusqlite::params_from_iter(params), |row| {
+            Ok(AlbumRow {
+                id: row.get("id")?,
+                title: row.get("title")?,
+                artist: row.get("artist")?,
+                year: row.get("year")?,
+                track_count: row.get("track_count")?,
+            })
+        })
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<AlbumRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// Artist rows for the given names (names are unique, so at most one row per
+/// name). Returned in name order — callers needing rank order reorder.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub(crate) fn artists_by_names(db: &Connection, names: &[String]) -> Result<Vec<ArtistRow>> {
+    if names.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = db
+        .prepare(&format!(
+            "{ARTIST_LIST_SELECT} WHERE artists.name IN ({}) {ARTIST_LIST_TAIL}",
+            placeholders(names.len())
+        ))
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map(
+            rusqlite::params_from_iter(names.iter().map(String::as_str)),
+            |row| {
+                Ok(ArtistRow {
+                    name: row.get("name")?,
+                    album_count: row.get("album_count")?,
+                    track_count: row.get("track_count")?,
+                })
+            },
+        )
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<ArtistRow>>>()
         .map_err(|err| db_error(&err))
 }
 

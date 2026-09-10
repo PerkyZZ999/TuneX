@@ -13,6 +13,7 @@ pub mod artwork;
 pub mod db;
 pub mod metadata;
 pub mod scan;
+pub mod search;
 pub mod watch;
 
 pub use artwork::{
@@ -32,4 +33,5 @@ pub use scan::{
     SUPPORTED_EXTENSIONS, ScanProgress, ScanStats, collect_media_files, file_id, is_supported,
     scan_folder, scan_folder_live, scan_folder_with_callback, stable_key,
 };
+pub use search::{SearchResults, search_library};
 pub use watch::{DEBOUNCE_WINDOW, LibraryWatcher, watch_roots};
