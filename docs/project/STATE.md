@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-036: Wayland + X11 verification pass (FoldersDrawer dialogs, high-DPI, native dialogs).
+- W-037: S5 gate (network-off DoD rehearsal + playerctl matrix + Wayland/X11 + PKGBUILD).
 
 ## Phase checklist
 - [x] 0 Intake
