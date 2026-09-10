@@ -117,4 +117,11 @@
 - **Result:** pass
 - **Evidence:** `tunex-library` (`db`: v1 migrations, WAL, roots/tracks/upsert; `scan`: recursive walk, 10-extension filter, `stable_key`, symlink skips, live counters) + `tunex-app` integration test scanning committed fixtures (7 rows incl. corrupt.mp3) and playing WAV to `Playing`. 61/61 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (83.8%, 0 violations). GUI smoke: restructured app renders shell identically.
 - **Waiver:** none
-- **Follow-up:** W-008. W-007 learnings: bridge belongs in the LIB with the binary calling `run()` (integration-test link needs shared impls — supersedes the W-002 binary-only note); `usize` has no rusqlite `FromSql` (use i64 + convert); system SQLite headers present so no `bundled` feature needed.
+- **Follow-up:** W-008 — see entry below. W-007 learnings: bridge belongs in the LIB with the binary calling `run()` (integration-test link needs shared impls — supersedes the W-002 binary-only note); `usize` has no rusqlite `FromSql` (use i64 + convert); system SQLite headers present so no `bundled` feature needed.
+
+### 2026-09-10 — S1 W-008: MPRIS skeleton live-verified
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** pass
+- **Evidence:** `tunex-app::mpris` (mpris-server 0.10.0 + tokio runtime on detached thread): full Root/Player interfaces over local state, 6 unit tests ✓. Live bus run (offscreen binary, real session bus): name owned, `Identity=TuneX`, `Stopped→PlayPause→Playing→PlayPause→Paused` via qdbus6, clean name release on exit. `doctor` ✓, `sonar` ✓ QG OK (83.2%, 0 violations).
+- **Waiver:** none
+- **Follow-up:** W-009. W-008 learnings: trait methods use `fdo::Result` for getters AND most methods but plain `zbus::Result` for property setters — read the vendored signatures, never guess; `Volume`/`PlaybackRate` are `f64` aliases; no `playerctl` here — `busctl`/`qdbus6` cover the smoke test; engine/queue wiring deferred to S5 by design.

@@ -13,6 +13,9 @@
 
 pub mod bridge;
 
+/// MPRIS D-Bus presence and transport surface (engine wiring lands in S5).
+pub mod mpris;
+
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QUrl};
 
 // Anchor the cxx-qt generated initializers into every final link.
@@ -56,6 +59,8 @@ pub fn run() -> i32 {
         library_roots = config.library_roots.len(),
         "tunex starting"
     );
+    // MPRIS presence starts with the process (own thread; Qt keeps main).
+    mpris::spawn();
     // SAFETY: generated, idempotent initializers; called once on the main
     // thread before any Qt object exists. (`let ()` form satisfies both
     // semicolon lints at once.)

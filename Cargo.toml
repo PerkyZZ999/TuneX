@@ -27,9 +27,10 @@ toml = "1.1.5"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 gstreamer = "0.24.5"
-tokio = { version = "1.53.1", features = ["sync", "rt", "macros", "time"] }
+tokio = { version = "1.53.1", features = ["sync", "rt", "rt-multi-thread", "macros", "time"] }
 rusqlite = "0.40.2"
 rusqlite_migration = "2.5.0"
+mpris-server = { version = "0.10.0", features = ["tokio"] }
 
 # Intra-workspace path deps land here alongside their first real `use`,
 # so `cargo-shear` never sees an unused workspace dep.

@@ -27,7 +27,8 @@
 - Queue (W-005 done): pure `Queue` + preload hook + gapless integration green; Quality Gate OK (waiver closed)
 - Codecs (W-006 done): 6-format fixture matrix + corrupt path green; QG OK
 - Harness (W-007 done): SQLite v1 + scanner + scan→play end-to-end green; bridge unified into lib; GUI smoke OK
-- Repo reality: S1 through W-007 done; W-008 (MPRIS skeleton) next.
+- MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
+- Repo reality: S1 through W-008 done; W-009 (CI + DoD script) next.
 
 ## Open loops
 - None
@@ -36,7 +37,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-008: MPRIS skeleton over D-Bus (`mpris-server` crate) + `playerctl` smoke in KWin session.
+- W-009: CI workflow (native build + gates + PKGBUILD check) + DoD demo script draft.
 
 ## Phase checklist
 - [x] 0 Intake

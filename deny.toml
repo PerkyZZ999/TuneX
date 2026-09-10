@@ -25,6 +25,9 @@ allow = [
     "Zlib",
     # TuneX itself is GPLv3 (D-013); our own crates carry it.
     "GPL-3.0-or-later",
+    # mpris-server (MPRIS D-Bus layer) is file-level copyleft, combinable
+    # into the GPLv3 app binary.
+    "MPL-2.0",
 ]
 unused-allowed-license = "allow"
 confidence-threshold = 0.8
