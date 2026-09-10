@@ -19,7 +19,10 @@ Column {
     }
 
     Text {
+        width: parent.width
+        wrapMode: Text.WordWrap
         text: note
+        textFormat: Text.PlainText
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBody
         color: Theme.muted

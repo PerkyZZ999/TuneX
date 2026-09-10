@@ -21,6 +21,14 @@ Window {
     readonly property bool wideShell: root.width >= Theme.shellWide
     readonly property bool showMiniPlayer: !root.wideShell && root.playerActive
     readonly property bool showDockedQueue: root.wideShell && root.playerActive
+    readonly property int volumeStep: 5
+    readonly property bool editingText: {
+        const item = root.activeFocusItem;
+        if (!item)
+            return false;
+
+        return item instanceof TextField || item instanceof TextInput || item instanceof TextEdit || item instanceof TextArea;
+    }
 
     function sectionTitle(key) {
         if (key === "search")
@@ -78,6 +86,10 @@ Window {
         root.nowPlayingOpen = false;
     }
 
+    function nudgeVolume(delta) {
+        queueModel.setVolumePct(queueModel.volumePct() + delta);
+    }
+
     function syncPlayer() {
         queueModel.poll();
         const state = queueModel.playbackState();
@@ -110,6 +122,7 @@ Window {
     // from anywhere; typing navigates to the results view.
     Shortcut {
         sequences: ["/", "Ctrl+K"]
+        enabled: !root.editingText
         onActivated: {
             if (root.nowPlayingOpen)
                 return ;
@@ -121,6 +134,70 @@ Window {
                 searchField.forceActiveFocus();
             }
         }
+    }
+
+    // Space toggles playback except when a text field has focus (R-014).
+    Shortcut {
+        sequence: "Space"
+        context: Qt.ApplicationShortcut
+        enabled: !root.editingText
+        onActivated: queueModel.playPause()
+    }
+
+    Shortcut {
+        sequences: ["Media Play", "Media Pause", "Media Toggle Play Pause"]
+        context: Qt.ApplicationShortcut
+        onActivated: queueModel.playPause()
+    }
+
+    Shortcut {
+        sequence: "Media Next"
+        context: Qt.ApplicationShortcut
+        onActivated: queueModel.nextTrack()
+    }
+
+    Shortcut {
+        sequence: "Media Previous"
+        context: Qt.ApplicationShortcut
+        onActivated: queueModel.previousTrack(queueModel.positionMs())
+    }
+
+    Shortcut {
+        sequence: "Volume Up"
+        context: Qt.ApplicationShortcut
+        onActivated: root.nudgeVolume(root.volumeStep)
+    }
+
+    Shortcut {
+        sequence: "Volume Down"
+        context: Qt.ApplicationShortcut
+        onActivated: root.nudgeVolume(-root.volumeStep)
+    }
+
+    Shortcut {
+        sequence: "Volume Mute"
+        context: Qt.ApplicationShortcut
+        onActivated: queueModel.setMuted(!queueModel.isMuted())
+    }
+
+    Shortcut {
+        sequences: ["Alt+Left", "Back"]
+        enabled: root.canGoBack && !root.editingText
+        onActivated: root.goBack()
+    }
+
+    Shortcut {
+        sequences: ["Alt+Right", "Forward"]
+        enabled: root.canGoForward && !root.editingText
+        onActivated: root.goForward()
+    }
+
+    // Overlay Esc is the Popup closePolicy. Search field Esc is local.
+    // Remaining Esc walks view history.
+    Shortcut {
+        sequence: "Esc"
+        enabled: !root.editingText && !root.nowPlayingOpen && root.canGoBack
+        onActivated: root.goBack()
     }
 
     // Up Next queue, owned by the shell so playback and rows survive
@@ -380,7 +457,7 @@ Window {
                         SectionStub {
                             visible: root.section === "settings"
                             title: qsTr("Settings")
-                            note: qsTr("Library folders, playback, and appearance land in S4.")
+                            note: qsTr("Keyboard (R-014): Space play/pause · media next/previous · volume up/down/mute · / or Ctrl+K search · Esc closes Now Playing, then search, then back · Alt+Left/Right history. Library folders live under Your Library. Playback and appearance persist in config.")
                         }
 
                     }

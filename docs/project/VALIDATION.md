@@ -265,3 +265,10 @@
 - **Evidence:** Expanded `NowPlayingView` overlay (any width) — artwork/gradient backdrop → 32px `MultiEffect` blur → 68% `Theme.background` tint → 1px highlight; `reduce_transparency` falls back to opaque `Theme.surface`. Circular monogram crest ≥320px with 180ms crossfade; headline title + muted artist; live progress scrub via `QueueModel.seekMs` (async flush seek; slider ignores poll while pressed); transport shuffle · prev · 64px primary play/pause · next · repeat + volume + Up Next (closes overlay, opens compact drawer). Open: MiniPlayer art/title or QueuePanel now-playing row. Close: Close button / Esc / press outside. `reduce_motion` zeros overlay duration. 188/188 workspace tests ✓ (`seek_without_track_surfaces_error`, `appearance_flags_read_from_config`), `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations), `qmllint`/`qmlformat`/CMake green, offscreen smoke clean (started, MPRIS name owned). No favorite heart (Liked Songs out of V1).
 - **Waiver:** none (KWin visual proof + blur-off contrast deferred to the W-031 gate by design)
 - **Follow-up:** W-029 keyboard map (Space, media keys, overlay Esc vs search unwind).
+
+### 2026-09-10 — S4 W-029: keyboard map green
+- **Phase:** 6 (Implement, slice S4)
+- **Result:** pass
+- **Evidence:** Window shortcuts — Space play/pause (`ApplicationShortcut`, disabled while a text field has focus); media play/pause/next/previous; volume up/down (±5) and mute; `/` and Ctrl+K skip when typing so slash can be entered; Alt+Left/Right plus Back/Forward walk view history; Esc closes Now Playing (Popup), then search-field unwind, then `goBack`. Settings stub documents the list. 188/188 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.3% new coverage, 0 violations), `qmllint`/`qmlformat`/CMake green, offscreen smoke clean (started, MPRIS name owned).
+- **Waiver:** none (KWin keyboard walkthrough deferred to the W-031 gate by design)
+- **Follow-up:** W-030 last-track + position restore.

@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` for W-028 Now Playing overlay (QG OK, 80.3% new coverage)
-- Latest validation entry: 2026-09-10 S4 W-028 Now Playing overlay (see VALIDATION.md)
+- Latest passed gate: `rust-tc sonar` for W-029 keyboard map (QG OK, 80.3% new coverage)
+- Latest validation entry: 2026-09-10 S4 W-029 keyboard map (see VALIDATION.md)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -30,7 +30,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2+S3 done; S4 active (W-026–W-028 done, W-029 keyboard map next).
+- Repo reality: S1+S2+S3 done; S4 active (W-026–W-029 done, W-030 last-track restore next).
 
 ## Open loops
 - None
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-029: keyboard map (Space play/pause, media keys, Esc/back, documented list).
+- W-030: best-effort last-track + position restore when the file still exists.
 
 ## Phase checklist
 - [x] 0 Intake
