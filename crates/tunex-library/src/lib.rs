@@ -1,9 +1,17 @@
 //! `tunex-library`: background library engine for `TuneX`.
 //!
-//! Covers library roots, recursive scanning, metadata extraction, the `SQLite`
-//! index with `FTS5` search, the artwork pipeline, and playlists. All heavy work
+//! Covers library roots, recursive scan, metadata extraction, the SQLite
+//! index with FTS5 search, the artwork pipeline, and playlists. All heavy work
 //! runs on `tokio` workers and reports back as `tunex_core::AppEvent`s; the Qt
 //! thread is never blocked and never touched from here.
 //!
-//! Wiring to `tunex-core` types lands with the first behavior (S1 W-002+);
-//! this scaffold intentionally declares no dependencies yet.
+//! S1 exposes the index foundation (`db`, `scan`); metadata, search, artwork,
+//! and playlists arrive slice by slice in S2/S3.
+
+pub mod db;
+pub mod scan;
+
+pub use db::{TrackRow, add_root, list_tracks, open_file, open_memory, schema_version};
+pub use scan::{
+    SUPPORTED_EXTENSIONS, ScanStats, collect_media_files, is_supported, scan_folder, stable_key,
+};

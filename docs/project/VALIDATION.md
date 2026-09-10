@@ -110,4 +110,11 @@
 - **Result:** pass
 - **Evidence:** `scripts/generate-fixtures.sh` reproduces `tests/fixtures/` (5 s tones: wav/flac/ogg/opus/mp3/m4a, all discoverable with durations, plus deterministic corrupt file); `codec_matrix` integration tests play each to `Playing` with duration and prove corrupt input errors loudly while the engine stays usable. 53/53 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (83.4%, 0 violations).
 - **Waiver:** none
-- **Follow-up:** W-007.
+- **Follow-up:** W-007 — see entry below.
+
+### 2026-09-10 — S1 W-007: SQLite harness + scan→play green
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** pass
+- **Evidence:** `tunex-library` (`db`: v1 migrations, WAL, roots/tracks/upsert; `scan`: recursive walk, 10-extension filter, `stable_key`, symlink skips, live counters) + `tunex-app` integration test scanning committed fixtures (7 rows incl. corrupt.mp3) and playing WAV to `Playing`. 61/61 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (83.8%, 0 violations). GUI smoke: restructured app renders shell identically.
+- **Waiver:** none
+- **Follow-up:** W-008. W-007 learnings: bridge belongs in the LIB with the binary calling `run()` (integration-test link needs shared impls — supersedes the W-002 binary-only note); `usize` has no rusqlite `FromSql` (use i64 + convert); system SQLite headers present so no `bundled` feature needed.

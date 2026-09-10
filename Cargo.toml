@@ -28,11 +28,14 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 gstreamer = "0.24.5"
 tokio = { version = "1.53.1", features = ["sync", "rt", "macros", "time"] }
+rusqlite = "0.40.2"
+rusqlite_migration = "2.5.0"
 
 # Intra-workspace path deps land here alongside their first real `use`,
 # so `cargo-shear` never sees an unused workspace dep.
 tunex-core = { path = "crates/tunex-core", version = "0.1.0" }
-# (library/player/app follow with behavior.)
+tunex-library = { path = "crates/tunex-library", version = "0.1.0" }
+tunex-player = { path = "crates/tunex-player", version = "0.1.0" }
 
 # Static verification baseline (M-STATIC-VERIFICATION).
 # The toolchain runs Clippy with `-D warnings`, so every `warn` below

@@ -33,6 +33,11 @@ pub enum Error {
     #[error("playback error: {0}")]
     Player(String),
 
+    /// SQLite/library-index failure. Carries the message only, so this crate
+    /// never depends on any database driver (D-008).
+    #[error("database error: {0}")]
+    Database(String),
+
     /// Cancellable background work (scan, search) was asked to stop.
     ///
     /// Cancellation is routine control flow, never a malfunction: report it,
