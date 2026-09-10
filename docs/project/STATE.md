@@ -25,7 +25,8 @@
 - Shell (W-003 done): Theme singleton + nav shell + Home/empty states GUI-proven; `tunex-core::config` + tracing live; DESIGN.md body 16px (skill compliance)
 - Player (W-004 done): `PlayerEngine` playbin3 + `PlayerEvent` bus, 14 fakesink tests green, S3776 fixed
 - Queue (W-005 done): pure `Queue` + preload hook + gapless integration green; Quality Gate OK (waiver closed)
-- Repo reality: S1 through W-005 done; W-006 (codec matrix) next.
+- Codecs (W-006 done): 6-format fixture matrix + corrupt path green; QG OK
+- Repo reality: S1 through W-006 done; W-007 (SQLite harness) next.
 
 ## Open loops
 - None
@@ -34,7 +35,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-006: codec matrix fixtures (MP3/FLAC/OGG/M4A/Opus/WAV + corrupt file) with real-decode playback asserts.
+- W-007: minimal SQLite open + scan harness (`rusqlite`, schema v0 + migrations from day one).
 
 ## Phase checklist
 - [x] 0 Intake

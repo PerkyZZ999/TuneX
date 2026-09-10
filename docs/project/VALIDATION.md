@@ -103,4 +103,11 @@
 - **Result:** pass (coverage waiver CLOSED: 82.9% ≥ 80%, 0 violations, 0 duplication)
 - **Evidence:** 46/46 tests ✓, `doctor` ✓, `sonar` ✓ Quality Gate `OK`. Gapless integration green after user installed `gst-plugins-good`. Root-caused on the way: identical-URI preload reconfigure loop (fixed with `queued_uri` guard), preroll-Paused transients (intent-flag filter), `Drop` disconnect-before-Null (teardown wedge), EIS-click and session-cycling test-discipline notes.
 - **Waiver:** none (all prior waivers closed)
-- **Follow-up:** W-006.
+- **Follow-up:** W-006 — see entry below.
+
+### 2026-09-09 — S1 W-006: codec matrix green
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** pass
+- **Evidence:** `scripts/generate-fixtures.sh` reproduces `tests/fixtures/` (5 s tones: wav/flac/ogg/opus/mp3/m4a, all discoverable with durations, plus deterministic corrupt file); `codec_matrix` integration tests play each to `Playing` with duration and prove corrupt input errors loudly while the engine stays usable. 53/53 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (83.4%, 0 violations).
+- **Waiver:** none
+- **Follow-up:** W-007.
