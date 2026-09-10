@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-033: MPRIS full-matrix verification via playerctl/busctl + KDE widget check.
+- W-034: Desktop notifications over D-Bus (track change + playback errors).
 
 ## Phase checklist
 - [x] 0 Intake
