@@ -131,4 +131,11 @@
 - **Result:** pass
 - **Evidence:** `.github/workflows/ci.yml` (Arch container: system deps incl. full plugin sets, toolchain + quality tools, `just doctor`, CMake build, QML lint/format check, printsrcinfo + namcap; YAML-parsed; runs on push — first green run pending a push). `scripts/dod-demo.sh` runs all five steps locally green (gate, configure, build, lint, live MPRIS smoke with name release + stray-process cleanup).
 - **Waiver:** none
-- **Follow-up:** W-010 (S1 close-out).
+- **Follow-up:** W-010 (S1 close-out) — see entry below.
+
+### 2026-09-10 — S1 gate: slice accepted
+- **Phase:** 6 (Implement slice gate, S1)
+- **Result:** pass
+- **Evidence:** Acceptance check per item — CMake+Corrosion builds window ✓ · cxx-qt round-trip GUI-proven ✓ · playbin3 plays all 6 fixture formats to `Playing` with durations ✓, pause/volume/mute unit-tested ✓, deterministic seek (paused poll lands 1400–1600 ms) ✓ · queue next/prev/shuffle/repeat + gapless preload tested ✓ · PKGBUILD skeleton (printsrcinfo + namcap; full build deferred S5) · MPRIS skeleton live-verified (Identity + Stopped→Playing→Paused; `playerctl` absent here so `qdbus6`/`busctl` substituted). Gates: 67/67 tests ✓, `rust-tc doctor` ✓, `dod-demo.sh` 5/5 ✓, `sonar` ✓ QG OK (84.5%, 0 violations). Traceability: R-001/R-009/R-010/R-011/R-013/R-016 + NFR-01/05 → S1 → W-001a/b–W-010 → this entry.
+- **Waiver:** none
+- **Follow-up:** S2 planning. R1 (cxx-qt feasibility) CLOSED, R2 (playbin3/PKGBUILD feasibility) CLOSED — no milestone loop-back.

@@ -655,6 +655,56 @@ mod tests {
         engine.stop().expect("stop works");
         assert_eq!(engine.state(), PlaybackState::Stopped);
     }
+
+    #[tokio::test]
+    async fn seek_moves_position_while_paused() {
+        let dir = std::env::temp_dir().join(format!("tunex-seek-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        let clip = dir.join("two-seconds.wav");
+        write_sine_wav(&clip, 2000, 440.0);
+
+        let (engine, mut receiver) = test_engine();
+        engine.load_path(&clip).expect("fixture loads");
+        engine.play().expect("playback starts");
+        wait_for_state(&mut receiver, PlaybackState::Playing).await;
+        engine.pause().expect("pause works");
+        wait_for_state(&mut receiver, PlaybackState::Paused).await;
+
+        engine
+            .seek(Duration::from_millis(1500))
+            .expect("seek works");
+        // Paused clock: the position settles at the target instead of racing
+        // past it, so this poll is deterministic.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(position) = engine.position() {
+                if position >= Duration::from_millis(1400) {
+                    assert!(
+                        position <= Duration::from_millis(1600),
+                        "seek lands at the target, got {position:?}"
+                    );
+                    break;
+                }
+            }
+            assert!(tokio::time::Instant::now() < deadline, "seek never landed");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    /// Drain events until `wanted` arrives (failing loudly on errors).
+    async fn wait_for_state(receiver: &mut mpsc::Receiver<PlayerEvent>, wanted: PlaybackState) {
+        loop {
+            match next_event(receiver).await {
+                PlayerEvent::StateChanged(state) if state == wanted => break,
+                PlayerEvent::PlaybackError(message) => {
+                    panic!("pipeline failed instead of playing: {message}");
+                }
+                _ => {}
+            }
+        }
+    }
+
     #[tokio::test]
     async fn about_to_finish_preloads_next_uri_gaplessly() {
         let dir = std::env::temp_dir().join(format!("tunex-gapless-{}", std::process::id()));

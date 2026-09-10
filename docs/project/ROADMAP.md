@@ -4,7 +4,7 @@
 - **Acceptance:** CMake+Corrosion builds window; cxx-qt model+signal round-trip proven; playbin3 plays/pauses/seeks MP3+FLAC+OGG+M4A+Opus+WAV with volume; queue next/prev works in-memory; PKGBUILD builds + installs on Arch; `playerctl` skeleton responds.
 - **Requirements:** R-001, R-009, R-010 (in-memory), R-011 (volume), R-013 (skeleton), R-016 (skeleton), R-NFR-01/05
 - **Validation:** codec matrix manual + `cargo test` queue/engine + `makepkg` + playerctl check
-- **Status:** doing (W-001a/b, W-002, W-003, W-004 done; W-005 partial — gapless test blocked on gst-plugins-good, see STATE.md)
+- **Status:** done (W-001a/b–W-010, 2026-09-10; both feasibility risks closed, no loop-back; known deferrals: full `makepkg` build → S5, `playerctl` binary absent so smoke ran via `qdbus6`/`busctl`)
 
 ## Slice S2 — Library scan + browse + art (M2+M3 core)
 - **Acceptance:** Add/remove roots (native dialog), background scan with live counts+% while UI usable, browse artists/albums/tracks with lazy art + placeholders, restart preserves library, rename reconciles without dup.

@@ -5,7 +5,7 @@
 - **Source spec:** docs/SPEC.md (v1.1 patched 2026-09-09)
 - **Workflow profile:** product
 - **Profile rationale:** Shipping Linux desktop app with native audio/DB/GPU surface. Not disposable (prototype rejected), not regulated (high-risk rejected). Full gates + decision locks + release/observe loops required.
-- **Current phase:** 5 — Architecture & delivery plan (0–5 complete, human-confirmed 2026-09-09; S1 ready)
+- **Current phase:** 6 — Implement (S1 done 2026-09-10, S2 ready)
 - **Status:** active
 - **MVP success signal:** User installs TuneX on Arch via AUR PKGBUILD, adds music dir, scans without UI freeze, browses/searches/plays with artwork, controls via app + MPRIS, manages queue + playlists, restarts without state loss, all offline.
 - **Last updated:** 2026-09-09
@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc doctor` for W-004 (QG: 0 violations, coverage waiver stands)
-- Latest validation entry: 2026-09-09 W-004 PlayerEngine green
+- Latest passed gate: S1 slice gate (W-010, 2026-09-10)
+- Latest validation entry: 2026-09-10 S1 close-out (67 tests, QG OK)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -38,7 +38,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-010: S1 gate rehearsal (full DoD pass: install storie → offline run) + close-out commit.
+- S2 kickoff: library scan + metadata + artwork + browse (M2/M3) — slice planning first (work items, fixtures, FTS5 design).
 
 ## Phase checklist
 - [x] 0 Intake

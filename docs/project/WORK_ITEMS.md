@@ -16,7 +16,7 @@ S1 — Shell + real playback (M0+M1). Goal: prove R1/R2 feasibility (cxx-qt + pl
 - [x] W-007 — Minimal SQLite open + minimal scan harness (R-006 part): `tunex-library` (`db` with v1 migrations + WAL, `scan` with extension filter/stable-keys/symlink skips) + `tunex-app` end-to-end test (scan fixtures → play WAV to `Playing`). Bridge moved to lib + `run()` so all link targets share one implementation. Verified: 61 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK, GUI smoke (shell renders).
 - [x] W-008 — MPRIS skeleton (play/pause/next/prev/status) + playerctl smoke (R-013 part): `tunex-app::mpris` (`Server` + full `Root`/`Player` interfaces over local state, tokio runtime on detached thread, Qt keeps main). Verified: 6 unit tests ✓, live-bus smoke (`Identity=TuneX`, Stopped→PlayPause→Playing→PlayPause→Paused via qdbus6; playerctl absent, busctl/qdbus6 cover it), `doctor` ✓, `sonar` ✓ QG OK. Full engine wiring in S5.
 - [x] W-009 — CI: native build + qmllint/qmlformat + cargo test + PKGBUILD/`makepkg` check; DoD demo script draft (R-016): `.github/workflows/ci.yml` (Arch container: full `just doctor` gate + CMake build + QML lint/format + printsrcinfo/namcap; YAML-parsed, runs on push) + `scripts/dod-demo.sh` (gate + build + lint + live MPRIS smoke, 5/5 green locally).
-- [ ] W-010 — S1 gate: record codec + PKGBUILD + playerctl evidence in VALIDATION.md, close or loop R1/R2
+- [x] W-010 — S1 gate: deterministic seek test (paused poll lands 1400–1600 ms) closes the last acceptance gap; full rehearsal (`doctor` ✓, `dod-demo.sh` 5/5 ✓, `sonar` ✓ QG OK 84.5%); S1 accepted with two recorded deferrals (full `makepkg` build → S5; `playerctl` → `qdbus6`/`busctl` substitution). R1/R2 feasibility risks closed, no loop-back.
 
 ## Done (recent)
 - None yet
