@@ -7,12 +7,19 @@
 //!
 //! S1 exposes the index foundation (`db`, `scan`); S2 grows it into the v2
 //! schema (lookup tables + FTS5) with metadata extraction. The scanner
-//! worker, artwork pipeline, and playlists arrive in later S2/S3 items.
+//! worker, artwork, and playlists arrive in later S2/S3 items.
 
+pub mod artwork;
 pub mod db;
 pub mod metadata;
 pub mod scan;
 pub mod watch;
+
+pub use artwork::{
+    CACHE_BUDGET_BYTES, CachedArt, MAX_ART_BYTES, MAX_ART_DIMENSION, THUMB_SIZES, artwork_key,
+    cached_art, default_cache_dir, find_folder_art, resolve_track_art, store_artwork,
+    store_artwork_with_budget,
+};
 
 pub use db::{
     NewTrack, TrackIdentity, TrackRow, add_root, list_tracks, open_file, open_memory, rename_track,

@@ -8,6 +8,8 @@ publish.workspace = true
 description = "TuneX library engine: scan, metadata, SQLite/FTS5, artwork, playlists, search."
 
 [dependencies]
+blake3.workspace = true
+image.workspace = true
 lofty.workspace = true
 notify.workspace = true
 rusqlite.workspace = true

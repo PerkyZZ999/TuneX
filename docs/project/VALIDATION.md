@@ -167,3 +167,10 @@
 - **Evidence:** `tunex-library::watch` (`watch_roots` + `LibraryWatcher`, notify 8.2.0 recursive): callbacks enqueue raw events only; debounce thread coalesces 500 ms quiet-window batches (sorted, deduped, create/modify/remove/rename only); bounded channel back-pressures; `Drop` releases + joins. 81/81 workspace tests ✓ (batch arrival, burst coalescing, missing-root error), `doctor` ✓, `sonar` ✓ QG OK (88.8% new coverage, 0 violations).
 - **Waiver:** none
 - **Follow-up:** W-015. W-014 learnings: `try_recv` on a dropped sender returns `Disconnected`, not `Ok` — the shutdown check must match both (hung the first test run until joined correctly); notify 8.2.0 is CC0-1.0, allow-listed in `deny.toml` with rationale (public-domain dedication, GPL-compatible); another transient `codec_matrix` timing failure under coverage load, green on retry — player timing flakiness is now a pattern worth a dedicated look in S5.
+
+### 2026-09-10 — S2 W-015: artwork pipeline green
+- **Phase:** 6 (Implement, slice S2)
+- **Result:** pass
+- **Evidence:** `tunex-library::artwork` (blake3 1.8.7 keys, image 0.25 decoders limited to bmp/jpeg/png/webp): embedded > cover > folder > front resolution; XDG cache with orig + 64/256/512 JPEG thumbs; 32 MiB / 4096 px decode caps with header-first rejection; text manifest + ~2 GiB LRU with keep-protected stores; corrupt/oversized inputs resolve to placeholder (`Ok(None)`). 87/87 workspace tests ✓, `doctor` ✓ (no new license exclusions — blake3/image deps pass `cargo-deny` as-is), `sonar` ✓ QG OK (88.6%, 0 violations).
+- **Waiver:** none
+- **Follow-up:** W-016. W-015 learnings: the scanner stays tag-only — views resolve visible rows lazily via `resolve_track_art` on worker threads (UI-thread decode stays forbidden); LRU eviction must never reap the just-stored key (timestamp ties + random HashMap order made this nondeterministic until keep-protected); `image` 0.25 PNG encoding uses the `write_image` trait API, JPEG uses `encode_image`.
