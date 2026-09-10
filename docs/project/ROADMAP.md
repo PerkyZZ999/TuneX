@@ -10,7 +10,7 @@
 - **Acceptance:** Add/remove roots (native dialog), background scan with live counts+% while UI usable, browse artists/albums/tracks with lazy art + placeholders, restart preserves library, rename reconciles without dup.
 - **Requirements:** R-002, R-003, R-004, R-005, R-006, R-007, R-015 (paths), R-NFR-01/02/03
 - **Validation:** 12k fixture scan manual + rename/delete fault injection + restart check + `cargo test` stable_key/migrations
-- **Status:** todo
+- **Status:** done (W-011–W-018, 2026-09-10; 12k→12k rows in 2.5 s, 100/100 rename + 100/100 missing reconcile, KWin DoD with 5 evidence shots, no loop-back; known deferrals: background art warming → S3/S4 views resolve lazily, full `makepkg` build → S5)
 
 ## Slice S3 — Search + queue depth + playlists (M3+M4 core)
 - **Acceptance:** Instant FTS5 search across 7 fields with debounce + stale-cancel; queue full ops + shuffle/repeat + gapless album; playlists full CRUD + play + restart persistence.
