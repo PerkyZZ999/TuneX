@@ -32,6 +32,7 @@ rusqlite = "0.40.2"
 rusqlite_migration = "2.5.0"
 lofty = "0.24.0"
 mpris-server = { version = "0.10.0", features = ["tokio"] }
+notify = "8.2.0"
 
 # Intra-workspace path deps land here alongside their first real `use`,
 # so `cargo-shear` never sees an unused workspace dep.

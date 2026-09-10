@@ -12,6 +12,7 @@
 pub mod db;
 pub mod metadata;
 pub mod scan;
+pub mod watch;
 
 pub use db::{
     NewTrack, TrackIdentity, TrackRow, add_root, list_tracks, open_file, open_memory, rename_track,
@@ -22,3 +23,4 @@ pub use scan::{
     SUPPORTED_EXTENSIONS, ScanProgress, ScanStats, collect_media_files, file_id, is_supported,
     scan_folder, scan_folder_live, scan_folder_with_callback, stable_key,
 };
+pub use watch::{DEBOUNCE_WINDOW, LibraryWatcher, watch_roots};

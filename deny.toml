@@ -33,6 +33,9 @@ allow = [
     # mpris-server (MPRIS D-Bus layer) is file-level copyleft, combinable
     # into the GPLv3 app binary.
     "MPL-2.0",
+    # notify (filesystem watcher) is a public-domain dedication (CC0-1.0,
+    # FSF-free): no restrictions to conflict with the GPLv3 app binary.
+    "CC0-1.0",
 ]
 unused-allowed-license = "allow"
 confidence-threshold = 0.8

@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` for W-013 (QG OK)
-- Latest validation entry: 2026-09-10 W-013 scanner worker green (78 tests, QG OK)
+- Latest passed gate: `rust-tc sonar` for W-014 (QG OK)
+- Latest validation entry: 2026-09-10 W-014 filesystem watcher green (81 tests, QG OK)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -30,7 +30,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1 done; S2 through W-013 done; W-014 (filesystem watcher) next.
+- Repo reality: S1 done; S2 through W-014 done; W-015 (artwork pipeline) next.
 
 ## Open loops
 - None
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-014: filesystem watcher (`notify`, debounced, enqueue-only callbacks).
+- W-015: artwork pipeline (embedded/folder art → XDG cache, keys, thumbnails, LRU, decode caps).
 
 ## Phase checklist
 - [x] 0 Intake

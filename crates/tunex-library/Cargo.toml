@@ -9,6 +9,7 @@ description = "TuneX library engine: scan, metadata, SQLite/FTS5, artwork, playl
 
 [dependencies]
 lofty.workspace = true
+notify.workspace = true
 rusqlite.workspace = true
 rusqlite_migration.workspace = true
 tokio.workspace = true

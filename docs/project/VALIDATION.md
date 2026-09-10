@@ -160,3 +160,10 @@
 - **Evidence:** v3 migration (`missing` + `file_id`, index) with v1→v3 chain test; `scan_folder` fills tags via `read_metadata` (corrupt files index by path, counted); inode (`dev:ino`) rename retargets keep row ids; vanished files flag missing (return clears); `scan_folder_live` (spawn_blocking + bounded progress channel, 50-file snapshots + finished). 78/78 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (88.6% new coverage, 0 violations; S3776 on the walker split into `scan_one_dir`/`flag_vanished_missing`/`index_file` and closed).
 - **Waiver:** none
 - **Follow-up:** W-014. Notes: two transient nextest failures (player timing tests) passed on clean retry — pre-existing flakiness under load, unrelated to this slice; `by_file_id` rename requires the old path to be gone (inode-reuse guard).
+
+### 2026-09-10 — S2 W-014: filesystem watcher green
+- **Phase:** 6 (Implement, slice S2)
+- **Result:** pass
+- **Evidence:** `tunex-library::watch` (`watch_roots` + `LibraryWatcher`, notify 8.2.0 recursive): callbacks enqueue raw events only; debounce thread coalesces 500 ms quiet-window batches (sorted, deduped, create/modify/remove/rename only); bounded channel back-pressures; `Drop` releases + joins. 81/81 workspace tests ✓ (batch arrival, burst coalescing, missing-root error), `doctor` ✓, `sonar` ✓ QG OK (88.8% new coverage, 0 violations).
+- **Waiver:** none
+- **Follow-up:** W-015. W-014 learnings: `try_recv` on a dropped sender returns `Disconnected`, not `Ok` — the shutdown check must match both (hung the first test run until joined correctly); notify 8.2.0 is CC0-1.0, allow-listed in `deny.toml` with rationale (public-domain dedication, GPL-compatible); another transient `codec_matrix` timing failure under coverage load, green on retry — player timing flakiness is now a pattern worth a dedicated look in S5.
