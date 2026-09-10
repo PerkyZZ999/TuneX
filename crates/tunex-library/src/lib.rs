@@ -12,6 +12,7 @@
 pub mod artwork;
 pub mod db;
 pub mod metadata;
+pub mod playlist;
 pub mod scan;
 pub mod search;
 pub mod watch;
@@ -29,6 +30,10 @@ pub use db::{
     track_by_id, track_identities, upsert_track,
 };
 pub use metadata::{EmbeddedArtwork, FileMetadata, read_metadata};
+pub use playlist::{
+    Playlist, PlaylistEntry, add_to_playlist, create_playlist, delete_playlist, list_entries,
+    list_playlists, move_entry, remove_from_playlist, rename_playlist,
+};
 pub use scan::{
     SUPPORTED_EXTENSIONS, ScanProgress, ScanStats, collect_media_files, file_id, is_supported,
     scan_folder, scan_folder_live, scan_folder_with_callback, stable_key,

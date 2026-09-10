@@ -12,8 +12,8 @@ use rusqlite::{Connection, Row};
 use rusqlite_migration::{M, Migrations};
 use tunex_core::{Error, Result};
 
-/// Current schema version (v3: missing flag + file identity for reconcile).
-pub const SCHEMA_VERSION: usize = 3;
+/// Current schema version (v4: playlists + entries with dangling links).
+pub const SCHEMA_VERSION: usize = 4;
 
 /// v1 DDL, frozen: roots + tracks skeleton (landed in S1, never edited).
 const V1_SCHEMA: &str = "CREATE TABLE library_roots(
@@ -106,10 +106,32 @@ const V3_SCHEMA: &str = "
         ALTER TABLE tracks ADD COLUMN file_id TEXT;
         CREATE INDEX idx_tracks_missing ON tracks(missing);";
 
+/// v4 DDL: playlists with ordered entries. Names are unique (rename
+/// conflicts error explicitly); entries carry a surrogate id so the same
+/// track can repeat. `track_id` deliberately has NO foreign key: deleted
+/// tracks leave entries dangling-as-missing (D-009) instead of cascading.
+const V4_SCHEMA: &str = "
+        CREATE TABLE playlists(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE playlist_tracks(
+            id INTEGER PRIMARY KEY,
+            playlist_id INTEGER NOT NULL REFERENCES playlists(id),
+            track_id INTEGER NOT NULL,
+            position INTEGER NOT NULL
+        );
+        CREATE INDEX idx_playlist_tracks_lookup ON playlist_tracks(playlist_id, position);";
+
 /// Versioned migrations, oldest first. Append-only: never edit a landed
 /// migration, always add a new one.
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(V1_SCHEMA), M::up(V2_SCHEMA), M::up(V3_SCHEMA)])
+    Migrations::new(vec![
+        M::up(V1_SCHEMA),
+        M::up(V2_SCHEMA),
+        M::up(V3_SCHEMA),
+        M::up(V4_SCHEMA),
+    ])
 }
 
 /// One indexed track row with resolved display names.
@@ -145,7 +167,7 @@ pub struct TrackRow {
 }
 
 impl TrackRow {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
         Ok(Self {
             id: row.get("id")?,
             path: row.get("path")?,
@@ -893,10 +915,10 @@ mod tests {
     }
 
     #[test]
-    fn fresh_database_reports_schema_v3() {
+    fn fresh_database_reports_schema_v4() {
         let db = open_memory().expect("in-memory opens");
         assert_eq!(schema_version(&db).expect("version reads"), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 3);
+        assert_eq!(SCHEMA_VERSION, 4);
     }
 
     #[test]
@@ -914,7 +936,7 @@ mod tests {
     }
 
     #[test]
-    fn v1_to_v2_migration_preserves_rows() {
+    fn old_databases_migrate_to_latest() {
         let mut db = Connection::open_in_memory().expect("in-memory opens");
         Migrations::new(vec![M::up(super::V1_SCHEMA)])
             .to_latest(&mut db)
@@ -931,10 +953,11 @@ mod tests {
             M::up(super::V1_SCHEMA),
             M::up(super::V2_SCHEMA),
             M::up(super::V3_SCHEMA),
+            M::up(super::V4_SCHEMA),
         ])
         .to_latest(&mut db)
-        .expect("v3 migrates");
-        assert_eq!(schema_version(&db).expect("version reads"), 3);
+        .expect("v3+v4 migrate");
+        assert_eq!(schema_version(&db).expect("version reads"), 4);
         let tracks = list_tracks(&db).expect("list works");
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].title.as_deref(), Some("Old"));
@@ -943,6 +966,12 @@ mod tests {
         assert!(!tracks[0].missing);
         // Backfill indexed the surviving row by path.
         assert_eq!(search_track_ids(&db, "old").expect("search works").len(), 1);
+        // v4 arrives empty alongside the preserved rows.
+        assert!(
+            crate::list_playlists(&db)
+                .expect("playlists list")
+                .is_empty()
+        );
     }
 
     #[test]
