@@ -70,6 +70,9 @@ pub struct QueueModelRust {
     saved_at: Option<Instant>,
     /// Inbound MPRIS commands, taken once from the process hub (S5 W-032).
     mpris_rx: Option<mpsc::Receiver<MprisCommand>>,
+    /// URI of the last toasted track (S5 W-034). Restores seed it silently;
+    /// only later advances pop a notification.
+    last_notified_uri: Option<String>,
 }
 
 impl Default for QueueModelRust {
@@ -86,6 +89,7 @@ impl Default for QueueModelRust {
             saved_position_ms: 0,
             saved_at: None,
             mpris_rx: None,
+            last_notified_uri: None,
         }
     }
 }
@@ -185,6 +189,7 @@ impl QueueModelRust {
         for event in &drained {
             if let tunex_core::PlayerEvent::PlaybackError(message) = event {
                 self.last_error = Some(message.clone());
+                crate::notify::post("Playback error".to_owned(), message.clone());
             }
         }
         let unchanged = {
@@ -199,7 +204,28 @@ impl QueueModelRust {
         }
         self.maybe_persist_session(false);
         self.sync_mpris();
+        self.maybe_notify_track();
         !unchanged
+    }
+
+    /// Toast on track advances and nothing else. Restores seed
+    /// `last_notified_uri` silently, so a startup resume never pops a toast;
+    /// stops and repeats keep quiet by [`crate::notify::should_notify`].
+    fn maybe_notify_track(&mut self) {
+        let current = self
+            .controller
+            .as_ref()
+            .and_then(PlaybackController::current_item);
+        let current_uri = current.as_ref().map(|item| item.uri.clone());
+        if crate::notify::should_notify(self.last_notified_uri.as_deref(), current_uri.as_deref()) {
+            if let Some(item) = &current {
+                crate::notify::post(
+                    item.title.clone(),
+                    crate::notify::track_body(item.artist.as_deref(), item.album.as_deref()),
+                );
+            }
+        }
+        self.last_notified_uri = current_uri;
     }
 
     /// Best-effort last-track restore: load paused at the saved position when
@@ -228,6 +254,12 @@ impl QueueModelRust {
         }
         self.sync_rows();
         uri.clone_into(&mut self.saved_uri);
+        // Seed the toast cursor silently: resuming is not a track change.
+        self.last_notified_uri = self
+            .controller
+            .as_ref()
+            .and_then(PlaybackController::current_item)
+            .map(|item| item.uri);
         #[expect(
             clippy::cast_possible_truncation,
             reason = "UI position is i32 milliseconds"
@@ -1692,6 +1724,13 @@ mod tests {
         assert!(
             restored.error_message().is_none(),
             "missing file would toast"
+        );
+        assert!(
+            restored
+                .last_notified_uri
+                .as_deref()
+                .is_some_and(|uri| uri.contains("sine.wav")),
+            "restore seeds the toast cursor silently (no startup toast)"
         );
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {

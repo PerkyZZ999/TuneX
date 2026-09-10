@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-034: Desktop notifications over D-Bus (track change + playback errors).
+- W-035: PKGBUILD final (`package()` install rules + Corrosion vendoring + clean-chroot `makepkg`).
 
 ## Phase checklist
 - [x] 0 Intake
