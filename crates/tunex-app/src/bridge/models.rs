@@ -24,6 +24,7 @@
 // paths, so the structs cannot be named across modules directly).
 use super::album_list_model::AlbumListModelRust;
 use super::artist_list_model::ArtistListModelRust;
+use super::library_manager::LibraryManagerRust;
 use super::library_track_model::LibraryTrackModelRust;
 use super::track_list_model::TrackListModelRust;
 
@@ -344,5 +345,72 @@ pub mod qobject {
         #[cxx_override]
         #[cxx_name = "roleNames"]
         fn role_names(self: &TrackListModel) -> QHash_i32_QByteArray;
+    }
+
+    extern "RustQt" {
+        #[qobject]
+        #[qml_element]
+        type LibraryManager = super::LibraryManagerRust;
+    }
+
+    extern "RustQt" {
+        /// Load folders, start the watcher, and scan.
+        #[qinvokable]
+        fn startup(self: Pin<&mut LibraryManager>);
+
+        /// Drain progress/watcher channels; start pending scans when idle.
+        /// The single call the UI timer makes, at any cadence.
+        #[qinvokable]
+        fn poll(self: Pin<&mut LibraryManager>);
+
+        /// Request a scan now (queues when busy).
+        #[qinvokable]
+        fn rescan(self: Pin<&mut LibraryManager>);
+
+        /// Whether a scan worker is currently running.
+        #[qinvokable]
+        #[cxx_name = "isScanning"]
+        fn is_scanning(self: &LibraryManager) -> bool;
+
+        /// One-line status for the progress surface.
+        #[qinvokable]
+        #[cxx_name = "statusText"]
+        fn status_text(self: &LibraryManager) -> QString;
+
+        /// Report a completed run exactly once (views refresh on `true`).
+        /// Exposed to QML as `takeFinished`.
+        #[qinvokable]
+        #[cxx_name = "takeFinished"]
+        fn take_finished(self: Pin<&mut LibraryManager>) -> bool;
+
+        /// Configured folder count (drives the folders repeater).
+        /// Exposed to QML as `folderCount`.
+        #[qinvokable]
+        #[cxx_name = "folderCount"]
+        fn folder_count(self: &LibraryManager) -> i32;
+
+        /// Configured folder path, or empty when out of range.
+        /// Exposed to QML as `folderAt`.
+        #[qinvokable]
+        #[cxx_name = "folderAt"]
+        fn folder_at(self: &LibraryManager, index: i32) -> QString;
+
+        /// Add a folder (canonicalized, persisted, watched, scanned).
+        /// Failures surface through `errorText`. Exposed as `addFolder`.
+        #[qinvokable]
+        #[cxx_name = "addFolder"]
+        fn add_folder(self: Pin<&mut LibraryManager>, path: &QString);
+
+        /// Remove a folder (unwatched, unpersisted, rows collected).
+        /// Failures surface through `errorText`. Exposed as `removeFolder`.
+        #[qinvokable]
+        #[cxx_name = "removeFolder"]
+        fn remove_folder(self: Pin<&mut LibraryManager>, path: &QString);
+
+        /// Last folder-operation failure, or empty when clear.
+        /// Exposed to QML as `errorText`.
+        #[qinvokable]
+        #[cxx_name = "errorText"]
+        fn error_text(self: &LibraryManager) -> QString;
     }
 }

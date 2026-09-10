@@ -11,8 +11,6 @@ import TuneX 1.0
 Item {
     id: root
 
-    anchors.fill: parent
-
     // Album drill-down: -1 means the full songs tab.
     property int albumId: -1
     property string albumTitle: ""
@@ -37,7 +35,9 @@ Item {
         root.tab = "albums";
     }
 
+    anchors.fill: parent
     Component.onCompleted: {
+        library.startup();
         artists.refresh();
         albums.refresh();
         songs.refresh();
@@ -55,40 +55,83 @@ Item {
         id: songs
     }
 
+    // Folder + scan orchestration (W-017): startup loads folders and scans;
+    // the timer below polls progress and refreshes views per finished run.
+    // Workers never touch QObjects — all Qt updates happen on this thread.
+    LibraryManager {
+        id: library
+    }
+
+    Timer {
+        interval: 300
+        running: true
+        repeat: true
+        onTriggered: {
+            library.poll();
+            if (library.takeFinished()) {
+                artists.refresh();
+                albums.refresh();
+                songs.refresh();
+            }
+        }
+    }
+
+    FoldersDrawer {
+        id: folders
+
+        manager: library
+    }
+
     Column {
         anchors.fill: parent
         anchors.margins: Theme.spaceLg
         spacing: Theme.spaceMd
 
-        // Tab strip: three choices (Hick-compliant), text labels (abstract
-        // concepts read better than icons alone).
-        Row {
+        // Header: tab strip (three Hick-compliant text choices) plus the
+        // folders entry on the trailing edge.
+        Item {
             id: tabRow
 
-            spacing: Theme.spaceXs
+            width: parent.width
+            height: foldersButton.height
 
-            Repeater {
-                model: [{
-                    "key": "songs",
-                    "label": qsTr("Songs")
-                }, {
-                    "key": "albums",
-                    "label": qsTr("Albums")
-                }, {
-                    "key": "artists",
-                    "label": qsTr("Artists")
-                }]
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.spaceXs
 
-                Button {
-                    required property var modelData
+                Repeater {
+                    model: [{
+                        "key": "songs",
+                        "label": qsTr("Songs")
+                    }, {
+                        "key": "albums",
+                        "label": qsTr("Albums")
+                    }, {
+                        "key": "artists",
+                        "label": qsTr("Artists")
+                    }]
 
-                    text: modelData.label
-                    checkable: true
-                    checked: root.tab === modelData.key
-                    Accessible.name: modelData.label
-                    onClicked: root.tab = modelData.key
+                    Button {
+                        required property var modelData
+
+                        text: modelData.label
+                        checkable: true
+                        checked: root.tab === modelData.key
+                        Accessible.name: modelData.label
+                        onClicked: root.tab = modelData.key
+                    }
+
                 }
 
+            }
+
+            Button {
+                id: foldersButton
+
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Music folders")
+                onClicked: folders.open()
             }
 
         }
@@ -128,13 +171,16 @@ Item {
 
         Item {
             id: content
+
             width: parent.width
             height: parent.height - tabRow.height - drillRow.height - Theme.spaceMd * 2
 
             EmptyState {
                 visible: root.libraryEmpty
                 title: qsTr("No music yet")
-                note: qsTr("Scan a music folder and your artists, albums, and songs will appear here.")
+                note: qsTr("Add a music folder and your artists, albums, and songs will appear here.")
+                actionLabel: qsTr("Add music folder")
+                onActionRequested: folders.open()
             }
 
             // Songs tab: virtualized list over the capped songs query.
@@ -230,15 +276,16 @@ Item {
                 clip: true
                 cellWidth: root.gridCell
                 cellHeight: cellWidth + 64
+                highlightMoveDuration: 120
+                Accessible.role: Accessible.List
+                Accessible.name: qsTr("Artists")
+
                 highlight: Rectangle {
                     color: "transparent"
                     radius: Theme.radiusMd
                     border.color: artistsView.activeFocus ? Theme.focus : "transparent"
                     border.width: 2
                 }
-                highlightMoveDuration: 120
-                Accessible.role: Accessible.List
-                Accessible.name: qsTr("Artists")
 
                 delegate: ArtistCard {
                     artistName: model.name

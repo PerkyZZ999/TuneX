@@ -13,6 +13,9 @@
 
 pub mod bridge;
 
+/// Library orchestration (folders, scan worker, watcher batches).
+pub mod library;
+
 /// MPRIS D-Bus presence and transport surface (engine wiring lands in S5).
 pub mod mpris;
 

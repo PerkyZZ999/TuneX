@@ -521,8 +521,7 @@ pub fn list_artists(db: &Connection) -> Result<Vec<ArtistRow>> {
         .map_err(|err| db_error(&err))
 }
 
-/// Every album with artist, year, and track count, ordered by title.
-///
+/// Every album with artist, year, and track count, ordered by title.///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
@@ -653,6 +652,34 @@ pub fn set_missing(db: &Connection, id: i64, missing: bool) -> Result<()> {
     Ok(())
 }
 
+/// Remove a library root and garbage-collect its track rows (SPEC retention:
+/// remove root → stop watch + GC orphans). Referencing playlists and history
+/// keep dangling ids — rows are deleted, never rewritten. Returns the number
+/// of track rows removed. FTS rows cascade through the `tracks_ad` trigger;
+/// emptied artist/album/genre lookup rows linger harmlessly.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the deletes fail.
+pub fn remove_library_root(db: &Connection, root: &str) -> Result<u64> {
+    // `LIKE` metacharacters in real paths (`%`, `_`, `\`) must match
+    // literally, or one root could garbage-collect its neighbor.
+    let escaped = root
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    let prefix = format!("{escaped}/%");
+    let removed = db
+        .execute(
+            "DELETE FROM tracks WHERE path = ?1 OR path LIKE ?2 ESCAPE '\\'",
+            rusqlite::params![root, prefix],
+        )
+        .map_err(|err| db_error(&err))?;
+    db.execute("DELETE FROM library_roots WHERE path = ?1", [root])
+        .map_err(|err| db_error(&err))?;
+    Ok(u64::try_from(removed).unwrap_or(u64::MAX))
+}
+
 fn db_error(err: &rusqlite::Error) -> Error {
     Error::Database(err.to_string())
 }
@@ -660,9 +687,9 @@ fn db_error(err: &rusqlite::Error) -> Error {
 /// Prefix search over the FTS5 index, best matches first (BM25).
 ///
 /// Single-term queries only in this slice; the S3 search controller builds
-/// multi-term parsing on top. Results cap at 200 rows per SPEC §11.3. FTS
-/// syntax errors surface as [`Error::Database`] rather than silently
-/// matching nothing.
+/// multi-term parsing on top. The term is quoted so filename punctuation
+/// (dots, dashes) searches literally instead of erroring; results cap at
+/// 200 rows per SPEC §11.3.
 ///
 /// # Errors
 ///
@@ -674,7 +701,7 @@ pub fn search_track_ids(db: &Connection, term: &str) -> Result<Vec<i64>> {
              WHERE track_search MATCH ?1 ORDER BY bm25(track_search) LIMIT 200",
         )
         .map_err(|err| db_error(&err))?;
-    let query = format!("{term}*");
+    let query = format!("\"{}\"*", term.replace('"', "\"\""));
     let rows = statement
         .query_map([query], |row| row.get(0))
         .map_err(|err| db_error(&err))?;
@@ -863,6 +890,31 @@ mod tests {
         let capped = list_tracks_capped(&db, 2).expect("capped list");
         assert_eq!(capped.len(), 2);
         assert!(list_tracks_capped(&db, 0).expect("empty cap").is_empty());
+    }
+
+    #[test]
+    fn remove_root_collects_only_its_rows() {
+        let mut db = open_memory().expect("in-memory opens");
+        for path in ["/music/a.flac", "/music/sub/b.flac", "/podcasts/c.flac"] {
+            upsert_track(&mut db, &new_track(path)).expect("upsert works");
+        }
+        // `%` and `_` in real paths must not act as LIKE wildcards.
+        upsert_track(&mut db, &new_track("/music/100%_hits/d.flac")).expect("upsert works");
+        let removed = remove_library_root(&db, "/music").expect("remove works");
+        assert_eq!(removed, 3);
+        let tracks = list_tracks(&db).expect("list works");
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].path, "/podcasts/c.flac");
+        // Search rows cascade through the trigger; survivors still search.
+        assert!(
+            search_track_ids(&db, "b.flac")
+                .expect("search works")
+                .is_empty()
+        );
+        assert_eq!(
+            search_track_ids(&db, "c.flac").expect("search works").len(),
+            1
+        );
     }
 
     #[test]

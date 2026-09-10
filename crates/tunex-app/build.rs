@@ -23,6 +23,7 @@ fn main() {
                 "qml/TuneX/AlbumCard.qml",
                 "qml/TuneX/ArtistCard.qml",
                 "qml/TuneX/EmptyState.qml",
+                "qml/TuneX/FoldersDrawer.qml",
             ])
             .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true)),
     )

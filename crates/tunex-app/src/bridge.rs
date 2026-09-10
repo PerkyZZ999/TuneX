@@ -8,6 +8,7 @@
 
 pub mod album_list_model;
 pub mod artist_list_model;
+pub mod library_manager;
 pub mod library_track_model;
 pub mod models;
 pub mod track_list_model;

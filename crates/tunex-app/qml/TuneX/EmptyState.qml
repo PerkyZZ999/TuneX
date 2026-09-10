@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 
 // EmptyState (S2 W-016): explicit, actionable empty surface for library
 // views. Never a blank screen: always a title plus guidance. An action
@@ -8,6 +9,10 @@ Column {
 
     required property string title
     required property string note
+    // Optional action (W-017 folders entry); hidden when unlabeled.
+    property string actionLabel: ""
+
+    signal actionRequested()
 
     anchors.centerIn: parent
     width: Math.min(parent.width - Theme.spaceXl * 2, 420)
@@ -36,6 +41,13 @@ Column {
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBody
         color: Theme.muted
+    }
+
+    Button {
+        visible: root.actionLabel !== ""
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: root.actionLabel
+        onClicked: root.actionRequested()
     }
 
 }
