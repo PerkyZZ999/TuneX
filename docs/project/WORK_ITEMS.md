@@ -1,11 +1,18 @@
-# Work items (current slice: S2 — Library scan + browse + art)
+# Work items (current slice: S3 — Search + queue depth + playlists)
 
-> S1 done (W-001a/b–W-010). S3–S6 seeded when S2 completes.
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S4–S6 seeded when S3 completes.
 
 ## Current slice
-S2 — Library scan + browse + art (M2+M3 core). Goal: folders in, browsable library out — metadata, artwork, watcher, and browse UI over the v2 schema.
+S3 — Search + queue depth + playlists (M3+M4 core). Goal: find anything instantly, queue everything fluidly, playlists persist — FTS5 search with debounce + stale-cancel, full queue ops wired to the library, playlist CRUD + play.
 
 ## Queue
+- [ ] W-019 — Search backend: multi-term FTS5 parser (AND across 7 fields, quoted literals, prefix tails) + debounced worker (~150 ms) with generation stale-cancel + grouped results (tracks/albums/artists, LIMIT 200/group) + TrackRow hydration (R-008, R-NFR-01)
+- [ ] W-020 — Search UI: search field + shortcut focus, results views reusing TrackRow/AlbumCard/ArtistCard, QML search models fed by controller, loading/empty/no-result states, Esc clears (R-008, R-014 part)
+- [ ] W-021 — Queue depth backend: QueueItem library enrichment (track id/artist/album/duration/art key) + enqueue-from-library helpers (tracks/album/artist, play-next/play-now) + engine advance/end-of-track wiring + gapless album check (R-010 full)
+- [ ] W-022 — Queue UI: Up Next panel (reorder/remove/clear, row play-next/play-now actions, shuffle/repeat toggles, now-playing highlight, empty state); queue survives navigation (R-010 full)
+- [ ] W-023 — Playlists backend: schema v4 (playlists/playlist_tracks + v1→v4 chain test) + full CRUD + add/remove/reorder/play-order + dangling-as-missing + restart persistence (R-012, R-006)
+- [ ] W-024 — Playlists UI: sidebar section + list/detail views + create/rename/delete dialogs + add-to-playlist from rows + play-all → queue + empty states (R-012)
+- [ ] W-025 — S3 gate: typing observation + queue/FTS5 unit tests + gapless album listen + KWin GUI proof (search/Up Next/playlists) + offline rerun; close or loop back
 - [x] W-011 — Metadata extraction behind a trait (`lofty` 0.24.0 impl): title/artist/album/album-artist/composer/genre/year/track/disc/duration + embedded artwork bytes (front-cover preferred); empty strings normalize to `None`, corrupt files error as `Error::Metadata` (R-004). Verified: untagged-fixture unknowns, lofty write→read round-trip (incl. BMP art bytes), corrupt path; 70 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (RUSTSEC-2024-0436 `paste` advisory ignore-documented: transitive via lofty, no CVE).
 - [x] W-012 — Schema v2 (artists/albums/tracks full columns, genres, folders, scan_state) + FTS5 tables + v1→v2 migration test (R-006). Verified: v1 row survives migrate with backfilled search hit; transactional upsert resolves names + refreshes index; delete cascades to FTS via trigger; prefix search BM25 + LIMIT 200; 72 tests ✓, `doctor` ✓, `sonar` ✓ QG OK.
 - [x] W-013 — Scanner worker (`tokio`, walk → metadata → upsert, stable-key reconcile incl. renames, progress counts) (R-002, R-003). Verified: tagged scan fills all fields + search; corrupt indexes by path with failure counted; rename retargets same row; delete flags missing and return clears; `scan_folder_live` streams progress to finished; 78 tests ✓, `doctor` ✓, `sonar` ✓ QG OK.

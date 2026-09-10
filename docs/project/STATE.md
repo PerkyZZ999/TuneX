@@ -5,7 +5,7 @@
 - **Source spec:** docs/SPEC.md (v1.1 patched 2026-09-09)
 - **Workflow profile:** product
 - **Profile rationale:** Shipping Linux desktop app with native audio/DB/GPU surface. Not disposable (prototype rejected), not regulated (high-risk rejected). Full gates + decision locks + release/observe loops required.
-- **Current phase:** 6 — Implement (S1 done 2026-09-10, S2 ready)
+- **Current phase:** 6 — Implement (S2 done 2026-09-10, S3 active)
 - **Status:** active
 - **MVP success signal:** User installs TuneX on Arch via AUR PKGBUILD, adds music dir, scans without UI freeze, browses/searches/plays with artwork, controls via app + MPRIS, manages queue + playlists, restarts without state loss, all offline.
 - **Last updated:** 2026-09-10
@@ -30,7 +30,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2 done (W-011–W-018); S3 seeding next.
+- Repo reality: S1+S2 done; S3 seeded (W-019–W-025), W-019 next.
 
 ## Open loops
 - None
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Seed S3 work items + start S3 (search + queue depth + playlists).
+- Seed S3 work items (W-019–W-025) + start W-019 search backend.
 
 ## Phase checklist
 - [x] 0 Intake
