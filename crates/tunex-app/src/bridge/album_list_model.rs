@@ -16,6 +16,8 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
+use crate::search::SearchCore;
+
 /// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
 /// permitted on `#[qenum]` items, so this is written by hand).
 impl std::fmt::Debug for qobject::AlbumRoles {
@@ -38,7 +40,11 @@ impl std::fmt::Debug for qobject::AlbumRoles {
 #[derive(Debug, Default)]
 pub struct AlbumListModelRust {
     albums: Vec<(i32, QString, QString, i32, i32)>,
+    search: SearchCore,
 }
+
+/// One settled search result set as display rows.
+type AlbumSearchRows = Vec<(i32, QString, QString, i32, i32)>;
 
 impl AlbumListModelRust {
     /// Push one row; returns its index (saturates instead of wrapping on
@@ -82,6 +88,43 @@ impl AlbumListModelRust {
         }
         QVariant::default()
     }
+
+    /// Submit raw query text to the debounced search worker.
+    fn submit_search(&mut self, query: &str) {
+        self.search.submit(query);
+    }
+
+    /// Drain one settled result set into row payloads (`None` while the
+    /// worker runs or idles — the caller refreshes views on `Some`).
+    fn poll_search_rows(&mut self) -> Option<AlbumSearchRows> {
+        self.search.poll();
+        self.search
+            .take_results()
+            .map(|found| found.albums.iter().map(display_album).collect())
+    }
+
+    /// Whether a submitted query is still waiting on the worker.
+    fn is_searching(&self) -> bool {
+        self.search.is_searching()
+    }
+
+    /// Last search failure, if any.
+    fn search_error(&self) -> Option<String> {
+        self.search.error_text()
+    }
+}
+
+/// Map one album group hit to its display row (shared by browse + search).
+fn display_album(row: &tunex_library::AlbumRow) -> (i32, QString, QString, i32, i32) {
+    (
+        i32::try_from(row.id).unwrap_or(i32::MAX),
+        QString::from(&row.title),
+        QString::from(row.artist.as_deref().unwrap_or("Unknown Artist")),
+        row.year
+            .and_then(|year| i32::try_from(year).ok())
+            .unwrap_or(0),
+        i32::try_from(row.track_count).unwrap_or(i32::MAX),
+    )
 }
 
 /// Load album rows from the index at `path` (empty when absent/unreadable —
@@ -98,20 +141,7 @@ fn load_albums(path: &std::path::Path) -> Vec<(i32, QString, QString, i32, i32)>
         }
     };
     match tunex_library::list_albums(&db) {
-        Ok(rows) => rows
-            .into_iter()
-            .map(|row| {
-                (
-                    i32::try_from(row.id).unwrap_or(i32::MAX),
-                    QString::from(&row.title),
-                    QString::from(row.artist.as_deref().unwrap_or("Unknown Artist")),
-                    row.year
-                        .and_then(|year| i32::try_from(year).ok())
-                        .unwrap_or(0),
-                    i32::try_from(row.track_count).unwrap_or(i32::MAX),
-                )
-            })
-            .collect(),
+        Ok(rows) => rows.iter().map(display_album).collect(),
         Err(err) => {
             tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
             Vec::new()
@@ -143,6 +173,45 @@ impl qobject::AlbumListModel {
             self.as_mut().rust_mut().drop_rows();
             self.as_mut().end_reset_model_albums();
         }
+    }
+
+    /// Submit raw query text to this model's search worker.
+    pub fn search(mut self: Pin<&mut Self>, query: &QString) {
+        self.as_mut().rust_mut().submit_search(&query.to_string());
+    }
+
+    /// Drain settled search results into rows; emits model reset when new
+    /// rows land, and reports whether anything did.
+    #[must_use]
+    pub fn poll_search(mut self: Pin<&mut Self>) -> bool {
+        let found = self.as_mut().rust_mut().poll_search_rows();
+        let Some(rows) = found else {
+            return false;
+        };
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_albums();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for (album_id, title, artist, year, track_count) in rows {
+                rust.push_row(album_id, title, artist, year, track_count);
+            }
+            self.as_mut().end_reset_model_albums();
+        };
+        true
+    }
+
+    /// Whether a submitted query is still waiting on the worker.
+    pub fn is_searching(&self) -> bool {
+        self.rust().is_searching()
+    }
+
+    /// Last search failure, or empty when clear.
+    pub fn error_text(&self) -> QString {
+        self.rust()
+            .search_error()
+            .map(QString::from)
+            .unwrap_or_default()
     }
 
     /// Row count override for `QAbstractListModel`.
@@ -183,7 +252,22 @@ mod tests {
     use super::AlbumListModelRust;
     use super::qobject::AlbumRoles;
     use crate::bridge::test_support::seeded_index;
+    use crate::search::SearchCore;
     use cxx_qt_lib::{QString, QVariant};
+    use std::time::{Duration, Instant};
+
+    /// Poll until one result set settles (tests end idle so the joined
+    /// worker never outlives its scratch dir).
+    fn settle_search(model: &mut AlbumListModelRust) -> super::AlbumSearchRows {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if let Some(rows) = model.poll_search_rows() {
+                return rows;
+            }
+            assert!(Instant::now() < deadline, "search never settled");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
 
     fn model_with_two_albums() -> AlbumListModelRust {
         let mut model = AlbumListModelRust::default();
@@ -259,5 +343,39 @@ mod tests {
         let (_guard, path) = seeded_index("albums");
         let rows = super::load_albums(&path);
         assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn search_settles_matching_rows() {
+        let (_guard, path) = seeded_index("search-albums");
+        let mut model = AlbumListModelRust {
+            search: SearchCore::with_db_path(path),
+            ..Default::default()
+        };
+        model.search.set_debounce(Duration::from_millis(10));
+        model.submit_search("night");
+        assert!(model.is_searching());
+        let rows = settle_search(&mut model);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].1, QString::from("Night Tapes"));
+        assert_eq!(rows[0].4, 2, "group row carries its track count");
+        assert!(!model.is_searching());
+        assert!(
+            model.poll_search_rows().is_none(),
+            "results deliver exactly once"
+        );
+    }
+
+    #[test]
+    fn empty_query_searches_nothing() {
+        let (_guard, path) = seeded_index("search-albums-empty");
+        let mut model = AlbumListModelRust {
+            search: SearchCore::with_db_path(path),
+            ..Default::default()
+        };
+        model.search.set_debounce(Duration::from_millis(10));
+        model.submit_search("");
+        assert!(settle_search(&mut model).is_empty());
+        assert!(model.search_error().is_none());
     }
 }

@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` for W-019 (QG OK)
-- Latest validation entry: 2026-09-10 W-019 search backend green (134 tests, QG OK)
+- Latest passed gate: `rust-tc sonar` for W-020 (QG OK)
+- Latest validation entry: 2026-09-10 W-020 search UI green (140 tests, QG OK)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -30,7 +30,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2 done; S3 active (W-019 done, W-020 next).
+- Repo reality: S1+S2 done; S3 active (W-019–W-020 done, W-021 next).
 
 ## Open loops
 - None
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-020: search UI (field + shortcut focus, results views, QML models, empty/no-result states).
+- W-021: queue depth backend (library enrichment, enqueue helpers, engine advance/end-of-track wiring).
 
 ## Phase checklist
 - [x] 0 Intake

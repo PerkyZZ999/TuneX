@@ -16,6 +16,8 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
+use crate::search::SearchCore;
+
 /// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
 /// permitted on `#[qenum]` items, so this is written by hand).
 impl std::fmt::Debug for qobject::LibraryTrackRoles {
@@ -42,7 +44,11 @@ pub const SONGS_CAP: u32 = 500;
 #[derive(Debug, Default)]
 pub struct LibraryTrackModelRust {
     tracks: Vec<(QString, QString, QString, i32, i32, bool)>,
+    search: SearchCore,
 }
+
+/// One settled search result set as display rows.
+type TrackSearchRows = Vec<(QString, QString, QString, i32, i32, bool)>;
 
 impl LibraryTrackModelRust {
     /// Drop all rows.
@@ -58,6 +64,30 @@ impl LibraryTrackModelRust {
     /// Replace every row (single reset around the caller).
     fn replace_rows(&mut self, rows: Vec<(QString, QString, QString, i32, i32, bool)>) {
         self.tracks = rows;
+    }
+
+    /// Submit raw query text to the debounced search worker.
+    fn submit_search(&mut self, query: &str) {
+        self.search.submit(query);
+    }
+
+    /// Drain one settled result set into row payloads (`None` while the
+    /// worker runs or idles — the caller refreshes views on `Some`).
+    fn poll_search_rows(&mut self) -> Option<TrackSearchRows> {
+        self.search.poll();
+        self.search
+            .take_results()
+            .map(|found| found.tracks.iter().map(display_row).collect())
+    }
+
+    /// Whether a submitted query is still waiting on the worker.
+    fn is_searching(&self) -> bool {
+        self.search.is_searching()
+    }
+
+    /// Last search failure, if any.
+    fn search_error(&self) -> Option<String> {
+        self.search.error_text()
     }
 
     /// Data for one row/role; invalid variant when out of range or the role
@@ -160,6 +190,41 @@ impl qobject::LibraryTrackModel {
         }
     }
 
+    /// Submit raw query text to this model's search worker.
+    pub fn search(mut self: Pin<&mut Self>, query: &QString) {
+        self.as_mut().rust_mut().submit_search(&query.to_string());
+    }
+
+    /// Drain settled search results into rows; emits model reset when new
+    /// rows land, and reports whether anything did.
+    #[must_use]
+    pub fn poll_search(mut self: Pin<&mut Self>) -> bool {
+        let found = self.as_mut().rust_mut().poll_search_rows();
+        let Some(rows) = found else {
+            return false;
+        };
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        };
+        true
+    }
+
+    /// Whether a submitted query is still waiting on the worker.
+    pub fn is_searching(&self) -> bool {
+        self.rust().is_searching()
+    }
+
+    /// Last search failure, or empty when clear.
+    pub fn error_text(&self) -> QString {
+        self.rust()
+            .search_error()
+            .map(QString::from)
+            .unwrap_or_default()
+    }
+
     /// Row count override for `QAbstractListModel`.
     pub fn row_count_tracks(&self, _parent: &QModelIndex) -> i32 {
         self.rust().row_count()
@@ -211,7 +276,22 @@ mod tests {
     use super::LibraryTrackModelRust;
     use super::qobject::LibraryTrackRoles;
     use crate::bridge::test_support::seeded_index;
+    use crate::search::SearchCore;
     use cxx_qt_lib::{QString, QVariant};
+    use std::time::{Duration, Instant};
+
+    /// Poll until one result set settles (tests end idle so the joined
+    /// worker never outlives its scratch dir).
+    fn settle_search(model: &mut LibraryTrackModelRust) -> super::TrackSearchRows {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if let Some(rows) = model.poll_search_rows() {
+                return rows;
+            }
+            assert!(Instant::now() < deadline, "search never settled");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
 
     fn model_with_two_songs() -> LibraryTrackModelRust {
         let mut model = LibraryTrackModelRust::default();
@@ -319,6 +399,41 @@ mod tests {
         let (_guard, path) = seeded_index("tracks");
         let rows = super::load_tracks(&path, None);
         assert_eq!(rows.len(), 3);
+    }
+
+    #[test]
+    fn search_settles_matching_rows() {
+        let (_guard, path) = seeded_index("search-tracks");
+        let mut model = LibraryTrackModelRust {
+            search: SearchCore::with_db_path(path),
+            ..Default::default()
+        };
+        model.search.set_debounce(Duration::from_millis(10));
+        model.submit_search("nova");
+        assert!(model.is_searching());
+        let rows = settle_search(&mut model);
+        assert_eq!(rows.len(), 2);
+        let mut titles: Vec<String> = rows.iter().map(|row| row.0.to_string()).collect();
+        titles.sort();
+        assert_eq!(titles, ["One", "Two"]);
+        assert!(!model.is_searching());
+        assert!(
+            model.poll_search_rows().is_none(),
+            "results deliver exactly once"
+        );
+    }
+
+    #[test]
+    fn empty_query_searches_nothing() {
+        let (_guard, path) = seeded_index("search-tracks-empty");
+        let mut model = LibraryTrackModelRust {
+            search: SearchCore::with_db_path(path),
+            ..Default::default()
+        };
+        model.search.set_debounce(Duration::from_millis(10));
+        model.submit_search("");
+        assert!(settle_search(&mut model).is_empty());
+        assert!(model.search_error().is_none());
     }
 
     #[test]

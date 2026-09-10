@@ -177,6 +177,27 @@ pub mod qobject {
         #[qinvokable]
         fn clear(self: Pin<&mut ArtistListModel>);
 
+        /// Submit raw query text to this model's search worker (debounced,
+        /// off-thread; results arrive via `pollSearch`).
+        #[qinvokable]
+        fn search(self: Pin<&mut ArtistListModel>, query: &QString);
+
+        /// Drain settled search results into rows; emits model reset and
+        /// returns true exactly when new rows landed.
+        #[qinvokable]
+        #[cxx_name = "pollSearch"]
+        fn poll_search(self: Pin<&mut ArtistListModel>) -> bool;
+
+        /// Whether a submitted query is still waiting on the worker.
+        #[qinvokable]
+        #[cxx_name = "isSearching"]
+        fn is_searching(self: &ArtistListModel) -> bool;
+
+        /// Last search failure, or empty when clear.
+        #[qinvokable]
+        #[cxx_name = "errorText"]
+        fn error_text(self: &ArtistListModel) -> QString;
+
         /// Row count override for `QAbstractListModel`. The macro-generated
         /// glue forwards `parent`, so it must not be underscore-prefixed here
         /// (the `impl` below still ignores it explicitly).
@@ -205,6 +226,27 @@ pub mod qobject {
         /// Drop all album rows; emits model reset so views rebuild.
         #[qinvokable]
         fn clear(self: Pin<&mut AlbumListModel>);
+
+        /// Submit raw query text to this model's search worker (debounced,
+        /// off-thread; results arrive via `pollSearch`).
+        #[qinvokable]
+        fn search(self: Pin<&mut AlbumListModel>, query: &QString);
+
+        /// Drain settled search results into rows; emits model reset and
+        /// returns true exactly when new rows landed.
+        #[qinvokable]
+        #[cxx_name = "pollSearch"]
+        fn poll_search(self: Pin<&mut AlbumListModel>) -> bool;
+
+        /// Whether a submitted query is still waiting on the worker.
+        #[qinvokable]
+        #[cxx_name = "isSearching"]
+        fn is_searching(self: &AlbumListModel) -> bool;
+
+        /// Last search failure, or empty when clear.
+        #[qinvokable]
+        #[cxx_name = "errorText"]
+        fn error_text(self: &AlbumListModel) -> QString;
 
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
@@ -239,6 +281,27 @@ pub mod qobject {
         /// Drop all song rows; emits model reset so views rebuild.
         #[qinvokable]
         fn clear(self: Pin<&mut LibraryTrackModel>);
+
+        /// Submit raw query text to this model's search worker (debounced,
+        /// off-thread; results arrive via `pollSearch`).
+        #[qinvokable]
+        fn search(self: Pin<&mut LibraryTrackModel>, query: &QString);
+
+        /// Drain settled search results into rows; emits model reset and
+        /// returns true exactly when new rows landed.
+        #[qinvokable]
+        #[cxx_name = "pollSearch"]
+        fn poll_search(self: Pin<&mut LibraryTrackModel>) -> bool;
+
+        /// Whether a submitted query is still waiting on the worker.
+        #[qinvokable]
+        #[cxx_name = "isSearching"]
+        fn is_searching(self: &LibraryTrackModel) -> bool;
+
+        /// Last search failure, or empty when clear.
+        #[qinvokable]
+        #[cxx_name = "errorText"]
+        fn error_text(self: &LibraryTrackModel) -> QString;
 
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]

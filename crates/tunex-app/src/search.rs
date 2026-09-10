@@ -84,9 +84,11 @@ impl SearchCore {
     }
 
     /// Submit raw query text. The worker spawns lazily on the first submit;
-    /// every submit supersedes all older ones (stale outcomes never surface).
+    /// every submit supersedes all older ones (stale outcomes never surface)
+    /// and clears any previous failure (a new attempt owns the error line).
     pub fn submit(&mut self, query: &str) {
         self.submitted += 1;
+        self.last_error = None;
         let generation = self.submitted;
         if self.worker.is_none() {
             self.spawn_worker();
@@ -153,7 +155,7 @@ impl SearchCore {
         self.settled < self.submitted
     }
 
-    /// Last search failure, if any (cleared by the next success).
+    /// Last search failure, if any (cleared by the next submit or success).
     #[must_use]
     pub fn error_text(&self) -> Option<String> {
         self.last_error.clone()
@@ -454,10 +456,14 @@ mod tests {
             core.error_text().is_some_and(|text| !text.is_empty()),
             "corrupt index surfaces text"
         );
-        // A healthy index clears the failure on the next success.
+        // A healthy index clears the failure on the next submit.
         std::fs::remove_file(&db_path).expect("setup works");
         seed(&db_path);
         core.submit("mid");
+        assert!(
+            core.error_text().is_none(),
+            "new submit clears the stale error"
+        );
         settle(&mut core);
         let results = core.take_results().expect("healthy query settles");
         assert_eq!(results.tracks.len(), 1);

@@ -5,8 +5,8 @@ import TuneX 1.0
 // LibraryView (S2 W-016): browse the indexed library — Songs list, Albums
 // grid, Artists grid. Models load from the index on completion; a missing
 // index shows the empty state (never an error). Album cards drill into the
-// songs tab filtered to that album; artist drill-down arrives with S3.
-// Scan triggering, progress, and artwork warming arrive with W-017, which
+// songs tab filtered to that album; artist drill-down arrives in a later
+// slice. Scan triggering, progress, and artwork warming arrived with W-017, which
 // re-calls these same refresh() entry points when a scan completes.
 Item {
     id: root
@@ -215,7 +215,7 @@ Item {
                     width: songsView.width
                     height: visible ? implicitHeight : 0
                     horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("Showing the first 500 songs — search arrives in S3.")
+                    text: qsTr("Showing the first 500 songs — search finds the rest.")
                     textFormat: Text.PlainText
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontCaption

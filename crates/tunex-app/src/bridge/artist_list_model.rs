@@ -15,6 +15,8 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
+use crate::search::SearchCore;
+
 /// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
 /// permitted on `#[qenum]` items, so this is written by hand).
 impl std::fmt::Debug for qobject::ArtistRoles {
@@ -35,6 +37,7 @@ impl std::fmt::Debug for qobject::ArtistRoles {
 #[derive(Debug, Default)]
 pub struct ArtistListModelRust {
     artists: Vec<(QString, i32, i32)>,
+    search: SearchCore,
 }
 
 impl ArtistListModelRust {
@@ -69,6 +72,39 @@ impl ArtistListModelRust {
         }
         QVariant::default()
     }
+
+    /// Submit raw query text to the debounced search worker.
+    fn submit_search(&mut self, query: &str) {
+        self.search.submit(query);
+    }
+
+    /// Drain one settled result set into row payloads (`None` while the
+    /// worker runs or idles — the caller refreshes views on `Some`).
+    fn poll_search_rows(&mut self) -> Option<Vec<(QString, i32, i32)>> {
+        self.search.poll();
+        self.search
+            .take_results()
+            .map(|found| found.artists.iter().map(display_artist).collect())
+    }
+
+    /// Whether a submitted query is still waiting on the worker.
+    fn is_searching(&self) -> bool {
+        self.search.is_searching()
+    }
+
+    /// Last search failure, if any.
+    fn search_error(&self) -> Option<String> {
+        self.search.error_text()
+    }
+}
+
+/// Map one artist group hit to its display row (shared by browse + search).
+fn display_artist(row: &tunex_library::ArtistRow) -> (QString, i32, i32) {
+    (
+        QString::from(&row.name),
+        i32::try_from(row.album_count).unwrap_or(i32::MAX),
+        i32::try_from(row.track_count).unwrap_or(i32::MAX),
+    )
 }
 
 /// Load artist rows from the index at `path` (empty when absent/unreadable —
@@ -85,16 +121,7 @@ fn load_artists(path: &std::path::Path) -> Vec<(QString, i32, i32)> {
         }
     };
     match tunex_library::list_artists(&db) {
-        Ok(rows) => rows
-            .into_iter()
-            .map(|row| {
-                (
-                    QString::from(&row.name),
-                    i32::try_from(row.album_count).unwrap_or(i32::MAX),
-                    i32::try_from(row.track_count).unwrap_or(i32::MAX),
-                )
-            })
-            .collect(),
+        Ok(rows) => rows.iter().map(display_artist).collect(),
         Err(err) => {
             tracing::warn!(name = "browse.artists_failed", error = %err, "index unreadable");
             Vec::new()
@@ -126,6 +153,45 @@ impl qobject::ArtistListModel {
             self.as_mut().rust_mut().drop_rows();
             self.as_mut().end_reset_model_artists();
         }
+    }
+
+    /// Submit raw query text to this model's search worker.
+    pub fn search(mut self: Pin<&mut Self>, query: &QString) {
+        self.as_mut().rust_mut().submit_search(&query.to_string());
+    }
+
+    /// Drain settled search results into rows; emits model reset when new
+    /// rows land, and reports whether anything did.
+    #[must_use]
+    pub fn poll_search(mut self: Pin<&mut Self>) -> bool {
+        let found = self.as_mut().rust_mut().poll_search_rows();
+        let Some(rows) = found else {
+            return false;
+        };
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_artists();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for (name, album_count, track_count) in rows {
+                rust.push_row(name, album_count, track_count);
+            }
+            self.as_mut().end_reset_model_artists();
+        };
+        true
+    }
+
+    /// Whether a submitted query is still waiting on the worker.
+    pub fn is_searching(&self) -> bool {
+        self.rust().is_searching()
+    }
+
+    /// Last search failure, or empty when clear.
+    pub fn error_text(&self) -> QString {
+        self.rust()
+            .search_error()
+            .map(QString::from)
+            .unwrap_or_default()
     }
 
     /// Row count override for `QAbstractListModel`.
@@ -164,7 +230,22 @@ mod tests {
     use super::ArtistListModelRust;
     use super::qobject::ArtistRoles;
     use crate::bridge::test_support::seeded_index;
+    use crate::search::SearchCore;
     use cxx_qt_lib::{QString, QVariant};
+    use std::time::{Duration, Instant};
+
+    /// Poll until one result set settles (tests end idle so the joined
+    /// worker never outlives its scratch dir).
+    fn settle_search(model: &mut ArtistListModelRust) -> Vec<(QString, i32, i32)> {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if let Some(rows) = model.poll_search_rows() {
+                return rows;
+            }
+            assert!(Instant::now() < deadline, "search never settled");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
 
     fn model_with_two_artists() -> ArtistListModelRust {
         let mut model = ArtistListModelRust::default();
@@ -229,5 +310,38 @@ mod tests {
         let (_guard, path) = seeded_index("artists");
         let rows = super::load_artists(&path);
         assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn search_settles_matching_rows() {
+        let (_guard, path) = seeded_index("search-artists");
+        let mut model = ArtistListModelRust {
+            search: SearchCore::with_db_path(path),
+            ..Default::default()
+        };
+        model.search.set_debounce(Duration::from_millis(10));
+        model.submit_search("nova");
+        assert!(model.is_searching());
+        let rows = settle_search(&mut model);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].0, QString::from("Nova Rae"));
+        assert!(!model.is_searching());
+        assert!(
+            model.poll_search_rows().is_none(),
+            "results deliver exactly once"
+        );
+    }
+
+    #[test]
+    fn empty_query_searches_nothing() {
+        let (_guard, path) = seeded_index("search-artists-empty");
+        let mut model = ArtistListModelRust {
+            search: SearchCore::with_db_path(path),
+            ..Default::default()
+        };
+        model.search.set_debounce(Duration::from_millis(10));
+        model.submit_search("");
+        assert!(settle_search(&mut model).is_empty());
+        assert!(model.search_error().is_none());
     }
 }
