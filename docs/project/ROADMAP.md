@@ -22,7 +22,7 @@
 - **Acceptance:** Mini-player + expanded/now-playing (blurred art, controls, progress, volume), keyboard map (space/search/esc/nav), best-effort position restore, animations short/purposeful.
 - **Requirements:** R-010, R-011 (position), R-014, R-018 (functional, pre-polish), R-NFR-04
 - **Validation:** keyboard walkthrough + offline run + a11y/contrast/blur-off check
-- **Status:** todo
+- **Status:** done (W-026–W-031, 2026-09-10; MiniPlayer + Now Playing overlay + keyboard map + last-track restore GUI-proven, a11y/contrast/blur-off checked, no loop-back)
 
 ## Slice S5 — Linux integration hardens (M5)
 - **Acceptance:** Full MPRIS (seek/volume/metadata/status + art URL where feasible), notifications, Wayland + X11 verified, high-DPI, native dialogs, AUR package verified on clean Arch.

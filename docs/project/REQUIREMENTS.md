@@ -79,7 +79,7 @@
 - **Description:** Volume/mute via pipeline; best-effort last-track+position restore.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] Slider/mute immediate; restart restores volume + last track if file exists
+  - [x] Slider/mute immediate; restart restores volume + last track if file exists
 - **Validation method:** manual
 
 ### R-012 — Playlists
@@ -100,7 +100,7 @@
 - **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, standard text editing.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] All bindings work focused in library/search/player; list documented
+  - [x] All bindings work focused in library/search/player; list documented
 - **Validation method:** manual
 
 ### R-015 — Settings
