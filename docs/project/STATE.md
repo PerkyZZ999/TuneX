@@ -24,17 +24,17 @@
 - Bridge (W-002 done): cxx-qt 0.10 stack pinned; `TrackListModel` round-trip GUI-proven; module owned by build.rs; bridge code lives in binary; explicit init anchoring in main.rs
 - Shell (W-003 done): Theme singleton + nav shell + Home/empty states GUI-proven; `tunex-core::config` + tracing live; DESIGN.md body 16px (skill compliance)
 - Player (W-004 done): `PlayerEngine` playbin3 + `PlayerEvent` bus, 14 fakesink tests green, S3776 fixed
-- Queue (W-005 in progress): pure `Queue` logic written + unit-tested; gapless integration test written but blocked (see Blockers)
-- Repo reality: S1 through W-004 done; W-005 partial (queue logic done, gapless test red on missing plugin).
+- Queue (W-005 done): pure `Queue` + preload hook + gapless integration green; Quality Gate OK (waiver closed)
+- Repo reality: S1 through W-005 done; W-006 (codec matrix) next.
 
 ## Open loops
 - None
 
 ## Blockers
-- W-005 gapless test needs `gst-plugins-good` (wavparse) on this machine; no passwordless sudo. Unblocks with: `sudo pacman -S --needed gst-plugins-good` (also required for W-006 codec fixtures).
+- None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- User installs gst-plugins-good → finish W-005 (gapless green) → W-006 codec matrix.
+- W-006: codec matrix fixtures (MP3/FLAC/OGG/M4A/Opus/WAV + corrupt file) with real-decode playback asserts.
 
 ## Phase checklist
 - [x] 0 Intake

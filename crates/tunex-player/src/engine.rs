@@ -39,6 +39,14 @@ struct Inner {
     has_track: bool,
     last_duration: Option<Duration>,
     next_provider: Option<NextUriProvider>,
+    /// The URI the pipeline is told to play, as far as we instructed it.
+    /// Guards the preload path: `about-to-finish` can fire repeatedly (fast
+    /// sinks, repeat-one, same answer twice), and re-setting an identical URI
+    /// makes playbin reconfigure in a loop instead of playing.
+    queued_uri: Option<String>,
+    /// Set by [`PlayerEngine::pause`], consumed by the next observed pause.
+    /// Distinguishes user pauses from preroll transients (see `on_state_changed`).
+    pause_requested: bool,
 }
 
 impl std::fmt::Debug for Inner {
@@ -48,6 +56,8 @@ impl std::fmt::Debug for Inner {
             .field("has_track", &self.has_track)
             .field("last_duration", &self.last_duration)
             .field("next_provider", &self.next_provider.is_some())
+            .field("queued_uri", &self.queued_uri)
+            .field("pause_requested", &self.pause_requested)
             .finish()
     }
 }
@@ -64,6 +74,7 @@ pub struct PlayerEngine {
     events: mpsc::Sender<PlayerEvent>,
     shutdown: Arc<AtomicBool>,
     bus_thread: Option<JoinHandle<()>>,
+    about_to_finish: Option<gst::glib::SignalHandlerId>,
 }
 
 impl PlayerEngine {
@@ -91,9 +102,11 @@ impl PlayerEngine {
             has_track: false,
             last_duration: None,
             next_provider: None,
+            queued_uri: None,
+            pause_requested: false,
         }));
         let shutdown = Arc::new(AtomicBool::new(false));
-        connect_about_to_finish(&playbin, &inner);
+        let about_to_finish = connect_about_to_finish(&playbin, &inner);
         let bus_thread = {
             let playbin = playbin.clone();
             let inner = Arc::clone(&inner);
@@ -111,6 +124,7 @@ impl PlayerEngine {
             events,
             shutdown,
             bus_thread: Some(bus_thread),
+            about_to_finish: Some(about_to_finish),
         })
     }
 
@@ -144,6 +158,8 @@ impl PlayerEngine {
             .map_err(|err| Error::Player(format!("preroll failed: {err:?}")))?;
         if let Ok(mut inner) = self.inner.lock() {
             inner.has_track = true;
+            inner.pause_requested = false;
+            inner.queued_uri = Some(uri.to_owned());
         }
         self.set_tracked_state(PlaybackState::Loading);
         Ok(())
@@ -159,6 +175,9 @@ impl PlayerEngine {
         if !self.has_track() {
             return Err(Error::Player("nothing loaded".to_owned()));
         }
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.pause_requested = false;
+        }
         self.playbin
             .set_state(gst::State::Playing)
             .map_err(|err| Error::Player(format!("play failed: {err:?}")))?;
@@ -171,6 +190,9 @@ impl PlayerEngine {
     ///
     /// Returns [`Error::Player`] when the pipeline refuses the transition.
     pub fn pause(&self) -> Result<()> {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.pause_requested = true;
+        }
         self.playbin
             .set_state(gst::State::Paused)
             .map_err(|err| Error::Player(format!("pause failed: {err:?}")))?;
@@ -289,7 +311,12 @@ impl PlayerEngine {
 
 impl Drop for PlayerEngine {
     fn drop(&mut self) {
-        // Release pipeline resources first: dropping elements above NULL
+        // Disconnect first: tearing down the pipeline while a streaming
+        // thread can still enter the preload closure wedges shutdown.
+        if let Some(handler) = self.about_to_finish.take() {
+            self.playbin.disconnect(handler);
+        }
+        // Release pipeline resources next: dropping elements above NULL
         // state logs GStreamer criticals. Like all GStreamer apps, a wedged
         // driver can stall here; healthy pipelines release in milliseconds.
         let _ = self.playbin.set_state(gst::State::Null);
@@ -313,25 +340,36 @@ fn emit(events: &mpsc::Sender<PlayerEvent>, event: PlayerEvent) {
     }
 }
 
-/// Wire `about-to-finish` to the lookahead provider.
+/// Wire `about-to-finish` to the lookahead provider, returning the connection
+/// (kept by the engine: dropping the pipeline with a live streaming-thread
+/// callback wedges teardown).
 ///
 /// Fires on the streaming thread near the end of the current track; the
 /// handler only peeks a URI and sets the property — no I/O, no locks held
 /// across calls. A weak pipeline handle breaks the reference cycle (the
 /// connection itself lives as long as the pipeline).
-fn connect_about_to_finish(playbin: &gst::Element, inner: &Arc<Mutex<Inner>>) {
+fn connect_about_to_finish(
+    playbin: &gst::Element,
+    inner: &Arc<Mutex<Inner>>,
+) -> gst::glib::SignalHandlerId {
     let inner = Arc::clone(inner);
     let pipeline = playbin.downgrade();
     playbin.connect("about-to-finish", false, move |_| {
-        let uri = inner
-            .lock()
-            .ok()
-            .and_then(|guard| guard.next_provider.as_ref().and_then(|peek| peek()));
-        if let (Some(uri), Some(playbin)) = (uri, pipeline.upgrade()) {
-            playbin.set_property("uri", uri);
+        let peeked = inner.lock().ok().and_then(|guard| {
+            guard
+                .next_provider
+                .as_ref()
+                .and_then(|peek| peek())
+                .filter(|uri| Some(uri) != guard.queued_uri.as_ref())
+        });
+        if let (Some(uri), Some(playbin)) = (peeked, pipeline.upgrade()) {
+            playbin.set_property("uri", &uri);
+            if let Ok(mut guard) = inner.lock() {
+                guard.queued_uri = Some(uri);
+            }
         }
         None
-    });
+    })
 }
 
 /// Record a state transition, emitting exactly one event per change.
@@ -411,7 +449,21 @@ fn on_state_changed(
 ) {
     match playbin.current_state() {
         gst::State::Playing => set_state(inner, events, PlaybackState::Playing),
-        gst::State::Paused => set_state(inner, events, PlaybackState::Paused),
+        // Preroll transients also report Paused: only a pause that follows
+        // playback, or one the user explicitly requested, is real.
+        gst::State::Paused => {
+            let explicit = match inner.lock() {
+                Ok(mut guard) => {
+                    let explicit = guard.state == PlaybackState::Playing || guard.pause_requested;
+                    guard.pause_requested = false;
+                    explicit
+                }
+                Err(_) => false,
+            };
+            if explicit {
+                set_state(inner, events, PlaybackState::Paused);
+            }
+        }
         // Ready means prerolled with content (our loads go through it);
         // a fresh pipeline rests in Null, which is genuinely stopped.
         gst::State::Ready => set_state(inner, events, PlaybackState::Loading),
@@ -452,12 +504,15 @@ mod tests {
     use std::path::PathBuf;
 
     /// Engine wired to `fakesink`: full pipeline behavior, no sound server.
+    /// The sink runs unsynchronized so clips complete as fast as data flows.
     fn test_engine() -> (PlayerEngine, mpsc::Receiver<PlayerEvent>) {
         let (events, receiver) = mpsc::channel(PlayerEngine::event_buffer());
         let engine = PlayerEngine::new(events).expect("engine builds");
         let sink = gst::ElementFactory::make("fakesink")
             .build()
             .expect("fakesink exists");
+        sink.set_property("sync", false);
+        sink.set_property("async", false);
         engine.set_audio_sink(&sink);
         (engine, receiver)
     }
@@ -600,10 +655,6 @@ mod tests {
         engine.stop().expect("stop works");
         assert_eq!(engine.state(), PlaybackState::Stopped);
     }
-    // Blocked on this machine until gst-plugins-good (wavparse) is installed;
-    // tracked as WORK_ITEMS W-005 blocker. Run explicitly once unblocked:
-    // cargo nextest run -p tunex-player about_to_finish
-    #[ignore = "needs gst-plugins-good (wavparse): sudo pacman -S --needed gst-plugins-good"]
     #[tokio::test]
     async fn about_to_finish_preloads_next_uri_gaplessly() {
         let dir = std::env::temp_dir().join(format!("tunex-gapless-{}", std::process::id()));
@@ -657,5 +708,21 @@ mod tests {
             "gapless handoff without intermediate stop"
         );
         std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn sync_load_emits_loading_event() {
+        let (tx, mut rx) = mpsc::channel(PlayerEngine::event_buffer());
+        let engine = PlayerEngine::new(tx).expect("engine builds");
+        let sink = gst::ElementFactory::make("fakesink").build().expect("sink");
+        engine.set_audio_sink(&sink);
+        engine
+            .load_uri("file:///nonexistent-probe.flac")
+            .expect("load stages");
+        match rx.try_recv() {
+            Ok(event) => eprintln!("PROBE: got {event:?}"),
+            Err(err) => eprintln!("PROBE: channel {err:?}"),
+        }
+        eprintln!("PROBE: tracked state {:?}", engine.state());
     }
 }

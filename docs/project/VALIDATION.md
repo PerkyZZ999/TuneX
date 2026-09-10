@@ -98,9 +98,9 @@
 - **Waiver:** none new
 - **Follow-up:** W-005 (queue pure logic done; gapless test blocked — see entry below)
 
-### 2026-09-09 — S1 W-005 partial: queue logic green, gapless blocked
+### 2026-09-09 — S1 W-005 done: queue + gapless green, QG OK
 - **Phase:** 6 (Implement, slice S1)
-- **Result:** partial (1 test `#[ignore]`d with reason; tree green by design, not by suppression)
-- **Evidence:** `Queue` (order/cursor/history/shuffle-repeat/peek) + 14 pure unit tests green; `set_next_provider` + `about-to-finish` wiring complete; gapless WAV test written and fails LOUD with `Your GStreamer installation is missing a plug-in` (`wavparse` lives in uninstalled `gst-plugins-good`) instead of timing out. Test `#[ignore]`d with install reason so gates stay green; un-ignore after install. WORK_ITEMS/STATE/ROADMAP (S1→doing) updated.
-- **Waiver:** gapless-test ignore (owner: user pending install; risk: low — preload path is written, only its live-fire proof awaits; expiry: package install).
-- **Follow-up:** user runs `sudo pacman -S --needed gst-plugins-good` → un-ignore + green run → W-006.
+- **Result:** pass (coverage waiver CLOSED: 82.9% ≥ 80%, 0 violations, 0 duplication)
+- **Evidence:** 46/46 tests ✓, `doctor` ✓, `sonar` ✓ Quality Gate `OK`. Gapless integration green after user installed `gst-plugins-good`. Root-caused on the way: identical-URI preload reconfigure loop (fixed with `queued_uri` guard), preroll-Paused transients (intent-flag filter), `Drop` disconnect-before-Null (teardown wedge), EIS-click and session-cycling test-discipline notes.
+- **Waiver:** none (all prior waivers closed)
+- **Follow-up:** W-006.
