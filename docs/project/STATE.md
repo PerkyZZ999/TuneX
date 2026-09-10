@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: S1 slice gate (W-010, 2026-09-10)
-- Latest validation entry: 2026-09-10 S1 close-out (67 tests, QG OK)
+- Latest passed gate: `rust-tc sonar` for W-011 (QG OK)
+- Latest validation entry: 2026-09-10 W-011 metadata green (70 tests, QG OK)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -29,7 +29,8 @@
 - Harness (W-007 done): SQLite v1 + scanner + scan→play end-to-end green; bridge unified into lib; GUI smoke OK
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
-- Repo reality: S1 through W-009 done; W-010 (S1 gate) next.
+- Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
+- Repo reality: S1 done; S2 through W-011 done; W-012 (schema v2 + FTS5) next.
 
 ## Open loops
 - None
@@ -38,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- S2 kickoff: library scan + metadata + artwork + browse (M2/M3) — slice planning first (work items, fixtures, FTS5 design).
+- W-012: schema v2 (full columns, FTS5) + v1→v2 migration test.
 
 ## Phase checklist
 - [x] 0 Intake

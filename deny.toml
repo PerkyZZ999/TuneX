@@ -10,7 +10,12 @@ all-features = true
 
 [advisories]
 yanked = "deny"
-ignore = []
+ignore = [
+    # RUSTSEC-2024-0436: `paste` is unmaintained (no CVE, informational).
+    # Transitive via lofty 0.24.0 (macro use only, build-time); no safe
+    # upgrade exists until upstream migrates. Re-evaluate on lofty upgrades.
+    "RUSTSEC-2024-0436",
+]
 
 [licenses]
 version = 2

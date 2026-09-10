@@ -8,6 +8,7 @@ publish.workspace = true
 description = "TuneX library engine: scan, metadata, SQLite/FTS5, artwork, playlists, search."
 
 [dependencies]
+lofty.workspace = true
 rusqlite.workspace = true
 rusqlite_migration.workspace = true
 tunex-core.workspace = true

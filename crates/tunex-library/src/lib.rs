@@ -9,9 +9,11 @@
 //! and playlists arrive slice by slice in S2/S3.
 
 pub mod db;
+pub mod metadata;
 pub mod scan;
 
 pub use db::{TrackRow, add_root, list_tracks, open_file, open_memory, schema_version};
+pub use metadata::{EmbeddedArtwork, FileMetadata, read_metadata};
 pub use scan::{
     SUPPORTED_EXTENSIONS, ScanStats, collect_media_files, is_supported, scan_folder, stable_key,
 };

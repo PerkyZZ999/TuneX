@@ -30,6 +30,7 @@ gstreamer = "0.24.5"
 tokio = { version = "1.53.1", features = ["sync", "rt", "rt-multi-thread", "macros", "time"] }
 rusqlite = "0.40.2"
 rusqlite_migration = "2.5.0"
+lofty = "0.24.0"
 mpris-server = { version = "0.10.0", features = ["tokio"] }
 
 # Intra-workspace path deps land here alongside their first real `use`,

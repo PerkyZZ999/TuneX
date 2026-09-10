@@ -38,6 +38,11 @@ pub enum Error {
     #[error("database error: {0}")]
     Database(String),
 
+    /// Audio metadata failure (unreadable tags, corrupt headers). Routine in
+    /// scans: callers skip the file, never abort the run.
+    #[error("metadata error: {0}")]
+    Metadata(String),
+
     /// Cancellable background work (scan, search) was asked to stop.
     ///
     /// Cancellation is routine control flow, never a malfunction: report it,

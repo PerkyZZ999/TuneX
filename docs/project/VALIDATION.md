@@ -139,3 +139,10 @@
 - **Evidence:** Acceptance check per item — CMake+Corrosion builds window ✓ · cxx-qt round-trip GUI-proven ✓ · playbin3 plays all 6 fixture formats to `Playing` with durations ✓, pause/volume/mute unit-tested ✓, deterministic seek (paused poll lands 1400–1600 ms) ✓ · queue next/prev/shuffle/repeat + gapless preload tested ✓ · PKGBUILD skeleton (printsrcinfo + namcap; full build deferred S5) · MPRIS skeleton live-verified (Identity + Stopped→Playing→Paused; `playerctl` absent here so `qdbus6`/`busctl` substituted). Gates: 67/67 tests ✓, `rust-tc doctor` ✓, `dod-demo.sh` 5/5 ✓, `sonar` ✓ QG OK (84.5%, 0 violations). Traceability: R-001/R-009/R-010/R-011/R-013/R-016 + NFR-01/05 → S1 → W-001a/b–W-010 → this entry.
 - **Waiver:** none
 - **Follow-up:** S2 planning. R1 (cxx-qt feasibility) CLOSED, R2 (playbin3/PKGBUILD feasibility) CLOSED — no milestone loop-back.
+
+### 2026-09-10 — S2 W-011: metadata extraction green
+- **Phase:** 6 (Implement, slice S2)
+- **Result:** pass
+- **Evidence:** `tunex-library::metadata` (`read_metadata` + `EmbeddedArtwork`, `Error::Metadata` in core): untagged fixture proves unknowns stay unknown with duration; lofty write→read round-trip proves all fields + BMP art bytes; corrupt file errors explicitly. 70/70 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (85.5%, 0 violations; RUSTSEC-2024-0436 ignore-documented in `deny.toml`).
+- **Waiver:** none
+- **Follow-up:** W-012. W-011 learnings: verify lofty 0.24 API against vendored sources (accessor macro names differ from memory — `disk()` not `disc()`, `get_string(ItemKey)` for album-artist/composer); hand-writable BMP beats PNG for art round-trips (no compression libs); empty-tag normalization belongs in the reader, not the DB.

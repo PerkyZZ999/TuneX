@@ -1,12 +1,19 @@
-# Work items (current slice: S1 — Shell + real playback)
+# Work items (current slice: S2 — Library scan + browse + art)
 
-> First slice only per workflow. S2–S6 seeded when S1 completes.
+> S1 done (W-001a/b–W-010). S3–S6 seeded when S2 completes.
 
 ## Current slice
-S1 — Shell + real playback (M0+M1). Goal: prove R1/R2 feasibility (cxx-qt + playbin3 + PKGBUILD) with real files.
+S2 — Library scan + browse + art (M2+M3 core). Goal: folders in, browsable library out — metadata, artwork, watcher, and browse UI over the v2 schema.
 
 ## Queue
-- [x] W-001a — 4-crate Cargo workspace (workspace deps/lints, `publish=false`, core `Error` + tests) + Rust-Toolchain install (justfile, deny incl. GPL-3.0-or-later, nextest, rust-toolchain stable, Sonar `tunex` project + token) + pre-commit hook (`rust-tc doctor` gate). Gates: `quick` ✓ `doctor` ✓ `sonar` ✓ (QG OK). (R-001 part)
+- [x] W-011 — Metadata extraction behind a trait (`lofty` 0.24.0 impl): title/artist/album/album-artist/composer/genre/year/track/disc/duration + embedded artwork bytes (front-cover preferred); empty strings normalize to `None`, corrupt files error as `Error::Metadata` (R-004). Verified: untagged-fixture unknowns, lofty write→read round-trip (incl. BMP art bytes), corrupt path; 70 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (RUSTSEC-2024-0436 `paste` advisory ignore-documented: transitive via lofty, no CVE).
+- [ ] W-012 — Schema v2 (artists/albums/tracks full columns, genres, folders, scan_state) + FTS5 tables + v1→v2 migration test (R-006)
+- [ ] W-013 — Scanner worker (`tokio`, walk → metadata → upsert, stable-key reconcile incl. renames, progress counts) (R-002, R-003)
+- [ ] W-014 — Filesystem watcher (`notify`, debounced, enqueue-only callbacks) (R-003)
+- [ ] W-015 — Artwork pipeline (embedded/folder art → XDG cache, content keys, thumbnails, LRU, decode caps) (R-005)
+- [ ] W-016 — Library QML models + browse views (artists/albums/tracks, virtualized, placeholders) (R-007)
+- [ ] W-017 — Library folders UI (native add/remove, scan progress) + restart persistence check (R-002, R-015)
+- [ ] W-018 — S2 gate: 12k-file scan observation + rename/delete fault injection + offline rerun; close or loop back
 - [x] W-001b — CMake top-level (Qt 6.8+, Corrosion v0.6.1 pinned, `qt_add_qml_module` URI `TuneX` + `App.qml` shell) + PKGBUILD skeleton (url + git source `github.com/PerkyZZ999/TuneX`, namcap clean). Verified: configure warning-free, full build green (Corrosion Rust + QML module), `tunex` binary runs, `qmllint`/`qmlformat` clean, `printsrcinfo` OK. Full `makepkg` + chroot deferred to S5 (needs executable + Corrosion vendoring). (R-001, R-016)
 - [x] W-002 — cxx-qt bridge proof (pinned: cxx 1.0.198, cxx-qt/-lib/-build 0.10.0): `TrackListModel : QAbstractListModel` (Title/Artist roles, rowCount/data/roleNames overrides, append/clear invokables) + Rust `main` booting Qt + proof `App.qml`. Verified: 10 unit tests ✓, KWin GUI round-trip 3× (button → Rust append → rowsInserted → row rendered, screenshot-observed), `doctor` ✓, `sonar` ✓ (0 violations; coverage waiver below). (R-001)
 - [x] W-003 — app window + nav skeleton + theme tokens + tracing + XDG config: `Theme.qml` singleton (42 DESIGN.md tokens), shell (`App.qml` + rail/topbar/history, `HomeView`, `SectionStub`, `NavItem`), `tunex-core::config` (TOML schema + clamp + round-trip/compat tests), structured `tracing` boot. Verified: 15 unit tests ✓, KWin GUI (themed shell renders, rail nav + history proven, evidence shots), `doctor` ✓, `sonar` ✓ (0 violations; coverage waiver stands). (R-001, R-015)
