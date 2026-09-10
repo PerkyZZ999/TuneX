@@ -1,0 +1,62 @@
+# TuneX CI — native Arch build with the full local gate.
+#
+# Runs in an Arch container (same package set as developers): the complete
+# `just doctor` gate, the CMake build, QML lint/format, and the PKGBUILD
+# static checks. Full `makepkg` builds and clean-chroot runs are S5 scope.
+#
+# CI calls `just` recipes directly: `rust-tc` is a developer-machine wrapper
+# around this repo's justfile, not something CI can install from here.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container: archlinux/archlinux:latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: >
+          pacman -Syu --noconfirm --needed
+          qt6-base qt6-declarative qt6-shadertools
+          cmake ninja pkgconf
+          rustup just sqlite
+          gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
+          namcap
+
+      - name: Install Rust toolchain
+        run: |
+          rustup default stable
+          rustup component add rustfmt clippy llvm-tools-preview
+
+      - name: Install Rust quality tools
+        run: >
+          cargo install --locked cargo-deny cargo-shear cargo-llvm-cov cargo-hack
+          && curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ~/.cargo/bin
+
+      - name: Full local gate
+        run: just doctor
+
+      - name: CMake configure and build
+        run: |
+          cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build build
+
+      - name: QML lint and format check
+        run: |
+          qmllint crates/tunex-app/qml/TuneX/*.qml
+          for file in crates/tunex-app/qml/TuneX/*.qml; do
+            diff "$(qmlformat "$file")" "$file"
+          done
+
+      - name: PKGBUILD static checks
+        working-directory: packaging/aur
+        run: |
+          makepkg --printsrcinfo > /dev/null
+          namcap PKGBUILD

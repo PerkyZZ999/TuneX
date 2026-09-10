@@ -28,7 +28,8 @@
 - Codecs (W-006 done): 6-format fixture matrix + corrupt path green; QG OK
 - Harness (W-007 done): SQLite v1 + scanner + scan→play end-to-end green; bridge unified into lib; GUI smoke OK
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
-- Repo reality: S1 through W-008 done; W-009 (CI + DoD script) next.
+- CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
+- Repo reality: S1 through W-009 done; W-010 (S1 gate) next.
 
 ## Open loops
 - None
@@ -37,7 +38,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-009: CI workflow (native build + gates + PKGBUILD check) + DoD demo script draft.
+- W-010: S1 gate rehearsal (full DoD pass: install storie → offline run) + close-out commit.
 
 ## Phase checklist
 - [x] 0 Intake

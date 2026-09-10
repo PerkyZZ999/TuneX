@@ -124,4 +124,11 @@
 - **Result:** pass
 - **Evidence:** `tunex-app::mpris` (mpris-server 0.10.0 + tokio runtime on detached thread): full Root/Player interfaces over local state, 6 unit tests ✓. Live bus run (offscreen binary, real session bus): name owned, `Identity=TuneX`, `Stopped→PlayPause→Playing→PlayPause→Paused` via qdbus6, clean name release on exit. `doctor` ✓, `sonar` ✓ QG OK (83.2%, 0 violations).
 - **Waiver:** none
-- **Follow-up:** W-009. W-008 learnings: trait methods use `fdo::Result` for getters AND most methods but plain `zbus::Result` for property setters — read the vendored signatures, never guess; `Volume`/`PlaybackRate` are `f64` aliases; no `playerctl` here — `busctl`/`qdbus6` cover the smoke test; engine/queue wiring deferred to S5 by design.
+- **Follow-up:** W-009 — see entry below. W-008 learnings: trait methods use `fdo::Result` for getters AND most methods but plain `zbus::Result` for property setters — read the vendored signatures, never guess; `Volume`/`PlaybackRate` are `f64` aliases; no `playerctl` here — `busctl`/`qdbus6` cover the smoke test; engine/queue wiring deferred to S5 by design.
+
+### 2026-09-10 — S1 W-009: CI + DoD rehearsal green
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** pass
+- **Evidence:** `.github/workflows/ci.yml` (Arch container: system deps incl. full plugin sets, toolchain + quality tools, `just doctor`, CMake build, QML lint/format check, printsrcinfo + namcap; YAML-parsed; runs on push — first green run pending a push). `scripts/dod-demo.sh` runs all five steps locally green (gate, configure, build, lint, live MPRIS smoke with name release + stray-process cleanup).
+- **Waiver:** none
+- **Follow-up:** W-010 (S1 close-out).
