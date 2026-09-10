@@ -1,21 +1,22 @@
-//! SQLite library index: versioned schema, WAL mode, minimal track rows.
+//! SQLite library index: versioned schema, WAL mode, indexed track rows.
 //!
 //! Migrations run from day one (`rusqlite_migration`): every schema change is
 //! a numbered migration, so S2+ tables arrive without breaking S1 databases.
 //! Only index data lives here — never audio.
+//!
+//! Write discipline: every mutation goes through the helpers below inside one
+//! transaction, so `tracks`, lookup tables, and the FTS index never diverge.
+//! SQLite triggers backstop deletions cascading into the search index.
 
 use rusqlite::{Connection, Row};
 use rusqlite_migration::{M, Migrations};
 use tunex_core::{Error, Result};
 
-/// Current schema version (v1: roots + tracks skeleton).
-pub const SCHEMA_VERSION: usize = 1;
+/// Current schema version (v2: full track columns, lookup tables, FTS5).
+pub const SCHEMA_VERSION: usize = 2;
 
-/// Versioned migrations, oldest first. Append-only: never edit a landed
-/// migration, always add a new one.
-fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(
-        "CREATE TABLE library_roots(
+/// v1 DDL, frozen: roots + tracks skeleton (landed in S1, never edited).
+const V1_SCHEMA: &str = "CREATE TABLE library_roots(
             id INTEGER PRIMARY KEY,
             path TEXT NOT NULL UNIQUE
         );
@@ -25,21 +26,111 @@ fn migrations() -> Migrations<'static> {
             title TEXT,
             stable_key TEXT NOT NULL
         );
-        CREATE INDEX idx_tracks_stable_key ON tracks(stable_key);",
-    )])
+        CREATE INDEX idx_tracks_stable_key ON tracks(stable_key);";
+
+/// v2 DDL: metadata columns, lookup tables, folders, scan state, and the
+/// FTS5 external-content search index with sync triggers (SPEC §11.3).
+const V2_SCHEMA: &str = "
+        CREATE TABLE artists(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE albums(
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            artist_id INTEGER REFERENCES artists(id),
+            year INTEGER,
+            UNIQUE(title, artist_id)
+        );
+        CREATE TABLE genres(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE folders(
+            id INTEGER PRIMARY KEY,
+            path TEXT NOT NULL UNIQUE,
+            root_id INTEGER NOT NULL REFERENCES library_roots(id)
+        );
+        CREATE TABLE scan_state(
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        ALTER TABLE tracks ADD COLUMN artist_id INTEGER REFERENCES artists(id);
+        ALTER TABLE tracks ADD COLUMN album_id INTEGER REFERENCES albums(id);
+        ALTER TABLE tracks ADD COLUMN genre_id INTEGER REFERENCES genres(id);
+        ALTER TABLE tracks ADD COLUMN composer TEXT;
+        ALTER TABLE tracks ADD COLUMN year INTEGER;
+        ALTER TABLE tracks ADD COLUMN track_number INTEGER;
+        ALTER TABLE tracks ADD COLUMN disc_number INTEGER;
+        ALTER TABLE tracks ADD COLUMN duration_ms INTEGER;
+        CREATE TABLE track_search_docs(
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            artist TEXT NOT NULL DEFAULT '',
+            album TEXT NOT NULL DEFAULT '',
+            album_artist TEXT NOT NULL DEFAULT '',
+            composer TEXT NOT NULL DEFAULT '',
+            genre TEXT NOT NULL DEFAULT '',
+            filename TEXT NOT NULL DEFAULT ''
+        );
+        CREATE VIRTUAL TABLE track_search USING fts5(
+            title, artist, album, album_artist, composer, genre, filename,
+            content='track_search_docs', content_rowid='id',
+            tokenize='unicode61'
+        );
+        CREATE TRIGGER track_search_ai AFTER INSERT ON track_search_docs BEGIN
+            INSERT INTO track_search(rowid, title, artist, album, album_artist, composer, genre, filename)
+            VALUES (new.id, new.title, new.artist, new.album, new.album_artist, new.composer, new.genre, new.filename);
+        END;
+        CREATE TRIGGER track_search_ad AFTER DELETE ON track_search_docs BEGIN
+            INSERT INTO track_search(track_search, rowid, title, artist, album, album_artist, composer, genre, filename)
+            VALUES ('delete', old.id, old.title, old.artist, old.album, old.album_artist, old.composer, old.genre, old.filename);
+        END;
+        CREATE TRIGGER track_search_au AFTER UPDATE ON track_search_docs BEGIN
+            INSERT INTO track_search(track_search, rowid, title, artist, album, album_artist, composer, genre, filename)
+            VALUES ('delete', old.id, old.title, old.artist, old.album, old.album_artist, old.composer, old.genre, old.filename);
+            INSERT INTO track_search(rowid, title, artist, album, album_artist, composer, genre, filename)
+            VALUES (new.id, new.title, new.artist, new.album, new.album_artist, new.composer, new.genre, new.filename);
+        END;
+        CREATE TRIGGER tracks_ad AFTER DELETE ON tracks BEGIN
+            DELETE FROM track_search_docs WHERE id = old.id;
+        END;
+        INSERT INTO track_search_docs(id, title, filename)
+            SELECT id, COALESCE(title, ''), path FROM tracks;";
+
+/// Versioned migrations, oldest first. Append-only: never edit a landed
+/// migration, always add a new one.
+fn migrations() -> Migrations<'static> {
+    Migrations::new(vec![M::up(V1_SCHEMA), M::up(V2_SCHEMA)])
 }
 
-/// One indexed track row (metadata columns arrive with S2).
+/// One indexed track row with resolved display names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackRow {
     /// Database row id (internal; renames keep history via `stable_key`).
     pub id: i64,
     /// Absolute filesystem path.
     pub path: String,
-    /// Title when known; `None` until metadata extraction lands (S2).
+    /// Title when known.
     pub title: Option<String>,
     /// Stable identity (`path + mtime + size`); survives renames via reconcile.
     pub stable_key: String,
+    /// Resolved artist name.
+    pub artist: Option<String>,
+    /// Resolved album title.
+    pub album: Option<String>,
+    /// Resolved genre name.
+    pub genre: Option<String>,
+    /// Composer credit.
+    pub composer: Option<String>,
+    /// Release year.
+    pub year: Option<i64>,
+    /// Track number within the disc.
+    pub track_number: Option<i64>,
+    /// Disc number within the release.
+    pub disc_number: Option<i64>,
+    /// Duration in milliseconds.
+    pub duration_ms: Option<i64>,
 }
 
 impl TrackRow {
@@ -49,8 +140,46 @@ impl TrackRow {
             path: row.get("path")?,
             title: row.get("title")?,
             stable_key: row.get("stable_key")?,
+            artist: row.get("artist")?,
+            album: row.get("album")?,
+            genre: row.get("genre")?,
+            composer: row.get("composer")?,
+            year: row.get("year")?,
+            track_number: row.get("track_number")?,
+            disc_number: row.get("disc_number")?,
+            duration_ms: row.get("duration_ms")?,
         })
     }
+}
+
+/// A track to index: write-side counterpart of [`TrackRow`] with unresolved
+/// names (ids are resolved inside the upsert transaction).
+#[derive(Clone, Debug, Default)]
+pub struct NewTrack {
+    /// Absolute filesystem path (identity for upserts).
+    pub path: String,
+    /// Stable identity (`stable_key` from the scanner).
+    pub stable_key: String,
+    /// Title when tagged.
+    pub title: Option<String>,
+    /// Artist name when tagged.
+    pub artist: Option<String>,
+    /// Album title when tagged.
+    pub album: Option<String>,
+    /// Album artist when tagged (may differ from track artist on compilations).
+    pub album_artist: Option<String>,
+    /// Composer credit when tagged.
+    pub composer: Option<String>,
+    /// Genre name when tagged.
+    pub genre: Option<String>,
+    /// Release year.
+    pub year: Option<i64>,
+    /// Track number within the disc.
+    pub track_number: Option<i64>,
+    /// Disc number within the release.
+    pub disc_number: Option<i64>,
+    /// Duration in milliseconds.
+    pub duration_ms: Option<i64>,
 }
 
 /// Open an in-memory database (tests, throwaway harnesses).
@@ -106,7 +235,7 @@ pub fn schema_version(db: &Connection) -> Result<usize> {
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the insert fails.
-pub fn add_root(db: &Connection, path: &str) -> Result<()> {
+pub fn add_root(db: &mut Connection, path: &str) -> Result<()> {
     db.execute(
         "INSERT OR IGNORE INTO library_roots(path) VALUES (?1)",
         [path],
@@ -115,35 +244,184 @@ pub fn add_root(db: &Connection, path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Insert a track or refresh its stable key when the file changed
-/// (mini-reconcile; full watcher-driven reconcile lands in S2).
+/// Resolve a lookup name to its row id, creating it on first use.
+fn get_or_create(db: &Connection, table: &str, name: &str) -> Result<i64, rusqlite::Error> {
+    // Table names are internal constants from the call sites below, never
+    // user input; dynamic SQL here is safe by construction.
+    db.execute(
+        &format!("INSERT OR IGNORE INTO {table}(name) VALUES (?1)"),
+        [name],
+    )?;
+    db.query_row(
+        &format!("SELECT id FROM {table} WHERE name = ?1"),
+        [name],
+        |row| row.get(0),
+    )
+}
+
+/// Human filename for the search index (falls back to the full path when the
+/// path has no file name component).
+fn filename_of(path: &str) -> String {
+    std::path::Path::new(path).file_name().map_or_else(
+        || path.to_owned(),
+        |name| name.to_string_lossy().into_owned(),
+    )
+}
+
+/// Resolve an optional lookup name (artist/genre) to its row id.
+fn resolve_lookup_id(
+    transaction: &rusqlite::Transaction<'_>,
+    table: &str,
+    name: Option<&str>,
+) -> Result<Option<i64>> {
+    name.map(|name| get_or_create(transaction, table, name))
+        .transpose()
+        .map_err(|err| db_error(&err))
+}
+
+/// Find an album row by title + owner, creating it on first use.
+///
+/// `owner_id` is `None` for albums with no known artist; `IS` comparison
+/// matches `NULL` owners correctly, so both cases share one query pair.
+fn find_or_create_album(
+    transaction: &rusqlite::Transaction<'_>,
+    title: &str,
+    owner_id: Option<i64>,
+    year: Option<i64>,
+) -> Result<Option<i64>> {
+    transaction
+        .query_row(
+            "SELECT id FROM albums WHERE title = ?1 AND artist_id IS ?2",
+            rusqlite::params![title, owner_id],
+            |row| row.get(0),
+        )
+        .or_else(|_| {
+            transaction.execute(
+                "INSERT INTO albums(title, artist_id, year) VALUES (?1, ?2, ?3)",
+                rusqlite::params![title, owner_id, year],
+            )?;
+            transaction.query_row(
+                "SELECT id FROM albums WHERE title = ?1 AND artist_id IS ?2",
+                rusqlite::params![title, owner_id],
+                |row| row.get(0),
+            )
+        })
+        .map(Some)
+        .map_err(|err| db_error(&err))
+}
+
+/// Resolve an album title + owner to its row id, creating it on first use.
+///
+/// The album belongs to the album artist when known, else the track artist;
+/// compilations resolve under their own name either way.
+fn resolve_album_id(
+    transaction: &rusqlite::Transaction<'_>,
+    title: Option<&str>,
+    owner: Option<&str>,
+    year: Option<i64>,
+) -> Result<Option<i64>> {
+    let Some(title) = title else {
+        return Ok(None);
+    };
+    let owner_id = owner
+        .map(|name| get_or_create(transaction, "artists", name))
+        .transpose()
+        .map_err(|err| db_error(&err))?;
+    find_or_create_album(transaction, title, owner_id, year)
+}
+
+/// Insert a track or refresh it when rescanned, resolving lookup ids and
+/// refreshing the search index in the same transaction.
 ///
 /// # Errors
 ///
-/// Returns [`Error::Database`] when the upsert fails.
-pub fn upsert_track(
-    db: &Connection,
-    path: &str,
-    title: Option<&str>,
-    stable_key: &str,
-) -> Result<()> {
-    db.execute(
-        "INSERT INTO tracks(path, title, stable_key) VALUES (?1, ?2, ?3)
-         ON CONFLICT(path) DO UPDATE SET stable_key = excluded.stable_key",
-        rusqlite::params![path, title, stable_key],
-    )
-    .map_err(|err| db_error(&err))?;
+/// Returns [`Error::Database`] when any write fails (the transaction rolls
+/// back, so tracks and index never diverge).
+pub fn upsert_track(db: &mut Connection, track: &NewTrack) -> Result<()> {
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    let artist_id = resolve_lookup_id(&transaction, "artists", track.artist.as_deref())?;
+    let album_owner = track.album_artist.as_deref().or(track.artist.as_deref());
+    let album_id = resolve_album_id(
+        &transaction,
+        track.album.as_deref(),
+        album_owner,
+        track.year,
+    )?;
+    let genre_id = resolve_lookup_id(&transaction, "genres", track.genre.as_deref())?;
+    transaction
+        .execute(
+            "INSERT INTO tracks(path, title, stable_key, artist_id, album_id, genre_id,
+                                composer, year, track_number, disc_number, duration_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(path) DO UPDATE SET
+                title = excluded.title, stable_key = excluded.stable_key,
+                artist_id = excluded.artist_id, album_id = excluded.album_id,
+                genre_id = excluded.genre_id, composer = excluded.composer,
+                year = excluded.year, track_number = excluded.track_number,
+                disc_number = excluded.disc_number, duration_ms = excluded.duration_ms",
+            rusqlite::params![
+                track.path,
+                track.title,
+                track.stable_key,
+                artist_id,
+                album_id,
+                genre_id,
+                track.composer,
+                track.year,
+                track.track_number,
+                track.disc_number,
+                track.duration_ms,
+            ],
+        )
+        .map_err(|err| db_error(&err))?;
+    let id: i64 = transaction
+        .query_row(
+            "SELECT id FROM tracks WHERE path = ?1",
+            [&track.path],
+            |row| row.get(0),
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction
+        .execute(
+            "INSERT OR REPLACE INTO track_search_docs(
+                id, title, artist, album, album_artist, composer, genre, filename)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![
+                id,
+                track.title.as_deref().unwrap_or(""),
+                track.artist.as_deref().unwrap_or(""),
+                track.album.as_deref().unwrap_or(""),
+                track.album_artist.as_deref().unwrap_or(""),
+                track.composer.as_deref().unwrap_or(""),
+                track.genre.as_deref().unwrap_or(""),
+                filename_of(&track.path),
+            ],
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction.commit().map_err(|err| db_error(&err))?;
     Ok(())
 }
 
-/// All indexed tracks ordered by path.
+/// All indexed tracks ordered by path, with resolved display names.
 ///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
 pub fn list_tracks(db: &Connection) -> Result<Vec<TrackRow>> {
     let mut statement = db
-        .prepare("SELECT id, path, title, stable_key FROM tracks ORDER BY path")
+        .prepare(
+            "SELECT tracks.id AS id, tracks.path AS path, tracks.title AS title,
+                    tracks.stable_key AS stable_key,
+                    artists.name AS artist, albums.title AS album, genres.name AS genre,
+                    tracks.composer AS composer, tracks.year AS year,
+                    tracks.track_number AS track_number, tracks.disc_number AS disc_number,
+                    tracks.duration_ms AS duration_ms
+             FROM tracks
+             LEFT JOIN artists ON artists.id = tracks.artist_id
+             LEFT JOIN albums ON albums.id = tracks.album_id
+             LEFT JOIN genres ON genres.id = tracks.genre_id
+             ORDER BY tracks.path",
+        )
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], TrackRow::from_row)
@@ -156,14 +434,48 @@ fn db_error(err: &rusqlite::Error) -> Error {
     Error::Database(err.to_string())
 }
 
+/// Prefix search over the FTS5 index, best matches first (BM25).
+///
+/// Single-term queries only in this slice; the S3 search controller builds
+/// multi-term parsing on top. Results cap at 200 rows per SPEC §11.3. FTS
+/// syntax errors surface as [`Error::Database`] rather than silently
+/// matching nothing.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn search_track_ids(db: &Connection, term: &str) -> Result<Vec<i64>> {
+    let mut statement = db
+        .prepare(
+            "SELECT rowid FROM track_search
+             WHERE track_search MATCH ?1 ORDER BY bm25(track_search) LIMIT 200",
+        )
+        .map_err(|err| db_error(&err))?;
+    let query = format!("{term}*");
+    let rows = statement
+        .query_map([query], |row| row.get(0))
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<i64>>>()
+        .map_err(|err| db_error(&err))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn new_track(path: &str) -> NewTrack {
+        NewTrack {
+            path: path.to_owned(),
+            stable_key: format!("{path}:0:0"),
+            ..Default::default()
+        }
+    }
+
     #[test]
-    fn fresh_database_reports_schema_v1() {
+    fn fresh_database_reports_schema_v2() {
         let db = open_memory().expect("in-memory opens");
         assert_eq!(schema_version(&db).expect("version reads"), SCHEMA_VERSION);
+        assert_eq!(SCHEMA_VERSION, 2);
     }
 
     #[test]
@@ -181,10 +493,33 @@ mod tests {
     }
 
     #[test]
+    fn v1_to_v2_migration_preserves_rows() {
+        let mut db = Connection::open_in_memory().expect("in-memory opens");
+        Migrations::new(vec![M::up(super::V1_SCHEMA)])
+            .to_latest(&mut db)
+            .expect("v1 applies");
+        db.execute(
+            "INSERT INTO tracks(path, title, stable_key) VALUES ('/m/old.flac', 'Old', 'k')",
+            [],
+        )
+        .expect("v1 row inserts");
+        Migrations::new(vec![M::up(super::V1_SCHEMA), M::up(super::V2_SCHEMA)])
+            .to_latest(&mut db)
+            .expect("v2 migrates");
+        assert_eq!(schema_version(&db).expect("version reads"), 2);
+        let tracks = list_tracks(&db).expect("list works");
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].title.as_deref(), Some("Old"));
+        assert_eq!(tracks[0].artist, None);
+        // Backfill indexed the surviving row by path.
+        assert_eq!(search_track_ids(&db, "old").expect("search works").len(), 1);
+    }
+
+    #[test]
     fn roots_are_idempotent() {
-        let db = open_memory().expect("in-memory opens");
-        add_root(&db, "/music").expect("first add works");
-        add_root(&db, "/music").expect("second add is a no-op");
+        let mut db = open_memory().expect("in-memory opens");
+        add_root(&mut db, "/music").expect("first add works");
+        add_root(&mut db, "/music").expect("second add is a no-op");
         let count: i64 = db
             .query_row("SELECT COUNT(*) FROM library_roots", [], |row| row.get(0))
             .expect("count reads");
@@ -192,13 +527,54 @@ mod tests {
     }
 
     #[test]
-    fn upsert_refreshes_changed_keys() {
-        let db = open_memory().expect("in-memory opens");
-        upsert_track(&db, "/music/a.flac", None, "k1").expect("insert works");
-        upsert_track(&db, "/music/a.flac", None, "k2").expect("reinsert works");
+    fn upsert_resolves_names_and_searches() {
+        let mut db = open_memory().expect("in-memory opens");
+        let track = NewTrack {
+            path: "/music/midnight.flac".to_owned(),
+            stable_key: "k1".to_owned(),
+            title: Some("Midnight".to_owned()),
+            artist: Some("Nova Rae".to_owned()),
+            album: Some("Night Tapes".to_owned()),
+            genre: Some("Ambient".to_owned()),
+            ..Default::default()
+        };
+        upsert_track(&mut db, &track).expect("upsert works");
         let tracks = list_tracks(&db).expect("list works");
         assert_eq!(tracks.len(), 1);
-        assert_eq!(tracks[0].stable_key, "k2");
-        assert_eq!(tracks[0].title, None);
+        assert_eq!(tracks[0].artist.as_deref(), Some("Nova Rae"));
+        assert_eq!(tracks[0].album.as_deref(), Some("Night Tapes"));
+        assert_eq!(tracks[0].genre.as_deref(), Some("Ambient"));
+        assert_eq!(search_track_ids(&db, "mid").expect("search works").len(), 1);
+        assert_eq!(
+            search_track_ids(&db, "nova").expect("search works").len(),
+            1
+        );
+        assert!(
+            search_track_ids(&db, "zzz")
+                .expect("search works")
+                .is_empty()
+        );
+        // Rescan refreshes instead of duplicating.
+        upsert_track(&mut db, &track).expect("re-upsert works");
+        assert_eq!(list_tracks(&db).expect("list works").len(), 1);
+    }
+
+    #[test]
+    fn deleting_a_track_clears_its_search_row() {
+        let mut db = open_memory().expect("in-memory opens");
+        let mut track = new_track("/music/gone.flac");
+        track.title = Some("Gone".to_owned());
+        upsert_track(&mut db, &track).expect("upsert works");
+        assert_eq!(
+            search_track_ids(&db, "gone").expect("search works").len(),
+            1
+        );
+        db.execute("DELETE FROM tracks WHERE path = '/music/gone.flac'", [])
+            .expect("delete works");
+        assert!(
+            search_track_ids(&db, "gone")
+                .expect("search works")
+                .is_empty()
+        );
     }
 }

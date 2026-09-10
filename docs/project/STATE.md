@@ -8,15 +8,15 @@
 - **Current phase:** 6 — Implement (S1 done 2026-09-10, S2 ready)
 - **Status:** active
 - **MVP success signal:** User installs TuneX on Arch via AUR PKGBUILD, adds music dir, scans without UI freeze, browses/searches/plays with artwork, controls via app + MPRIS, manages queue + playlists, restarts without state loss, all offline.
-- **Last updated:** 2026-09-09
+- **Last updated:** 2026-09-10
 
 ## Authority boundaries
 - Agent may decide: stack-local reversible implementation details consistent with locked decisions (crate-internal APIs, QML component names, channel types, test layout).
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` for W-011 (QG OK)
-- Latest validation entry: 2026-09-10 W-011 metadata green (70 tests, QG OK)
+- Latest passed gate: `rust-tc sonar` for W-012 (QG OK)
+- Latest validation entry: 2026-09-10 W-012 schema v2 + FTS5 green (72 tests, QG OK)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -30,7 +30,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1 done; S2 through W-011 done; W-012 (schema v2 + FTS5) next.
+- Repo reality: S1 done; S2 through W-012 done; W-013 (scanner worker) next.
 
 ## Open loops
 - None
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-012: schema v2 (full columns, FTS5) + v1→v2 migration test.
+- W-013: scanner worker (`tokio`, walk → metadata → upsert, stable-key reconcile, progress counts).
 
 ## Phase checklist
 - [x] 0 Intake

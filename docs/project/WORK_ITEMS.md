@@ -7,7 +7,7 @@ S2 — Library scan + browse + art (M2+M3 core). Goal: folders in, browsable lib
 
 ## Queue
 - [x] W-011 — Metadata extraction behind a trait (`lofty` 0.24.0 impl): title/artist/album/album-artist/composer/genre/year/track/disc/duration + embedded artwork bytes (front-cover preferred); empty strings normalize to `None`, corrupt files error as `Error::Metadata` (R-004). Verified: untagged-fixture unknowns, lofty write→read round-trip (incl. BMP art bytes), corrupt path; 70 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (RUSTSEC-2024-0436 `paste` advisory ignore-documented: transitive via lofty, no CVE).
-- [ ] W-012 — Schema v2 (artists/albums/tracks full columns, genres, folders, scan_state) + FTS5 tables + v1→v2 migration test (R-006)
+- [x] W-012 — Schema v2 (artists/albums/tracks full columns, genres, folders, scan_state) + FTS5 tables + v1→v2 migration test (R-006). Verified: v1 row survives migrate with backfilled search hit; transactional upsert resolves names + refreshes index; delete cascades to FTS via trigger; prefix search BM25 + LIMIT 200; 72 tests ✓, `doctor` ✓, `sonar` ✓ QG OK.
 - [ ] W-013 — Scanner worker (`tokio`, walk → metadata → upsert, stable-key reconcile incl. renames, progress counts) (R-002, R-003)
 - [ ] W-014 — Filesystem watcher (`notify`, debounced, enqueue-only callbacks) (R-003)
 - [ ] W-015 — Artwork pipeline (embedded/folder art → XDG cache, content keys, thumbnails, LRU, decode caps) (R-005)

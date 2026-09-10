@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::Connection;
 use tunex_core::Result;
 
-use crate::db::{add_root, upsert_track};
+use crate::db::{NewTrack, add_root, upsert_track};
 
 /// Media extensions the scanner indexes (lowercase, no dots). Decodability is
 /// the player's concern; the scanner only recognizes containers.
@@ -63,11 +63,13 @@ pub fn stable_key(path: &Path) -> String {
 /// Returns live counters; never fails on individual files (unreadable entries
 /// are skipped so one bad file cannot abort a scan).
 ///
+/// Metadata stays empty here — W-013 fills rows from [`read_metadata`](super::metadata::read_metadata).
+///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when root registration or an upsert fails (I/O
 /// problems on individual entries are skipped, not raised).
-pub fn scan_folder(db: &Connection, root: &Path) -> Result<ScanStats> {
+pub fn scan_folder(db: &mut Connection, root: &Path) -> Result<ScanStats> {
     add_root(db, &root.to_string_lossy())?;
     let mut stats = ScanStats::default();
     let mut stack = vec![root.to_path_buf()];
@@ -86,7 +88,15 @@ pub fn scan_folder(db: &Connection, root: &Path) -> Result<ScanStats> {
             } else {
                 stats.files_seen += 1;
                 if is_supported(&path) {
-                    upsert_track(db, &path.to_string_lossy(), None, &stable_key(&path))?;
+                    let path = path.to_string_lossy().into_owned();
+                    upsert_track(
+                        db,
+                        &NewTrack {
+                            stable_key: stable_key(Path::new(&path)),
+                            path,
+                            ..Default::default()
+                        },
+                    )?;
                     stats.tracks_added += 1;
                 }
             }
@@ -155,13 +165,13 @@ mod tests {
         std::fs::write(dir.join("a.flac"), []).expect("setup works");
         std::fs::write(dir.join("b.txt"), []).expect("setup works");
         std::fs::write(nested.join("c.OGG"), []).expect("setup works");
-        let db = open_memory().expect("db opens");
-        let stats = scan_folder(&db, &dir).expect("scan works");
+        let mut db = open_memory().expect("db opens");
+        let stats = scan_folder(&mut db, &dir).expect("scan works");
         assert_eq!(stats.files_seen, 3);
         assert_eq!(stats.tracks_added, 2);
         assert_eq!(list_tracks(&db).expect("list works").len(), 2);
         // Rescanning refreshes instead of duplicating.
-        let again = scan_folder(&db, &dir).expect("rescan works");
+        let again = scan_folder(&mut db, &dir).expect("rescan works");
         assert_eq!(again.tracks_added, 2);
         assert_eq!(list_tracks(&db).expect("list works").len(), 2);
         std::fs::remove_dir_all(&dir).expect("cleanup works");

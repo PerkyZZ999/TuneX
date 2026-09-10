@@ -13,8 +13,8 @@ use tunex_player::PlayerEngine;
 #[tokio::test]
 async fn scan_fixtures_then_play_first() {
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
-    let db = tunex_library::open_memory().expect("index opens");
-    let stats = tunex_library::scan_folder(&db, &fixtures).expect("scan works");
+    let mut db = tunex_library::open_memory().expect("index opens");
+    let stats = tunex_library::scan_folder(&mut db, &fixtures).expect("scan works");
     assert_eq!(
         stats.tracks_added, 7,
         "six tones plus corrupt.mp3, which is scannable but undecodable"

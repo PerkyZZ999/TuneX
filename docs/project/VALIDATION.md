@@ -146,3 +146,10 @@
 - **Evidence:** `tunex-library::metadata` (`read_metadata` + `EmbeddedArtwork`, `Error::Metadata` in core): untagged fixture proves unknowns stay unknown with duration; lofty write→read round-trip proves all fields + BMP art bytes; corrupt file errors explicitly. 70/70 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (85.5%, 0 violations; RUSTSEC-2024-0436 ignore-documented in `deny.toml`).
 - **Waiver:** none
 - **Follow-up:** W-012. W-011 learnings: verify lofty 0.24 API against vendored sources (accessor macro names differ from memory — `disk()` not `disc()`, `get_string(ItemKey)` for album-artist/composer); hand-writable BMP beats PNG for art round-trips (no compression libs); empty-tag normalization belongs in the reader, not the DB.
+
+### 2026-09-10 — S2 W-012: schema v2 + FTS5 green
+- **Phase:** 6 (Implement, slice S2)
+- **Result:** pass
+- **Evidence:** `tunex-library::db` v2 (artists/albums/genres/folders/scan_state + tracks full columns; `track_search` FTS5 external-content over `track_search_docs` with ai/ad/au sync triggers + `tracks_ad` cascade + backfill; transactional `upsert_track` resolving lookup ids; `search_track_ids` prefix + BM25 + LIMIT 200 per SPEC §11.3). 72/72 workspace tests ✓ (v1→v2 migration preserves rows with backfilled search hit, upsert/search round-trip, delete clears FTS row, WAL mode kept), `doctor` ✓, `sonar` ✓ QG OK (86.8% new coverage, 0 violations).
+- **Waiver:** none
+- **Follow-up:** W-013. W-012 learnings: FTS5 shadow tables take `<fts-table>_data` — never name the content table that (renamed to `track_search_docs`); `unicode61` tokenizer options are SQLite-version-sensitive, so plain `unicode61` for max compat (diacritic tuning deferred); `IS ?2` with a bound `NULL` matches null owners, unifying the album find-or-create path; multi-statement migrations with triggers run fine through `rusqlite_migration`.
