@@ -37,7 +37,11 @@ step "qmllint" qmllint crates/tunex-app/qml/TuneX/App.qml crates/tunex-app/qml/T
 mpris_smoke() {
     local service="org.mpris.MediaPlayer2.tunex"
     local path="/org/mpris/MediaPlayer2"
-    QT_QPA_PLATFORM=offscreen ./build/tunex &
+    # Scratch XDG home: the smoke drives volume, which the Qt poll persists
+    # to config — never mutate the developer's real settings.
+    local scratch
+    scratch="$(mktemp -d)" || return 1
+    XDG_CONFIG_HOME="$scratch/config" XDG_DATA_HOME="$scratch/data" QT_QPA_PLATFORM=offscreen ./build/tunex &
     local pid=$!
     # Wait for the bus name (up to 10 s), then exercise it.
     local waited=0
@@ -46,18 +50,35 @@ mpris_smoke() {
         waited=$((waited + 1))
         if [ "$waited" -ge 20 ]; then
             kill "$pid" 2>/dev/null
+            rm -rf "$scratch"
             return 1
         fi
     done
-    [ "$(qdbus6 "$service" "$path" org.mpris.MediaPlayer2.Identity)" = "TuneX" ] || { kill "$pid"; return 1; }
+    [ "$(qdbus6 "$service" "$path" org.mpris.MediaPlayer2.Identity)" = "TuneX" ] || { kill "$pid"; rm -rf "$scratch"; return 1; }
+    # Honest idle (S5 W-032): PlayPause with an empty queue stays Stopped
+    # instead of flipping a skeleton flag. The flip is optimistic at first
+    # and the Qt poll (300 ms) corrects it once drained, so poll until the
+    # honest state lands (Qt engine load varies with system load).
     qdbus6 "$service" "$path" org.mpris.MediaPlayer2.Player.PlayPause >/dev/null || { kill "$pid"; return 1; }
+    local waited=0
+    while [ "$(qdbus6 "$service" "$path" org.freedesktop.DBus.Properties.Get org.mpris.MediaPlayer2.Player PlaybackStatus)" != "Stopped" ]; do
+        sleep 0.5
+        waited=$((waited + 1))
+        if [ "$waited" -ge 20 ]; then kill "$pid" 2>/dev/null; rm -rf "$scratch"; return 1; fi
+    done
+    # Volume round-trips through the shared snapshot (optimistic path).
+    # NOTE: qdbus6 cannot marshal a bare double for Set, so busctl carries
+    # the explicit `d` type here.
+    [ "$(qdbus6 "$service" "$path" org.freedesktop.DBus.Properties.Get org.mpris.MediaPlayer2.Player Volume)" = "1" ] || { kill "$pid"; rm -rf "$scratch"; return 1; }
+    busctl --user set-property "$service" "$path" org.mpris.MediaPlayer2.Player Volume d 0.5 >/dev/null || { kill "$pid"; rm -rf "$scratch"; return 1; }
     sleep 1
-    [ "$(qdbus6 "$service" "$path" org.freedesktop.DBus.Properties.Get org.mpris.MediaPlayer2.Player PlaybackStatus)" = "Playing" ] || { kill "$pid"; return 1; }
+    [ "$(qdbus6 "$service" "$path" org.freedesktop.DBus.Properties.Get org.mpris.MediaPlayer2.Player Volume)" = "0.5" ] || { kill "$pid"; rm -rf "$scratch"; return 1; }
     kill "$pid" 2>/dev/null
+    rm -rf "$scratch"
     return 0
 }
 
-echo "--- mpris smoke (bus name, identity, play toggle)"
+echo "--- mpris smoke (bus name, identity, honest idle, volume)"
 if mpris_smoke >"/tmp/tunex-dod-mpris.log" 2>&1; then
     echo "ok: mpris smoke"
     PASS=$((PASS + 1))

@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` for W-031 S4 gate (QG OK, 81.2% new coverage)
-- Latest validation entry: 2026-09-10 S4 W-031 gate — keyboard + offline + a11y/contrast/blur-off (see VALIDATION.md)
+- Latest passed gate: `rust-tc sonar` for W-032 MPRIS engine wiring (QG OK, 81.2% new coverage)
+- Latest validation entry: 2026-09-10 S5 W-032 MPRIS live engine state (see VALIDATION.md)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-032: MPRIS engine wiring — real PlaybackStatus/Position/Volume/Metadata + live seek/volume (S5 first).
+- W-033: MPRIS full-matrix verification via playerctl/busctl + KDE widget check.
 
 ## Phase checklist
 - [x] 0 Intake
