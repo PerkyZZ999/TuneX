@@ -153,3 +153,10 @@
 - **Evidence:** `tunex-library::db` v2 (artists/albums/genres/folders/scan_state + tracks full columns; `track_search` FTS5 external-content over `track_search_docs` with ai/ad/au sync triggers + `tracks_ad` cascade + backfill; transactional `upsert_track` resolving lookup ids; `search_track_ids` prefix + BM25 + LIMIT 200 per SPEC §11.3). 72/72 workspace tests ✓ (v1→v2 migration preserves rows with backfilled search hit, upsert/search round-trip, delete clears FTS row, WAL mode kept), `doctor` ✓, `sonar` ✓ QG OK (86.8% new coverage, 0 violations).
 - **Waiver:** none
 - **Follow-up:** W-013. W-012 learnings: FTS5 shadow tables take `<fts-table>_data` — never name the content table that (renamed to `track_search_docs`); `unicode61` tokenizer options are SQLite-version-sensitive, so plain `unicode61` for max compat (diacritic tuning deferred); `IS ?2` with a bound `NULL` matches null owners, unifying the album find-or-create path; multi-statement migrations with triggers run fine through `rusqlite_migration`.
+
+### 2026-09-10 — S2 W-013: scanner worker green
+- **Phase:** 6 (Implement, slice S2)
+- **Result:** pass
+- **Evidence:** v3 migration (`missing` + `file_id`, index) with v1→v3 chain test; `scan_folder` fills tags via `read_metadata` (corrupt files index by path, counted); inode (`dev:ino`) rename retargets keep row ids; vanished files flag missing (return clears); `scan_folder_live` (spawn_blocking + bounded progress channel, 50-file snapshots + finished). 78/78 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (88.6% new coverage, 0 violations; S3776 on the walker split into `scan_one_dir`/`flag_vanished_missing`/`index_file` and closed).
+- **Waiver:** none
+- **Follow-up:** W-014. Notes: two transient nextest failures (player timing tests) passed on clean retry — pre-existing flakiness under load, unrelated to this slice; `by_file_id` rename requires the old path to be gone (inode-reuse guard).

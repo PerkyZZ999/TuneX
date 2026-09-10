@@ -14,10 +14,11 @@ pub mod metadata;
 pub mod scan;
 
 pub use db::{
-    NewTrack, TrackRow, add_root, list_tracks, open_file, open_memory, schema_version,
-    search_track_ids, upsert_track,
+    NewTrack, TrackIdentity, TrackRow, add_root, list_tracks, open_file, open_memory, rename_track,
+    schema_version, search_track_ids, set_missing, track_identities, upsert_track,
 };
 pub use metadata::{EmbeddedArtwork, FileMetadata, read_metadata};
 pub use scan::{
-    SUPPORTED_EXTENSIONS, ScanStats, collect_media_files, is_supported, scan_folder, stable_key,
+    SUPPORTED_EXTENSIONS, ScanProgress, ScanStats, collect_media_files, file_id, is_supported,
+    scan_folder, scan_folder_live, scan_folder_with_callback, stable_key,
 };

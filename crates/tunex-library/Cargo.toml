@@ -11,6 +11,8 @@ description = "TuneX library engine: scan, metadata, SQLite/FTS5, artwork, playl
 lofty.workspace = true
 rusqlite.workspace = true
 rusqlite_migration.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 tunex-core.workspace = true
 
 [lints]
