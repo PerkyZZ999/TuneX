@@ -31,6 +31,7 @@ impl std::fmt::Debug for qobject::LibraryTrackRoles {
             repr if repr == qobject::LibraryTrackRoles::TrackNumber.repr => "TrackNumber",
             repr if repr == qobject::LibraryTrackRoles::DurationMs.repr => "DurationMs",
             repr if repr == qobject::LibraryTrackRoles::Missing.repr => "Missing",
+            repr if repr == qobject::LibraryTrackRoles::TrackId.repr => "TrackId",
             _ => "Unknown",
         };
         write!(f, "LibraryTrackRoles::{name}")
@@ -43,17 +44,26 @@ pub const SONGS_CAP: u32 = 500;
 /// Song row store: display strings plus numeric roles.
 #[derive(Debug, Default)]
 pub struct LibraryTrackModelRust {
-    tracks: Vec<(QString, QString, QString, i32, i32, bool)>,
+    tracks: Vec<(i32, QString, QString, QString, i32, i32, bool)>,
     search: SearchCore,
 }
 
 /// One settled search result set as display rows.
-type TrackSearchRows = Vec<(QString, QString, QString, i32, i32, bool)>;
+type TrackSearchRows = Vec<(i32, QString, QString, QString, i32, i32, bool)>;
 
 impl LibraryTrackModelRust {
-    /// Drop all rows.
+    /// Drop all song rows; emits model reset so views rebuild.
     fn drop_rows(&mut self) {
         self.tracks.clear();
+    }
+
+    /// Database row id at `row` (-1 when out of range), for row-menu and
+    /// keyboard enqueue/play by position.
+    fn track_id_at(&self, row: i32) -> i32 {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.tracks.get(index))
+            .map_or(-1, |entry| entry.0)
     }
 
     /// Current row count.
@@ -62,7 +72,7 @@ impl LibraryTrackModelRust {
     }
 
     /// Replace every row (single reset around the caller).
-    fn replace_rows(&mut self, rows: Vec<(QString, QString, QString, i32, i32, bool)>) {
+    fn replace_rows(&mut self, rows: Vec<(i32, QString, QString, QString, i32, i32, bool)>) {
         self.tracks = rows;
     }
 
@@ -93,7 +103,7 @@ impl LibraryTrackModelRust {
     /// Data for one row/role; invalid variant when out of range or the role
     /// is unknown.
     fn row_data(&self, row: usize, role: qobject::LibraryTrackRoles) -> QVariant {
-        if let Some((title, artist, album, track_number, duration_ms, missing)) =
+        if let Some((track_id, title, artist, album, track_number, duration_ms, missing)) =
             self.tracks.get(row)
         {
             return match role {
@@ -103,6 +113,7 @@ impl LibraryTrackModelRust {
                 qobject::LibraryTrackRoles::TrackNumber => QVariant::from(track_number),
                 qobject::LibraryTrackRoles::DurationMs => QVariant::from(duration_ms),
                 qobject::LibraryTrackRoles::Missing => QVariant::from(missing),
+                qobject::LibraryTrackRoles::TrackId => QVariant::from(track_id),
                 _ => QVariant::default(),
             };
         }
@@ -110,10 +121,11 @@ impl LibraryTrackModelRust {
     }
 }
 
-/// Display mapping shared by both loaders: unknowns stay visible as such,
+/// Display mapping shared by every loader: unknowns stay visible as such,
 /// numbers saturate into `i32`.
-fn display_row(row: &tunex_library::TrackRow) -> (QString, QString, QString, i32, i32, bool) {
+fn display_row(row: &tunex_library::TrackRow) -> (i32, QString, QString, QString, i32, i32, bool) {
     (
+        i32::try_from(row.id).unwrap_or(i32::MAX),
         QString::from(row.title.as_deref().unwrap_or("Unknown Title")),
         QString::from(row.artist.as_deref().unwrap_or("Unknown Artist")),
         QString::from(row.album.as_deref().unwrap_or("Unknown Album")),
@@ -133,7 +145,7 @@ fn display_row(row: &tunex_library::TrackRow) -> (QString, QString, QString, i32
 fn load_tracks(
     path: &std::path::Path,
     album: Option<i64>,
-) -> Vec<(QString, QString, QString, i32, i32, bool)> {
+) -> Vec<(i32, QString, QString, QString, i32, i32, bool)> {
     if !path.is_file() {
         return Vec::new();
     }
@@ -225,6 +237,11 @@ impl qobject::LibraryTrackModel {
             .unwrap_or_default()
     }
 
+    /// Database row id at `row` (-1 when out of range).
+    pub fn track_id_at(&self, row: i32) -> i32 {
+        self.rust().track_id_at(row)
+    }
+
     /// Row count override for `QAbstractListModel`.
     pub fn row_count_tracks(&self, _parent: &QModelIndex) -> i32 {
         self.rust().row_count()
@@ -267,6 +284,10 @@ impl qobject::LibraryTrackModel {
             qobject::LibraryTrackRoles::Missing.repr,
             QByteArray::from("missing"),
         );
+        roles.insert(
+            qobject::LibraryTrackRoles::TrackId.repr,
+            QByteArray::from("trackId"),
+        );
         roles
     }
 }
@@ -297,6 +318,7 @@ mod tests {
         let mut model = LibraryTrackModelRust::default();
         model.replace_rows(vec![
             (
+                7,
                 QString::from("Midnight"),
                 QString::from("Nova Rae"),
                 QString::from("Night Tapes"),
@@ -305,6 +327,7 @@ mod tests {
                 false,
             ),
             (
+                9,
                 QString::from("Solace"),
                 QString::from("Nove"),
                 QString::from("Night Tapes"),
@@ -320,6 +343,7 @@ mod tests {
     fn replace_rows_sets_sequential_content() {
         let mut model = LibraryTrackModelRust::default();
         model.replace_rows(vec![(
+            1,
             QString::from("A"),
             QString::from("B"),
             QString::from("C"),
@@ -367,6 +391,10 @@ mod tests {
             model.row_data(1, LibraryTrackRoles::Missing),
             QVariant::default()
         );
+        assert_ne!(
+            model.row_data(0, LibraryTrackRoles::TrackId),
+            QVariant::default()
+        );
     }
 
     #[test]
@@ -385,6 +413,15 @@ mod tests {
             model.row_data(99, LibraryTrackRoles::Title),
             QVariant::default()
         );
+    }
+
+    #[test]
+    fn track_id_at_resolves_rows_or_negative() {
+        let model = model_with_two_songs();
+        assert_eq!(model.track_id_at(0), 7);
+        assert_eq!(model.track_id_at(1), 9);
+        assert_eq!(model.track_id_at(99), -1);
+        assert_eq!(model.track_id_at(-1), -1);
     }
 
     #[test]
@@ -413,7 +450,7 @@ mod tests {
         assert!(model.is_searching());
         let rows = settle_search(&mut model);
         assert_eq!(rows.len(), 2);
-        let mut titles: Vec<String> = rows.iter().map(|row| row.0.to_string()).collect();
+        let mut titles: Vec<String> = rows.iter().map(|row| row.1.to_string()).collect();
         titles.sort();
         assert_eq!(titles, ["One", "Two"]);
         assert!(!model.is_searching());
@@ -453,7 +490,8 @@ mod tests {
             duration_ms: None,
             missing: true,
         };
-        let (title, artist, album, number, duration, missing) = super::display_row(&row);
+        let (track_id, title, artist, album, number, duration, missing) = super::display_row(&row);
+        assert_eq!(track_id, 1);
         assert_eq!(title, QString::from("Unknown Title"));
         assert_eq!(artist, QString::from("Unknown Artist"));
         assert_eq!(album, QString::from("Unknown Album"));

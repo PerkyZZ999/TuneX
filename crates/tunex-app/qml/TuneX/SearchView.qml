@@ -12,6 +12,7 @@ import TuneX 1.0
 Item {
     id: root
 
+    required property QueueModel queue
     // Raw query text, bound from the shell search field.
     property string query: ""
     property string tab: "songs"
@@ -53,6 +54,11 @@ Item {
     }
 
     function leaveDrill() {
+        root.leaveDrillKeepTab();
+        root.tab = "songs";
+    }
+
+    function leaveDrillKeepTab() {
         root.albumId = -1;
         root.albumTitle = "";
         root.songsSettled = false;
@@ -88,6 +94,13 @@ Item {
         return artistsView.count > 0 ? qsTr("Artists (%1)").arg(artistsView.count) : qsTr("Artists");
     }
 
+    onTabChanged: {
+        // A drill hides its Back button off the songs tab: unwind it when
+        // the tab leaves (results resubmit; the target tab shows them).
+        if (root.tab !== "songs" && root.drilled)
+            root.leaveDrillKeepTab();
+
+    }
     onQueryChanged: {
         // New keystrokes supersede everything: clear the drill, drop stale
         // rows immediately (never flash outdated results), resubmit.
@@ -116,6 +129,12 @@ Item {
 
     LibraryTrackModel {
         id: songs
+    }
+
+    TrackMenu {
+        id: trackMenu
+
+        queue: root.queue
     }
 
     Timer {
@@ -211,8 +230,28 @@ Item {
                 onClicked: root.leaveDrill()
             }
 
+            Button {
+                id: playAlbumButton
+
+                text: qsTr("Play album")
+                Accessible.name: qsTr("Play this album now")
+                onClicked: {
+                    root.queue.clearQueue();
+                    root.queue.enqueueAlbum(root.albumId);
+                    root.queue.playAt(0);
+                }
+            }
+
+            Button {
+                id: queueAlbumButton
+
+                text: qsTr("Queue album")
+                Accessible.name: qsTr("Add this album to Up Next")
+                onClicked: root.queue.enqueueAlbum(root.albumId)
+            }
+
             Text {
-                width: parent.width - drillBack.width - Theme.spaceSm
+                width: parent.width - drillBack.width - playAlbumButton.width - queueAlbumButton.width - Theme.spaceSm * 3
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
                 text: root.albumTitle
@@ -289,6 +328,18 @@ Item {
                     highlightMoveDuration: 120
                     Accessible.role: Accessible.List
                     Accessible.name: root.drilled ? root.albumTitle : qsTr("Song results")
+                    Keys.onReturnPressed: {
+                        const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
+                        if (at < songsView.count)
+                            root.queue.playTrackNow(songs.trackIdAt(at));
+
+                    }
+                    Keys.onEnterPressed: {
+                        const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
+                        if (at < songsView.count)
+                            root.queue.playTrackNow(songs.trackIdAt(at));
+
+                    }
 
                     highlight: Rectangle {
                         color: Theme.selected
@@ -296,11 +347,22 @@ Item {
                     }
 
                     delegate: TrackRow {
+                        trackId: model.trackId
                         title: model.title
                         artist: model.artist
                         trackNumber: model.trackNumber
                         durationMs: model.durationMs
                         missing: model.missing
+                        onPlayRequested: (trackId) => {
+                            songsView.currentIndex = index;
+                            songsView.forceActiveFocus();
+                            return root.queue.playTrackNow(trackId);
+                        }
+                        onMenuRequested: (trackId) => {
+                            songsView.currentIndex = index;
+                            trackMenu.trackId = trackId;
+                            trackMenu.popup();
+                        }
                     }
 
                     footer: Text {

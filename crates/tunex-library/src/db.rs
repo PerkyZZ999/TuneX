@@ -790,6 +790,15 @@ pub(crate) fn tracks_by_ids(db: &Connection, ids: &[i64]) -> Result<Vec<TrackRow
         .map_err(|err| db_error(&err))
 }
 
+/// One indexed track by row id (Up Next enqueue from row identity).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn track_by_id(db: &Connection, id: i64) -> Result<Option<TrackRow>> {
+    Ok(tracks_by_ids(db, &[id])?.pop())
+}
+
 /// Album rows for the given titles that own at least one of `track_ids`
 /// (same-titled albums by different artists all resolve, but only when their
 /// own tracks matched — a shared title never drags in an unrelated album).
@@ -1003,6 +1012,18 @@ mod tests {
         // Rescan refreshes instead of duplicating.
         upsert_track(&mut db, &track).expect("re-upsert works");
         assert_eq!(list_tracks(&db).expect("list works").len(), 1);
+    }
+
+    #[test]
+    fn track_by_id_resolves_single_rows() {
+        let mut db = open_memory().expect("in-memory opens");
+        let mut track = new_track("/music/solo.flac");
+        track.title = Some("Solo".to_owned());
+        upsert_track(&mut db, &track).expect("upsert works");
+        let id = list_tracks(&db).expect("list works")[0].id;
+        let found = track_by_id(&db, id).expect("lookup works");
+        assert_eq!(found.and_then(|row| row.title).as_deref(), Some("Solo"));
+        assert!(track_by_id(&db, id + 1000).expect("lookup works").is_none());
     }
 
     #[test]

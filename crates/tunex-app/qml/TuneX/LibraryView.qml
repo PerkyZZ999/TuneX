@@ -11,6 +11,7 @@ import TuneX 1.0
 Item {
     id: root
 
+    required property QueueModel queue
     // Album drill-down: -1 means the full songs tab.
     property int albumId: -1
     property string albumTitle: ""
@@ -29,12 +30,23 @@ Item {
     }
 
     function leaveDrill() {
-        root.albumId = -1;
-        root.albumTitle = "";
-        songs.refresh();
+        root.leaveDrillKeepTab();
         root.tab = "albums";
     }
 
+    function leaveDrillKeepTab() {
+        root.albumId = -1;
+        root.albumTitle = "";
+        songs.refresh();
+    }
+
+    onTabChanged: {
+        // A drill hides its Back button off the songs tab: unwind it when
+        // the tab leaves (results resubmit; the target tab shows them).
+        if (root.tab !== "songs" && root.drilled)
+            root.leaveDrillKeepTab();
+
+    }
     anchors.fill: parent
     Component.onCompleted: {
         library.startup();
@@ -80,6 +92,12 @@ Item {
         id: folders
 
         manager: library
+    }
+
+    TrackMenu {
+        id: trackMenu
+
+        queue: root.queue
     }
 
     Column {
@@ -136,9 +154,10 @@ Item {
 
         }
 
-        // Drill header: album title plus the way back. Collapsed (zero
-        // height) when not drilling — positioners keep invisible space.
-        // Hidden while the library is empty (a drill cannot outlive its rows).
+        // Drill header: album title, queue actions, plus the way back.
+        // Collapsed (zero height) when not drilling — positioners keep
+        // invisible space. Hidden while the library is empty (a drill cannot
+        // outlive its rows).
         Row {
             id: drillRow
 
@@ -155,8 +174,28 @@ Item {
                 onClicked: root.leaveDrill()
             }
 
+            Button {
+                id: playAlbumButton
+
+                text: qsTr("Play album")
+                Accessible.name: qsTr("Play this album now")
+                onClicked: {
+                    root.queue.clearQueue();
+                    root.queue.enqueueAlbum(root.albumId);
+                    root.queue.playAt(0);
+                }
+            }
+
+            Button {
+                id: queueAlbumButton
+
+                text: qsTr("Queue album")
+                Accessible.name: qsTr("Add this album to Up Next")
+                onClicked: root.queue.enqueueAlbum(root.albumId)
+            }
+
             Text {
-                width: parent.width - drillBack.width - Theme.spaceSm
+                width: parent.width - drillBack.width - playAlbumButton.width - queueAlbumButton.width - Theme.spaceSm * 3
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
                 text: root.albumTitle
@@ -196,6 +235,18 @@ Item {
                 highlightMoveDuration: 120
                 Accessible.role: Accessible.List
                 Accessible.name: root.drilled ? root.albumTitle : qsTr("Songs")
+                Keys.onReturnPressed: {
+                    const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
+                    if (at < songsView.count)
+                        root.queue.playTrackNow(songs.trackIdAt(at));
+
+                }
+                Keys.onEnterPressed: {
+                    const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
+                    if (at < songsView.count)
+                        root.queue.playTrackNow(songs.trackIdAt(at));
+
+                }
 
                 highlight: Rectangle {
                     color: Theme.selected
@@ -203,11 +254,22 @@ Item {
                 }
 
                 delegate: TrackRow {
+                    trackId: model.trackId
                     title: model.title
                     artist: model.artist
                     trackNumber: model.trackNumber
                     durationMs: model.durationMs
                     missing: model.missing
+                    onPlayRequested: (trackId) => {
+                        songsView.currentIndex = index;
+                        songsView.forceActiveFocus();
+                        return root.queue.playTrackNow(trackId);
+                    }
+                    onMenuRequested: (trackId) => {
+                        songsView.currentIndex = index;
+                        trackMenu.trackId = trackId;
+                        trackMenu.popup();
+                    }
                 }
 
                 footer: Text {

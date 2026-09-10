@@ -26,6 +26,7 @@ use super::album_list_model::AlbumListModelRust;
 use super::artist_list_model::ArtistListModelRust;
 use super::library_manager::LibraryManagerRust;
 use super::library_track_model::LibraryTrackModelRust;
+use super::queue_model::QueueModelRust;
 use super::track_list_model::TrackListModelRust;
 
 /// CXX-Qt bridge for the browse models; mirrors the upstream
@@ -86,7 +87,7 @@ pub mod qobject {
         TrackCount,
     }
 
-    /// Roles exposed to QML delegates (`title`, `artist`, `album`,
+    /// Roles exposed to QML delegates (`trackId`, `title`, `artist`, `album`,
     /// `trackNumber`, `durationMs`, `missing`; numbers are 0 and names
     /// `Unknown …` when untagged).
     #[qenum(LibraryTrackModel)]
@@ -103,6 +104,8 @@ pub mod qobject {
         DurationMs,
         /// File vanished from disk (kept row, badge in the delegate).
         Missing,
+        /// Database row id (enqueue identity for row menus).
+        TrackId,
     }
 
     extern "RustQt" {
@@ -282,6 +285,13 @@ pub mod qobject {
         #[qinvokable]
         fn clear(self: Pin<&mut LibraryTrackModel>);
 
+        /// Database row id at `row` (-1 when out of range), for row-menu
+        /// and keyboard enqueue/play by position.
+        /// Exposed to QML as `trackIdAt`.
+        #[qinvokable]
+        #[cxx_name = "trackIdAt"]
+        fn track_id_at(self: &LibraryTrackModel, row: i32) -> i32;
+
         /// Submit raw query text to this model's search worker (debounced,
         /// off-thread; results arrive via `pollSearch`).
         #[qinvokable]
@@ -320,6 +330,202 @@ pub mod qobject {
         #[cxx_override]
         #[cxx_name = "roleNames"]
         fn role_names_tracks(self: &LibraryTrackModel) -> QHash_i32_QByteArray;
+    }
+
+    /// Roles exposed to QML delegates (`title`, `artist`, `album`,
+    /// `durationMs`, `isCurrent`, `trackId`; names `Unknown …` when untagged,
+    /// `trackId` -1 for ad-hoc entries).
+    #[qenum(QueueModel)]
+    enum QueueRoles {
+        /// Entry title.
+        Title,
+        /// Entry artist.
+        Artist,
+        /// Entry album.
+        Album,
+        /// Duration in milliseconds (0 when unknown).
+        DurationMs,
+        /// Currently playing entry (now-playing highlight).
+        IsCurrent,
+        /// Library row id (-1 for ad-hoc entries).
+        TrackId,
+    }
+
+    extern "RustQt" {
+        #[qobject]
+        #[base = QAbstractListModel]
+        #[qml_element]
+        type QueueModel = super::QueueModelRust;
+    }
+
+    extern "RustQt" {
+        /// # Safety
+        ///
+        /// Inherited `beginResetModel` for `QueueModel`.
+        #[inherit]
+        #[cxx_name = "beginResetModel"]
+        unsafe fn begin_reset_model_queue(self: Pin<&mut QueueModel>);
+        /// # Safety
+        ///
+        /// Inherited `endResetModel` for `QueueModel`.
+        #[inherit]
+        #[cxx_name = "endResetModel"]
+        unsafe fn end_reset_model_queue(self: Pin<&mut QueueModel>);
+    }
+
+    extern "RustQt" {
+        /// Drain controller events; emits model reset and returns true
+        /// exactly when rows changed (length or cursor moved).
+        /// Exposed to QML as `poll`.
+        #[qinvokable]
+        fn poll(self: Pin<&mut QueueModel>) -> bool;
+
+        /// Start or resume playback.
+        #[qinvokable]
+        fn play(self: Pin<&mut QueueModel>);
+
+        /// Pause, holding position.
+        #[qinvokable]
+        fn pause(self: Pin<&mut QueueModel>);
+
+        /// Toggle play/pause from the panel transport.
+        /// Exposed to QML as `playPause`.
+        #[qinvokable]
+        #[cxx_name = "playPause"]
+        fn play_pause(self: Pin<&mut QueueModel>);
+
+        /// Step to the next track (stopping at a bare end).
+        /// Exposed to QML as `nextTrack`.
+        #[qinvokable]
+        #[cxx_name = "nextTrack"]
+        fn next_track(self: Pin<&mut QueueModel>);
+
+        /// Step back, honoring the restart threshold (`position_ms` past it
+        /// restarts the current track instead). Exposed as `previousTrack`.
+        #[qinvokable]
+        #[cxx_name = "previousTrack"]
+        fn previous_track(self: Pin<&mut QueueModel>, position_ms: i32);
+
+        /// Play the entry at `index` now (Up Next direct play). Out-of-range
+        /// indices are ignored. Exposed to QML as `playAt`.
+        #[qinvokable]
+        #[cxx_name = "playAt"]
+        fn play_at(self: Pin<&mut QueueModel>, index: i32);
+
+        /// Remove the entry at `index` (ignored when out of range).
+        /// Exposed to QML as `removeAt`.
+        #[qinvokable]
+        #[cxx_name = "removeAt"]
+        fn remove_at(self: Pin<&mut QueueModel>, index: i32);
+
+        /// Move an entry (ignored when out of range).
+        /// Exposed to QML as `moveItem`.
+        #[qinvokable]
+        #[cxx_name = "moveItem"]
+        fn move_item(self: Pin<&mut QueueModel>, from: i32, to: i32);
+
+        /// Empty the queue (the loaded track keeps playing).
+        /// Exposed to QML as `clearQueue`.
+        #[qinvokable]
+        #[cxx_name = "clearQueue"]
+        fn clear_queue(self: Pin<&mut QueueModel>);
+
+        /// Drop all rows without touching the controller (view-only reset).
+        #[qinvokable]
+        fn clear(self: Pin<&mut QueueModel>);
+
+        /// Toggle shuffle; returns the new state.
+        /// Exposed to QML as `toggleShuffle`.
+        #[qinvokable]
+        #[cxx_name = "toggleShuffle"]
+        fn toggle_shuffle(self: Pin<&mut QueueModel>) -> bool;
+
+        /// Whether shuffle is on. Exposed to QML as `isShuffle`.
+        #[qinvokable]
+        #[cxx_name = "isShuffle"]
+        fn is_shuffle(self: &QueueModel) -> bool;
+
+        /// Cycle repeat off → all → one; returns the new mode (0/1/2).
+        /// Exposed to QML as `cycleRepeat`.
+        #[qinvokable]
+        #[cxx_name = "cycleRepeat"]
+        fn cycle_repeat(self: Pin<&mut QueueModel>) -> i32;
+
+        /// Repeat mode as 0 (off), 1 (all), 2 (one).
+        /// Exposed to QML as `repeatMode`.
+        #[qinvokable]
+        #[cxx_name = "repeatMode"]
+        fn repeat_mode(self: &QueueModel) -> i32;
+
+        /// Playback state as 0 (stopped), 1 (loading), 2 (playing), 3 (paused).
+        /// Exposed to QML as `playbackState`.
+        #[qinvokable]
+        #[cxx_name = "playbackState"]
+        fn playback_state(self: &QueueModel) -> i32;
+
+        /// Current pipeline position in milliseconds (0 when unknown).
+        /// Exposed to QML as `positionMs`.
+        #[qinvokable]
+        #[cxx_name = "positionMs"]
+        fn position_ms(self: &QueueModel) -> i32;
+
+        /// Cursor position (-1 when idle). Exposed as `currentIndex`.
+        #[qinvokable]
+        #[cxx_name = "currentIndex"]
+        fn current_index(self: &QueueModel) -> i32;
+
+        /// Last failure, or empty when clear. Exposed as `errorText`.
+        #[qinvokable]
+        #[cxx_name = "errorText"]
+        fn error_text(self: &QueueModel) -> QString;
+
+        /// Enqueue one library track by row id; returns 1 (0 + error text
+        /// when unavailable). Exposed to QML as `enqueueTrack`.
+        #[qinvokable]
+        #[cxx_name = "enqueueTrack"]
+        fn enqueue_track(self: Pin<&mut QueueModel>, track_id: i32) -> i32;
+
+        /// Insert one library track to play next; returns 1 (0 + error text
+        /// when unavailable). Exposed to QML as `playTrackNext`.
+        #[qinvokable]
+        #[cxx_name = "playTrackNext"]
+        fn play_track_next(self: Pin<&mut QueueModel>, track_id: i32) -> i32;
+
+        /// Play one library track immediately (inserted after the cursor).
+        /// Failures surface through `errorText`. Exposed as `playTrackNow`.
+        #[qinvokable]
+        #[cxx_name = "playTrackNow"]
+        fn play_track_now(self: Pin<&mut QueueModel>, track_id: i32);
+
+        /// Enqueue one album in disc/track order; returns the number
+        /// enqueued. Exposed to QML as `enqueueAlbum`.
+        #[qinvokable]
+        #[cxx_name = "enqueueAlbum"]
+        fn enqueue_album(self: Pin<&mut QueueModel>, album_id: i32) -> i32;
+
+        /// Enqueue one artist in album order; returns the number enqueued.
+        /// Exposed to QML as `enqueueArtist`.
+        #[qinvokable]
+        #[cxx_name = "enqueueArtist"]
+        fn enqueue_artist(self: Pin<&mut QueueModel>, artist: &QString) -> i32;
+
+        /// Row count override for `QAbstractListModel` (see above on `parent`).
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "rowCount"]
+        fn row_count_queue(self: &QueueModel, parent: &QModelIndex) -> i32;
+
+        /// Role data override for `QAbstractListModel`.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "data"]
+        fn data_queue(self: &QueueModel, index: &QModelIndex, role: i32) -> QVariant;
+
+        /// Role-name table override; without it QML sees no custom roles.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "roleNames"]
+        fn role_names_queue(self: &QueueModel) -> QHash_i32_QByteArray;
     }
 
     /// Roles exposed to QML delegates as `title` / `artist` (S1 bridge

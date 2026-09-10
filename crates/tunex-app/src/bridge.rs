@@ -11,6 +11,7 @@ pub mod artist_list_model;
 pub mod library_manager;
 pub mod library_track_model;
 pub mod models;
+pub mod queue_model;
 pub mod track_list_model;
 
 #[cfg(test)]

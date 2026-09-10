@@ -79,6 +79,30 @@ Window {
         }
     }
 
+    // Up Next queue, owned by the shell so playback and rows survive
+    // navigation. Polls always (gapless advance must run with the drawer
+    // closed); the panel only mirrors display state while open.
+    QueueModel {
+        id: queueModel
+    }
+
+    Timer {
+        interval: 300
+        running: true
+        repeat: true
+        onTriggered: queueModel.poll()
+    }
+
+    QueuePanel {
+        id: queuePanel
+
+        queue: queueModel
+        onBrowseRequested: {
+            queuePanel.close();
+            root.navigate("library");
+        }
+    }
+
     Row {
         anchors.fill: parent
 
@@ -176,7 +200,7 @@ Window {
 
                     anchors.left: navRow.right
                     anchors.leftMargin: Theme.spaceMd
-                    anchors.right: parent.right
+                    anchors.right: queueButton.left
                     anchors.rightMargin: Theme.spaceMd
                     anchors.verticalCenter: parent.verticalCenter
                     height: 44
@@ -230,6 +254,24 @@ Window {
 
                 }
 
+                // Up Next toggle (interim home until the S4 persistent
+                // player owns queue access).
+                Button {
+                    id: queueButton
+
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Up Next")
+                    Accessible.name: qsTr("Open Up Next queue")
+                    onClicked: {
+                        if (queuePanel.opened)
+                            queuePanel.close();
+                        else
+                            queuePanel.open();
+                    }
+                }
+
             }
 
             Item {
@@ -245,6 +287,7 @@ Window {
 
                     visible: root.section === "search"
                     query: searchField.text
+                    queue: queueModel
                     onFocusFieldRequested: searchField.forceActiveFocus()
                     onClearRequested: {
                         searchField.text = "";
@@ -254,6 +297,7 @@ Window {
 
                 LibraryView {
                     visible: root.section === "library"
+                    queue: queueModel
                 }
 
                 SectionStub {

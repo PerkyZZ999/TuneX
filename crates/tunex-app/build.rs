@@ -31,6 +31,8 @@ fn main() {
                 "qml/TuneX/EmptyState.qml",
                 "qml/TuneX/FoldersDrawer.qml",
                 "qml/TuneX/SearchView.qml",
+                "qml/TuneX/QueuePanel.qml",
+                "qml/TuneX/TrackMenu.qml",
             ])
             .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true)),
     )

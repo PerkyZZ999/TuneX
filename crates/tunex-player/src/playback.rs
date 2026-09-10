@@ -147,6 +147,24 @@ impl PlaybackController {
         self.load_and_play(&current.uri)
     }
 
+    /// Play the entry at `index` now (Up Next direct play). Out-of-range
+    /// indices are ignored; missing files error explicitly without moving
+    /// the cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Player`] when the entry is missing or cannot load.
+    pub fn play_at(&mut self, index: usize) -> Result<()> {
+        let Some(item) = lock_queue(&self.queue).get(index).cloned() else {
+            return Ok(());
+        };
+        if local_path_missing(&item.uri) {
+            return Err(Error::Player(format!("file is missing: {}", item.title)));
+        }
+        lock_queue(&self.queue).jump(index);
+        self.load_and_play(&item.uri)
+    }
+
     /// Remove an entry, returning it.
     pub fn remove_at(&mut self, index: usize) -> Option<QueueItem> {
         lock_queue(&self.queue).remove(index)
@@ -557,6 +575,25 @@ mod tests {
             .play()
             .expect_err("playing nothing must fail loudly");
         assert!(matches!(err, Error::Player(_)));
+    }
+
+    #[test]
+    fn play_at_validates_before_loading() {
+        let mut controller = PlaybackController::new().expect("controller builds");
+        controller.enqueue(QueueItem::new(
+            "file:///nonexistent-tunex-probe.flac",
+            "Gone",
+        ));
+        let err = controller
+            .play_at(0)
+            .expect_err("missing entry must fail loudly");
+        assert!(matches!(err, Error::Player(_)));
+        assert_eq!(
+            controller.current_index(),
+            None,
+            "failed direct play leaves the cursor"
+        );
+        controller.play_at(99).expect("out-of-range ignored");
     }
 
     #[test]

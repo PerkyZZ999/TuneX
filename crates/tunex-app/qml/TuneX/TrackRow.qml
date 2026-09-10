@@ -1,30 +1,60 @@
 import QtQuick
+import QtQuick.Controls.Basic
 
-// TrackRow (S2 W-016): one song row — number, title/artist, duration,
-// missing badge. Solid text on the opaque view background (never glass).
-// Display-only in S2; playback actions arrive with S4, so rows carry no
-// pointer handling (no dead controls). Edge-anchored layout: the middle
-// column fills whatever the fixed edges leave, so no spacing is
-// hand-counted and nothing depends on sibling creation order.
+// TrackRow (S2 W-016, actions in S3 W-022): one song row — number,
+// title/artist, duration, missing badge, now-playing marker. Solid text on
+// the opaque view background (never glass). Click (or keyboard press) plays
+// the row now; the always-visible ⋯ button opens the container-owned row
+// menu (Up Next rows get move/remove, library rows get queue actions).
+// Edge-anchored layout: the middle column fills whatever the fixed edges
+// leave, so no spacing is hand-counted and nothing depends on sibling
+// creation order.
 Item {
     id: root
 
     // Plain (not required) properties, set from model roles at instantiation:
     // `required` construction-time initialization races the delegate context
     // in this setup and locks role bindings to their defaults (W-018 gate).
+    property int trackId: -1
+    property int rowIndex: -1
     property string title: ""
     property string artist: ""
     property int trackNumber: 0
     property int durationMs: 0
     property bool missing: false
+    property bool isCurrent: false
     // m:ss, em dash when unknown. Numbers need no translation.
     readonly property string durationText: root.durationMs > 0 ? Math.floor(root.durationMs / 60000) + ":" + String(Math.floor(root.durationMs / 1000) % 60).padStart(2, "0") : "—"
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
 
+    signal playRequested(int trackId, int rowIndex)
+    signal menuRequested(int trackId, int rowIndex)
+
     width: ListView.view.width
     height: 56
     Accessible.role: Accessible.ListItem
-    Accessible.name: root.title + ", " + root.artist + (root.missing ? ", " + qsTr("missing") : "")
+    Accessible.name: root.title + ", " + root.artist + (root.isCurrent ? ", " + qsTr("now playing") : "") + (root.missing ? ", " + qsTr("missing") : "")
+    Accessible.onPressAction: root.playRequested(root.trackId, root.rowIndex)
+
+    // Now-playing marker: accent bar plus bold title (never color alone).
+    Rectangle {
+        visible: root.isCurrent
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.topMargin: Theme.spaceSm
+        anchors.bottomMargin: Theme.spaceSm
+        width: 3
+        radius: 2
+        color: Theme.accent
+    }
+
+    // Whole-row click plays now; the ⋯ button sits above in z-order.
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.playRequested(root.trackId, root.rowIndex)
+    }
 
     Text {
         anchors.left: parent.left
@@ -79,11 +109,24 @@ Item {
 
     }
 
+    Button {
+        id: menuButton
+
+        anchors.right: missingBadge.left
+        anchors.rightMargin: Theme.spaceSm
+        anchors.verticalCenter: parent.verticalCenter
+        width: 40
+        height: 40
+        text: qsTr("⋯")
+        Accessible.name: qsTr("More actions for %1").arg(root.title)
+        onClicked: root.menuRequested(root.trackId, root.rowIndex)
+    }
+
     Column {
         anchors.left: parent.left
         anchors.leftMargin: Theme.spaceMd + 32 + Theme.spaceMd
-        anchors.right: missingBadge.left
-        anchors.rightMargin: root.missing ? Theme.spaceSm : 0
+        anchors.right: menuButton.left
+        anchors.rightMargin: Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
 
@@ -94,6 +137,7 @@ Item {
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
+            font.weight: root.isCurrent ? Font.DemiBold : Font.Normal
             color: Theme.foreground
         }
 
