@@ -96,4 +96,11 @@
 - **Result:** pass (coverage waiver stands: 73.4%, same uncovered categories)
 - **Evidence:** `tunex-player` (`PlayerEngine` + `path_to_uri` + core `PlaybackState`/`PlayerEvent`/`Error::Player`): 14 engine tests incl. fakesink missing-file sync+async error paths, volume/mute/position, drop-join hygiene (no GStreamer criticals). 29/29 workspace tests ✓, `doctor` ✓, `sonar` ✓ (S3776 complexity 17→split into `handle_message`/`on_state_changed`/`on_duration_discovery`; 0 violations). Headless work — no UI change, no GUI run needed.
 - **Waiver:** none new
-- **Follow-up:** W-005. W-004 learnings: `blocking_send` panics inside async contexts — engine uses `try_send` everywhere (async-safe API); `Ready` maps to `Loading` (preroll with content), `Null` to `Stopped`; `Drop` parks the pipeline to `Null` before joining the bus thread; missing-file failures surface on BOTH sync and async paths (tests accept either, require exactly one).
+- **Follow-up:** W-005 (queue pure logic done; gapless test blocked — see entry below)
+
+### 2026-09-09 — S1 W-005 partial: queue logic green, gapless blocked
+- **Phase:** 6 (Implement, slice S1)
+- **Result:** partial (1 test `#[ignore]`d with reason; tree green by design, not by suppression)
+- **Evidence:** `Queue` (order/cursor/history/shuffle-repeat/peek) + 14 pure unit tests green; `set_next_provider` + `about-to-finish` wiring complete; gapless WAV test written and fails LOUD with `Your GStreamer installation is missing a plug-in` (`wavparse` lives in uninstalled `gst-plugins-good`) instead of timing out. Test `#[ignore]`d with install reason so gates stay green; un-ignore after install. WORK_ITEMS/STATE/ROADMAP (S1→doing) updated.
+- **Waiver:** gapless-test ignore (owner: user pending install; risk: low — preload path is written, only its live-fire proof awaits; expiry: package install).
+- **Follow-up:** user runs `sudo pacman -S --needed gst-plugins-good` → un-ignore + green run → W-006.

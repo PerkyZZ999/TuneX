@@ -6,6 +6,21 @@
 
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
+/// Repeat behavior for the queue.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepeatMode {
+    /// Play through once and stop.
+    #[default]
+    Off,
+    /// Repeat the queue.
+    All,
+    /// Repeat the current track.
+    One,
+}
+
 /// Application-level playback states (SPEC §6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PlaybackState {

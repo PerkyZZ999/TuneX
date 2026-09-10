@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` (QG OK) for W-001a
-- Latest validation entry: 2026-09-09 toolchain gates (quick/doctor/sonar)
+- Latest passed gate: `rust-tc doctor` for W-004 (QG: 0 violations, coverage waiver stands)
+- Latest validation entry: 2026-09-09 W-004 PlayerEngine green
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -24,16 +24,17 @@
 - Bridge (W-002 done): cxx-qt 0.10 stack pinned; `TrackListModel` round-trip GUI-proven; module owned by build.rs; bridge code lives in binary; explicit init anchoring in main.rs
 - Shell (W-003 done): Theme singleton + nav shell + Home/empty states GUI-proven; `tunex-core::config` + tracing live; DESIGN.md body 16px (skill compliance)
 - Player (W-004 done): `PlayerEngine` playbin3 + `PlayerEvent` bus, 14 fakesink tests green, S3776 fixed
-- Repo reality: S1 through W-004 done; W-005 (queue + gapless preload) next.
+- Queue (W-005 in progress): pure `Queue` logic written + unit-tested; gapless integration test written but blocked (see Blockers)
+- Repo reality: S1 through W-004 done; W-005 partial (queue logic done, gapless test red on missing plugin).
 
 ## Open loops
 - None
 
 ## Blockers
-- None. MVP + locks + GPLv3 confirmed; packaging switched to PKGBUILD/AUR per user.
+- W-005 gapless test needs `gst-plugins-good` (wavparse) on this machine; no passwordless sudo. Unblocks with: `sudo pacman -S --needed gst-plugins-good` (also required for W-006 codec fixtures).
 
 ## Next action
-- W-005: in-memory queue (add/remove/reorder/clear/play-next, shuffle/repeat) + `about-to-finish` gapless preload driving the engine.
+- User installs gst-plugins-good → finish W-005 (gapless green) → W-006 codec matrix.
 
 ## Phase checklist
 - [x] 0 Intake

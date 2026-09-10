@@ -12,20 +12,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use super::playback::RepeatMode;
 use crate::{Error, Result};
-
-/// Repeat behavior for the queue (player slice owns the semantics).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RepeatMode {
-    /// Play through once and stop.
-    #[default]
-    Off,
-    /// Repeat the queue.
-    All,
-    /// Repeat the current track.
-    One,
-}
 
 /// Playback behavior settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

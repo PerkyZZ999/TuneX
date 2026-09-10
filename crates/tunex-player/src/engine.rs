@@ -15,7 +15,7 @@ use std::{
     time::Duration,
 };
 
-use gstreamer::{self as gst, prelude::*};
+use gstreamer::{self as gst, glib::object::ObjectExt as _, prelude::*};
 use tokio::sync::mpsc;
 use tunex_core::{Error, PlaybackState, PlayerEvent, Result};
 
@@ -26,12 +26,30 @@ const EVENT_BUFFER: usize = 64;
 /// Bus poll slice: responsive shutdown without busy-looping.
 const BUS_POLL: gst::ClockTime = gst::ClockTime::from_nseconds(100_000_000);
 
+/// Lookahead for gapless preload: returns the URI to preload, if any.
+///
+/// Invoked on the streaming thread when `about-to-finish` fires, so
+/// implementations must be fast and non-blocking (a queue peek, never I/O).
+/// [`Queue::peek_next_uri`](super::Queue::peek_next_uri) is the canonical one.
+pub type NextUriProvider = std::sync::Arc<dyn Fn() -> Option<String> + Send + Sync>;
+
 /// Mutable engine state shared with the bus thread.
-#[derive(Debug)]
 struct Inner {
     state: PlaybackState,
     has_track: bool,
     last_duration: Option<Duration>,
+    next_provider: Option<NextUriProvider>,
+}
+
+impl std::fmt::Debug for Inner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Inner")
+            .field("state", &self.state)
+            .field("has_track", &self.has_track)
+            .field("last_duration", &self.last_duration)
+            .field("next_provider", &self.next_provider.is_some())
+            .finish()
+    }
 }
 
 /// Stable application-level abstraction over `GStreamer` `playbin3`.
@@ -72,8 +90,10 @@ impl PlayerEngine {
             state: PlaybackState::Stopped,
             has_track: false,
             last_duration: None,
+            next_provider: None,
         }));
         let shutdown = Arc::new(AtomicBool::new(false));
+        connect_about_to_finish(&playbin, &inner);
         let bus_thread = {
             let playbin = playbin.clone();
             let inner = Arc::clone(&inner);
@@ -218,6 +238,15 @@ impl PlayerEngine {
         self.playbin.set_property("audio-sink", sink);
     }
 
+    /// Install (or clear) the gapless lookahead consulted when
+    /// `about-to-finish` fires. The queue registers its peek here; without a
+    /// provider the pipeline simply ends tracks normally.
+    pub fn set_next_provider(&self, provider: Option<NextUriProvider>) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.next_provider = provider;
+        }
+    }
+
     /// Current playback position, when the pipeline can report one.
     #[must_use]
     pub fn position(&self) -> Option<Duration> {
@@ -261,7 +290,8 @@ impl PlayerEngine {
 impl Drop for PlayerEngine {
     fn drop(&mut self) {
         // Release pipeline resources first: dropping elements above NULL
-        // state logs GStreamer criticals.
+        // state logs GStreamer criticals. Like all GStreamer apps, a wedged
+        // driver can stall here; healthy pipelines release in milliseconds.
         let _ = self.playbin.set_state(gst::State::Null);
         self.shutdown.store(true, Ordering::Relaxed);
         if let Some(thread) = self.bus_thread.take() {
@@ -281,6 +311,27 @@ fn emit(events: &mpsc::Sender<PlayerEvent>, event: PlayerEvent) {
             "event channel full, dropping signal"
         );
     }
+}
+
+/// Wire `about-to-finish` to the lookahead provider.
+///
+/// Fires on the streaming thread near the end of the current track; the
+/// handler only peeks a URI and sets the property — no I/O, no locks held
+/// across calls. A weak pipeline handle breaks the reference cycle (the
+/// connection itself lives as long as the pipeline).
+fn connect_about_to_finish(playbin: &gst::Element, inner: &Arc<Mutex<Inner>>) {
+    let inner = Arc::clone(inner);
+    let pipeline = playbin.downgrade();
+    playbin.connect("about-to-finish", false, move |_| {
+        let uri = inner
+            .lock()
+            .ok()
+            .and_then(|guard| guard.next_provider.as_ref().and_then(|peek| peek()));
+        if let (Some(uri), Some(playbin)) = (uri, pipeline.upgrade()) {
+            playbin.set_property("uri", uri);
+        }
+        None
+    });
 }
 
 /// Record a state transition, emitting exactly one event per change.
@@ -419,6 +470,39 @@ mod tests {
             .expect("sender lives as long as the engine")
     }
 
+    /// Write a tiny mono WAV (8 kHz, 16-bit sine) for pipeline tests. Real
+    /// container, synthetic content — decodable by base plugins anywhere.
+    fn write_sine_wav(path: &std::path::Path, millis: u64, hertz: f32) {
+        const RATE: u32 = 8000;
+        let frames = u32::try_from(u64::from(RATE) * millis / 1000).expect("test clips are short");
+        let mut bytes = Vec::with_capacity(44 + frames as usize * 2);
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(36 + frames * 2).to_le_bytes());
+        bytes.extend_from_slice(b"WAVEfmt ");
+        bytes.extend_from_slice(&16u32.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&RATE.to_le_bytes());
+        bytes.extend_from_slice(&(RATE * 2).to_le_bytes());
+        bytes.extend_from_slice(&2u16.to_le_bytes());
+        bytes.extend_from_slice(&16u16.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&(frames * 2).to_le_bytes());
+        for frame in 0..frames {
+            let time = f64::from(frame) / f64::from(RATE);
+            let phase = time * f64::from(hertz) * f64::from(std::f32::consts::TAU);
+            // Fixture audio: amplitude keeps every sample inside i16 range by
+            // construction, but the lint cannot see value bounds.
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "0.4-amplitude sine always fits i16"
+            )]
+            let sample = (phase.sin() * 0.4 * 32767.0) as i16;
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+        std::fs::write(path, bytes).expect("fixture writes");
+    }
+
     #[test]
     fn initial_state_is_stopped() {
         let (engine, _receiver) = test_engine();
@@ -515,5 +599,63 @@ mod tests {
         expect_missing_file_error(&engine, &mut receiver).await;
         engine.stop().expect("stop works");
         assert_eq!(engine.state(), PlaybackState::Stopped);
+    }
+    // Blocked on this machine until gst-plugins-good (wavparse) is installed;
+    // tracked as WORK_ITEMS W-005 blocker. Run explicitly once unblocked:
+    // cargo nextest run -p tunex-player about_to_finish
+    #[ignore = "needs gst-plugins-good (wavparse): sudo pacman -S --needed gst-plugins-good"]
+    #[tokio::test]
+    async fn about_to_finish_preloads_next_uri_gaplessly() {
+        let dir = std::env::temp_dir().join(format!("tunex-gapless-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        let first = dir.join("first.wav");
+        let second = dir.join("second.wav");
+        write_sine_wav(&first, 400, 440.0);
+        write_sine_wav(&second, 400, 660.0);
+
+        let second_uri = crate::path_to_uri(&second).expect("fixture path converts");
+        let preloaded = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&preloaded);
+        let provider: NextUriProvider = Arc::new(move || {
+            flag.store(true, Ordering::Relaxed);
+            Some(second_uri.clone())
+        });
+
+        let (engine, mut receiver) = test_engine();
+        engine.set_next_provider(Some(provider));
+        engine.load_path(&first).expect("fixture loads");
+        engine.play().expect("playback starts");
+
+        // Drain until the final boundary. Gapless means the state sequence is
+        // exactly Loading → Playing → Stopped: no stop between the preloaded
+        // handoff, and the provider must have been consulted on the way.
+        let mut states = Vec::new();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "first end-of-track never arrived"
+            );
+            let event = next_event(&mut receiver).await;
+            match event {
+                PlayerEvent::StateChanged(state) => states.push(state),
+                PlayerEvent::EndOfTrack => break,
+                PlayerEvent::PlaybackError(message) => {
+                    panic!("pipeline failed instead of playing: {message}");
+                }
+                PlayerEvent::DurationChanged(_) => {}
+            }
+        }
+        assert!(preloaded.load(Ordering::Relaxed), "provider was consulted");
+        assert_eq!(
+            states,
+            vec![
+                PlaybackState::Loading,
+                PlaybackState::Playing,
+                PlaybackState::Stopped
+            ],
+            "gapless handoff without intermediate stop"
+        );
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }
