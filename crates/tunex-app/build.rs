@@ -18,9 +18,14 @@ fn main() {
                 "qml/TuneX/HomeView.qml",
                 "qml/TuneX/SectionStub.qml",
                 "qml/TuneX/NavItem.qml",
+                "qml/TuneX/LibraryView.qml",
+                "qml/TuneX/TrackRow.qml",
+                "qml/TuneX/AlbumCard.qml",
+                "qml/TuneX/ArtistCard.qml",
+                "qml/TuneX/EmptyState.qml",
             ])
             .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true)),
     )
-    .files(["src/bridge/track_list_model.rs"])
+    .files(["src/bridge/models.rs"])
     .build();
 }

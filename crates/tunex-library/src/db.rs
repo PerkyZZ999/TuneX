@@ -435,15 +435,10 @@ pub fn upsert_track(db: &mut Connection, track: &NewTrack) -> Result<()> {
     Ok(())
 }
 
-/// All indexed tracks ordered by path, with resolved display names.
-///
-/// # Errors
-///
-/// Returns [`Error::Database`] when the query fails.
-pub fn list_tracks(db: &Connection) -> Result<Vec<TrackRow>> {
-    let mut statement = db
-        .prepare(
-            "SELECT tracks.id AS id, tracks.path AS path, tracks.title AS title,
+/// Shared track-list projection: resolved display names over the lookup
+/// joins. Callers append their own `WHERE` / `ORDER BY`.
+const TRACK_LIST_SELECT: &str =
+    "SELECT tracks.id AS id, tracks.path AS path, tracks.title AS title,
                     tracks.stable_key AS stable_key,
                     artists.name AS artist, albums.title AS album, genres.name AS genre,
                     tracks.composer AS composer, tracks.year AS year,
@@ -452,12 +447,149 @@ pub fn list_tracks(db: &Connection) -> Result<Vec<TrackRow>> {
              FROM tracks
              LEFT JOIN artists ON artists.id = tracks.artist_id
              LEFT JOIN albums ON albums.id = tracks.album_id
-             LEFT JOIN genres ON genres.id = tracks.genre_id
-             ORDER BY tracks.path",
-        )
+             LEFT JOIN genres ON genres.id = tracks.genre_id";
+
+/// All indexed tracks ordered by path, with resolved display names.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_tracks(db: &Connection) -> Result<Vec<TrackRow>> {
+    let mut statement = db
+        .prepare(&format!("{TRACK_LIST_SELECT} ORDER BY tracks.path"))
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], TrackRow::from_row)
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// One artist row for the browse view: name plus collection counts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ArtistRow {
+    /// Artist name.
+    pub name: String,
+    /// Albums attributed to this artist.
+    pub album_count: i64,
+    /// Tracks attributed to this artist.
+    pub track_count: i64,
+}
+
+/// One album row for the browse view.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AlbumRow {
+    /// Database row id (drill-down key for [`list_tracks_in_album`]).
+    pub id: i64,
+    /// Album title.
+    pub title: String,
+    /// Attributed artist, if any.
+    pub artist: Option<String>,
+    /// Release year, if known.
+    pub year: Option<i64>,
+    /// Indexed tracks on this album.
+    pub track_count: i64,
+}
+
+/// Every attributed artist with album/track counts, ordered by name.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_artists(db: &Connection) -> Result<Vec<ArtistRow>> {
+    let mut statement = db
+        .prepare(
+            "SELECT artists.name AS name,
+                    COUNT(DISTINCT tracks.album_id) AS album_count,
+                    COUNT(tracks.id) AS track_count
+             FROM artists
+             LEFT JOIN tracks ON tracks.artist_id = artists.id
+             GROUP BY artists.id
+             ORDER BY artists.name COLLATE NOCASE",
+        )
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(ArtistRow {
+                name: row.get("name")?,
+                album_count: row.get("album_count")?,
+                track_count: row.get("track_count")?,
+            })
+        })
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<ArtistRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// Every album with artist, year, and track count, ordered by title.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_albums(db: &Connection) -> Result<Vec<AlbumRow>> {
+    let mut statement = db
+        .prepare(
+            "SELECT albums.id AS id, albums.title AS title,
+                    artists.name AS artist, albums.year AS year,
+                    COUNT(tracks.id) AS track_count
+             FROM albums
+             LEFT JOIN artists ON artists.id = albums.artist_id
+             LEFT JOIN tracks ON tracks.album_id = albums.id
+             GROUP BY albums.id
+             ORDER BY albums.title COLLATE NOCASE",
+        )
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(AlbumRow {
+                id: row.get("id")?,
+                title: row.get("title")?,
+                artist: row.get("artist")?,
+                year: row.get("year")?,
+                track_count: row.get("track_count")?,
+            })
+        })
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<AlbumRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// Tracks on one album in disc/track order (untagged numbers sort last).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_tracks_in_album(db: &Connection, album_id: i64) -> Result<Vec<TrackRow>> {
+    let mut statement = db
+        .prepare(&format!(
+            "{TRACK_LIST_SELECT}
+             WHERE tracks.album_id = ?1
+             ORDER BY COALESCE(tracks.disc_number, 1),
+                      COALESCE(tracks.track_number, 1000000),
+                      tracks.path"
+        ))
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([album_id], TrackRow::from_row)
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// First `limit` tracks by path (songs tab over large libraries stays
+/// bounded; full paging and search arrive in S3).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_tracks_capped(db: &Connection, limit: u32) -> Result<Vec<TrackRow>> {
+    let mut statement = db
+        .prepare(&format!(
+            "{TRACK_LIST_SELECT} ORDER BY tracks.path LIMIT ?1"
+        ))
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([limit], TrackRow::from_row)
         .map_err(|err| db_error(&err))?;
     rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
         .map_err(|err| db_error(&err))
@@ -682,6 +814,55 @@ mod tests {
         // Rescan refreshes instead of duplicating.
         upsert_track(&mut db, &track).expect("re-upsert works");
         assert_eq!(list_tracks(&db).expect("list works").len(), 1);
+    }
+
+    #[test]
+    fn browse_lists_aggregate_and_drill_down() {
+        let mut db = open_memory().expect("in-memory opens");
+        for (path, title, artist, album, number) in [
+            ("a1.flac", "One", "Nova Rae", "Night Tapes", 1),
+            ("a2.flac", "Two", "Nova Rae", "Night Tapes", 2),
+            ("b1.flac", "Solo", "Solo Act", "Only", 1),
+        ] {
+            upsert_track(
+                &mut db,
+                &NewTrack {
+                    path: format!("/music/{path}"),
+                    stable_key: path.to_owned(),
+                    title: Some(title.to_owned()),
+                    artist: Some(artist.to_owned()),
+                    album: Some(album.to_owned()),
+                    track_number: Some(number),
+                    ..Default::default()
+                },
+            )
+            .expect("upsert works");
+        }
+        let artists = list_artists(&db).expect("artists list");
+        assert_eq!(artists.len(), 2);
+        let nova = artists
+            .iter()
+            .find(|row| row.name == "Nova Rae")
+            .expect("artist present");
+        assert_eq!((nova.album_count, nova.track_count), (1, 2));
+
+        let albums = list_albums(&db).expect("albums list");
+        assert_eq!(albums.len(), 2);
+        let tapes = albums
+            .iter()
+            .find(|row| row.title == "Night Tapes")
+            .expect("album present");
+        assert_eq!(tapes.artist.as_deref(), Some("Nova Rae"));
+        assert_eq!(tapes.track_count, 2);
+
+        let songs = list_tracks_in_album(&db, tapes.id).expect("album tracks list");
+        assert_eq!(songs.len(), 2);
+        assert_eq!(songs[0].title.as_deref(), Some("One"));
+        assert_eq!(songs[1].title.as_deref(), Some("Two"));
+
+        let capped = list_tracks_capped(&db, 2).expect("capped list");
+        assert_eq!(capped.len(), 2);
+        assert!(list_tracks_capped(&db, 0).expect("empty cap").is_empty());
     }
 
     #[test]

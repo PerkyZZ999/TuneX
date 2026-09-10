@@ -167,10 +167,8 @@ Window {
                     note: qsTr("Instant library search lands in S3.")
                 }
 
-                SectionStub {
+                LibraryView {
                     visible: root.section === "library"
-                    title: qsTr("Your Library")
-                    note: qsTr("Artists, albums, songs, and folders land in S2.")
                 }
 
                 SectionStub {

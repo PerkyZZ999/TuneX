@@ -22,7 +22,8 @@ pub use artwork::{
 };
 
 pub use db::{
-    NewTrack, TrackIdentity, TrackRow, add_root, list_tracks, open_file, open_memory, rename_track,
+    AlbumRow, ArtistRow, NewTrack, TrackIdentity, TrackRow, add_root, list_albums, list_artists,
+    list_tracks, list_tracks_capped, list_tracks_in_album, open_file, open_memory, rename_track,
     schema_version, search_track_ids, set_missing, track_identities, upsert_track,
 };
 pub use metadata::{EmbeddedArtwork, FileMetadata, read_metadata};

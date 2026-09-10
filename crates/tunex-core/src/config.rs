@@ -87,6 +87,25 @@ pub fn config_file() -> PathBuf {
     config_dir().join("config.toml")
 }
 
+/// Resolve the user data directory (`$XDG_DATA_HOME` or `~/.local/share`),
+/// with the `tunex` leaf appended. The library index lives here, so a
+/// restart reopens the same database (R-006).
+#[must_use]
+pub fn data_dir() -> PathBuf {
+    let base = env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
+        // Least surprise when neither is set (service/CI contexts): stay local.
+        .unwrap_or_else(|| PathBuf::from(".local/share"));
+    base.join("tunex")
+}
+
+/// Full path of the library index database.
+#[must_use]
+pub fn library_db_path() -> PathBuf {
+    data_dir().join("library.db")
+}
+
 /// Load settings from `path`. Missing files are not an error — first runs
 /// simply start from defaults (callers decide when to persist).
 ///
@@ -194,7 +213,6 @@ mod tests {
         assert_eq!(config.volume.to_bits(), 0.5f32.to_bits());
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
-
     #[test]
     fn corrupt_toml_surfaces_config_error() {
         let dir = scratch_dir("corrupt");
@@ -204,5 +222,14 @@ mod tests {
         let err = load_from(&path).expect_err("corrupt files must be visible");
         assert!(matches!(err, Error::Config(_)));
         std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn library_db_lives_under_the_data_dir() {
+        assert_eq!(library_db_path(), data_dir().join("library.db"));
+        assert!(
+            data_dir().ends_with("tunex"),
+            "data dir carries the app leaf"
+        );
     }
 }

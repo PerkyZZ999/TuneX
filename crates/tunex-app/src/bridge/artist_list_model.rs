@@ -1,0 +1,233 @@
+//! `ArtistListModel` rows and loaders (bridge in [`super::models`]).
+//!
+//! S2 W-016 browse model: rows load from the library index on `refresh`
+//! (bounded, indexed queries — no scan, no decode, no watcher on this path).
+//! A missing index file is not an error: the model stays empty and QML shows
+//! the empty-library state.
+//!
+//! All row logic lives on the plain [`ArtistListModelRust`] struct (fully
+//! unit-tested); the `impl` below only pairs Qt model notifications around
+//! it (see the S1 proof model for the pairing pattern).
+
+use super::models::qobject;
+
+use core::pin::Pin;
+use cxx_qt::CxxQtType;
+use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
+
+/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
+/// permitted on `#[qenum]` items, so this is written by hand).
+impl std::fmt::Debug for qobject::ArtistRoles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Variants are associated constants on the generated type; compare
+        // their discriminants rather than matching by value.
+        let name = match self.repr {
+            repr if repr == qobject::ArtistRoles::Name.repr => "Name",
+            repr if repr == qobject::ArtistRoles::AlbumCount.repr => "AlbumCount",
+            repr if repr == qobject::ArtistRoles::TrackCount.repr => "TrackCount",
+            _ => "Unknown",
+        };
+        write!(f, "ArtistRoles::{name}")
+    }
+}
+
+/// Artist row store: display name plus collection counts.
+#[derive(Debug, Default)]
+pub struct ArtistListModelRust {
+    artists: Vec<(QString, i32, i32)>,
+}
+
+impl ArtistListModelRust {
+    /// Push one row; returns its index (saturates instead of wrapping on
+    /// absurd lengths — a view count, never an allocation index).
+    fn push_row(&mut self, name: QString, album_count: i32, track_count: i32) -> i32 {
+        let row = i32::try_from(self.artists.len()).unwrap_or(i32::MAX);
+        self.artists.push((name, album_count, track_count));
+        row
+    }
+
+    /// Drop all rows.
+    fn drop_rows(&mut self) {
+        self.artists.clear();
+    }
+
+    /// Current row count.
+    fn row_count(&self) -> i32 {
+        i32::try_from(self.artists.len()).unwrap_or(i32::MAX)
+    }
+
+    /// Data for one row/role; invalid variant when out of range or the role
+    /// is unknown.
+    fn row_data(&self, row: usize, role: qobject::ArtistRoles) -> QVariant {
+        if let Some((name, album_count, track_count)) = self.artists.get(row) {
+            return match role {
+                qobject::ArtistRoles::Name => QVariant::from(name),
+                qobject::ArtistRoles::AlbumCount => QVariant::from(album_count),
+                qobject::ArtistRoles::TrackCount => QVariant::from(track_count),
+                _ => QVariant::default(),
+            };
+        }
+        QVariant::default()
+    }
+}
+
+/// Load artist rows from the index at `path` (empty when absent/unreadable —
+/// the empty-library state, never an error surface).
+fn load_artists(path: &std::path::Path) -> Vec<(QString, i32, i32)> {
+    if !path.is_file() {
+        return Vec::new();
+    }
+    let db = match tunex_library::open_file(path) {
+        Ok(db) => db,
+        Err(err) => {
+            tracing::warn!(name = "browse.artists_failed", error = %err, "index unreadable");
+            return Vec::new();
+        }
+    };
+    match tunex_library::list_artists(&db) {
+        Ok(rows) => rows
+            .into_iter()
+            .map(|row| {
+                (
+                    QString::from(&row.name),
+                    i32::try_from(row.album_count).unwrap_or(i32::MAX),
+                    i32::try_from(row.track_count).unwrap_or(i32::MAX),
+                )
+            })
+            .collect(),
+        Err(err) => {
+            tracing::warn!(name = "browse.artists_failed", error = %err, "index unreadable");
+            Vec::new()
+        }
+    }
+}
+
+impl qobject::ArtistListModel {
+    /// Reload all artists from the library index; emits model reset.
+    pub fn refresh(mut self: Pin<&mut Self>) {
+        let rows = load_artists(&tunex_core::library_db_path());
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_artists();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for (name, album_count, track_count) in rows {
+                rust.push_row(name, album_count, track_count);
+            }
+            self.as_mut().end_reset_model_artists();
+        }
+    }
+
+    /// Drop all rows; emits model reset so views rebuild.
+    pub fn clear(mut self: Pin<&mut Self>) {
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_artists();
+            self.as_mut().rust_mut().drop_rows();
+            self.as_mut().end_reset_model_artists();
+        }
+    }
+
+    /// Row count override for `QAbstractListModel`.
+    pub fn row_count_artists(&self, _parent: &QModelIndex) -> i32 {
+        self.rust().row_count()
+    }
+
+    /// Role data override for `QAbstractListModel`.
+    pub fn data_artists(&self, index: &QModelIndex, role: i32) -> QVariant {
+        let row = usize::try_from(index.row()).unwrap_or(usize::MAX);
+        self.rust()
+            .row_data(row, qobject::ArtistRoles { repr: role })
+    }
+
+    /// Role-name table override; without it QML sees no custom roles.
+    /// The Qt virtual signature requires the receiver although no instance
+    /// state participates.
+    pub fn role_names_artists(&self) -> QHash<QHashPair_i32_QByteArray> {
+        let _ = self;
+        let mut roles = QHash::<QHashPair_i32_QByteArray>::default();
+        roles.insert(qobject::ArtistRoles::Name.repr, QByteArray::from("name"));
+        roles.insert(
+            qobject::ArtistRoles::AlbumCount.repr,
+            QByteArray::from("albumCount"),
+        );
+        roles.insert(
+            qobject::ArtistRoles::TrackCount.repr,
+            QByteArray::from("trackCount"),
+        );
+        roles
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ArtistListModelRust;
+    use super::qobject::ArtistRoles;
+    use crate::bridge::test_support::seeded_index;
+    use cxx_qt_lib::{QString, QVariant};
+
+    fn model_with_two_artists() -> ArtistListModelRust {
+        let mut model = ArtistListModelRust::default();
+        model.push_row(QString::from("Nova Rae"), 2, 14);
+        model.push_row(QString::from("Solo Act"), 1, 3);
+        model
+    }
+
+    #[test]
+    fn push_row_returns_sequential_indices() {
+        let mut model = ArtistListModelRust::default();
+        assert_eq!(model.push_row(QString::from("A"), 1, 1), 0);
+        assert_eq!(model.push_row(QString::from("B"), 1, 1), 1);
+    }
+
+    #[test]
+    fn row_count_tracks_push_and_drop() {
+        let mut model = model_with_two_artists();
+        assert_eq!(model.row_count(), 2);
+        model.drop_rows();
+        assert_eq!(model.row_count(), 0);
+    }
+
+    #[test]
+    fn row_data_returns_name_and_counts() {
+        let model = model_with_two_artists();
+        assert_ne!(model.row_data(1, ArtistRoles::Name), QVariant::default());
+        assert_ne!(
+            model.row_data(1, ArtistRoles::AlbumCount),
+            QVariant::default()
+        );
+        assert_ne!(
+            model.row_data(1, ArtistRoles::TrackCount),
+            QVariant::default()
+        );
+    }
+
+    #[test]
+    fn row_data_for_unknown_role_yields_default() {
+        let model = model_with_two_artists();
+        assert_eq!(
+            model.row_data(0, ArtistRoles { repr: i32::MAX }),
+            QVariant::default()
+        );
+    }
+
+    #[test]
+    fn row_data_out_of_range_yields_default() {
+        let model = model_with_two_artists();
+        assert_eq!(model.row_data(99, ArtistRoles::Name), QVariant::default());
+    }
+
+    #[test]
+    fn missing_index_loads_zero_rows() {
+        let missing =
+            std::env::temp_dir().join(format!("tunex-browse-missing-{}", std::process::id()));
+        assert!(super::load_artists(&missing.join("library.db")).is_empty());
+    }
+
+    #[test]
+    fn seeded_index_loads_artist_rows() {
+        let (_guard, path) = seeded_index("artists");
+        let rows = super::load_artists(&path);
+        assert_eq!(rows.len(), 2);
+    }
+}
