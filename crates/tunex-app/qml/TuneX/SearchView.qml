@@ -13,6 +13,7 @@ Item {
     id: root
 
     required property QueueModel queue
+    required property PlaylistModel playlists
     // Raw query text, bound from the shell search field.
     property string query: ""
     property string tab: "songs"
@@ -135,6 +136,7 @@ Item {
         id: trackMenu
 
         queue: root.queue
+        playlists: root.playlists
     }
 
     Timer {
@@ -330,13 +332,13 @@ Item {
                     Accessible.name: root.drilled ? root.albumTitle : qsTr("Song results")
                     Keys.onReturnPressed: {
                         const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                        if (at < songsView.count)
+                        if (at < songsView.count && songs.isPlayableAt(at))
                             root.queue.playTrackNow(songs.trackIdAt(at));
 
                     }
                     Keys.onEnterPressed: {
                         const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                        if (at < songsView.count)
+                        if (at < songsView.count && songs.isPlayableAt(at))
                             root.queue.playTrackNow(songs.trackIdAt(at));
 
                     }
@@ -353,10 +355,12 @@ Item {
                         trackNumber: model.trackNumber
                         durationMs: model.durationMs
                         missing: model.missing
-                        onPlayRequested: (trackId) => {
+                        onPlayRequested: (trackId, rowIndex, dangling) => {
                             songsView.currentIndex = index;
                             songsView.forceActiveFocus();
-                            return root.queue.playTrackNow(trackId);
+                            if (!dangling && songs.isPlayableAt(index))
+                                root.queue.playTrackNow(trackId);
+
                         }
                         onMenuRequested: (trackId) => {
                             songsView.currentIndex = index;

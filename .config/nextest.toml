@@ -3,3 +3,19 @@ fail-fast = false
 
 [profile.ci]
 fail-fast = false
+
+# playbin pipelines deadlock when several engine tests share the process
+# under load (`play_now_starts_playback_immediately` wedged a 6-minute
+# pre-commit run). One GST test at a time keeps the gate deterministic.
+[test-groups]
+gstreamer = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'package(tunex-player)'
+test-group = 'gstreamer'
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+[[profile.ci.overrides]]
+filter = 'package(tunex-player)'
+test-group = 'gstreamer'
+slow-timeout = { period = "30s", terminate-after = 2 }

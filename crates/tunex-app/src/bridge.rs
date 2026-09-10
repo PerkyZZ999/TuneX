@@ -11,6 +11,8 @@ pub mod artist_list_model;
 pub mod library_manager;
 pub mod library_track_model;
 pub mod models;
+pub mod playlist_list_model;
+pub mod playlist_track_model;
 pub mod queue_model;
 pub mod track_list_model;
 

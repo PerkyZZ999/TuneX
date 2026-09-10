@@ -22,19 +22,24 @@ Item {
     property int trackNumber: 0
     property int durationMs: 0
     property bool missing: false
+    property bool dangling: false
     property bool isCurrent: false
     // m:ss, em dash when unknown. Numbers need no translation.
     readonly property string durationText: root.durationMs > 0 ? Math.floor(root.durationMs / 60000) + ":" + String(Math.floor(root.durationMs / 1000) % 60).padStart(2, "0") : "—"
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
 
-    signal playRequested(int trackId, int rowIndex)
-    signal menuRequested(int trackId, int rowIndex)
+    signal playRequested(int trackId, int rowIndex, bool dangling)
+    signal menuRequested(int trackId, int rowIndex, bool dangling)
 
     width: ListView.view.width
     height: 56
     Accessible.role: Accessible.ListItem
-    Accessible.name: root.title + ", " + root.artist + (root.isCurrent ? ", " + qsTr("now playing") : "") + (root.missing ? ", " + qsTr("missing") : "")
-    Accessible.onPressAction: root.playRequested(root.trackId, root.rowIndex)
+    Accessible.name: root.title + ", " + root.artist + (root.isCurrent ? ", " + qsTr("now playing") : "") + (root.missing ? ", " + qsTr("missing") : "") + (root.dangling ? ", " + qsTr("unavailable") : "")
+    Accessible.onPressAction: {
+        if (!root.dangling && !root.missing)
+            root.playRequested(root.trackId, root.rowIndex, root.dangling);
+
+    }
 
     // Now-playing marker: accent bar plus bold title (never color alone).
     Rectangle {
@@ -52,8 +57,9 @@ Item {
     // Whole-row click plays now; the ⋯ button sits above in z-order.
     MouseArea {
         anchors.fill: parent
+        enabled: !root.dangling && !root.missing
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.playRequested(root.trackId, root.rowIndex)
+        onClicked: root.playRequested(root.trackId, root.rowIndex, root.dangling)
     }
 
     Text {
@@ -109,17 +115,44 @@ Item {
 
     }
 
+    Rectangle {
+        id: danglingBadge
+
+        anchors.right: missingBadge.left
+        anchors.rightMargin: root.dangling ? Theme.spaceSm : 0
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.dangling ? danglingLabel.width + Theme.spaceSm * 2 : 0
+        height: danglingLabel.height + Theme.spaceXs
+        visible: root.dangling
+        radius: Theme.radiusPill
+        color: Theme.surfaceRaised
+        border.color: Theme.error
+        border.width: 1
+
+        Text {
+            id: danglingLabel
+
+            anchors.centerIn: parent
+            text: qsTr("Unavailable")
+            textFormat: Text.PlainText
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontCaption
+            color: Theme.error
+        }
+
+    }
+
     Button {
         id: menuButton
 
-        anchors.right: missingBadge.left
+        anchors.right: danglingBadge.left
         anchors.rightMargin: Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
         width: 40
         height: 40
         text: qsTr("⋯")
         Accessible.name: qsTr("More actions for %1").arg(root.title)
-        onClicked: root.menuRequested(root.trackId, root.rowIndex)
+        onClicked: root.menuRequested(root.trackId, root.rowIndex, root.dangling)
     }
 
     Column {

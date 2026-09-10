@@ -26,6 +26,8 @@ use super::album_list_model::AlbumListModelRust;
 use super::artist_list_model::ArtistListModelRust;
 use super::library_manager::LibraryManagerRust;
 use super::library_track_model::LibraryTrackModelRust;
+use super::playlist_list_model::PlaylistModelRust;
+use super::playlist_track_model::PlaylistTrackModelRust;
 use super::queue_model::QueueModelRust;
 use super::track_list_model::TrackListModelRust;
 
@@ -291,6 +293,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "trackIdAt"]
         fn track_id_at(self: &LibraryTrackModel, row: i32) -> i32;
+        /// Whether the row at `row` can play (present and on disk).
+        /// Exposed to QML as `isPlayableAt`.
+        #[qinvokable]
+        #[cxx_name = "isPlayableAt"]
+        fn is_playable_at(self: &LibraryTrackModel, row: i32) -> bool;
 
         /// Submit raw query text to this model's search worker (debounced,
         /// off-thread; results arrive via `pollSearch`).
@@ -509,6 +516,13 @@ pub mod qobject {
         #[cxx_name = "enqueueArtist"]
         fn enqueue_artist(self: Pin<&mut QueueModel>, artist: &QString) -> i32;
 
+        /// Enqueue one playlist in entry order (dangling and missing entries
+        /// skipped); returns the number enqueued.
+        /// Exposed to QML as `enqueuePlaylist`.
+        #[qinvokable]
+        #[cxx_name = "enqueuePlaylist"]
+        fn enqueue_playlist(self: Pin<&mut QueueModel>, playlist_id: i32) -> i32;
+
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
         #[cxx_override]
@@ -526,6 +540,224 @@ pub mod qobject {
         #[cxx_override]
         #[cxx_name = "roleNames"]
         fn role_names_queue(self: &QueueModel) -> QHash_i32_QByteArray;
+    }
+
+    /// Roles exposed to QML delegates (`playlistId`, `name`,
+    /// `trackCount`).
+    #[qenum(PlaylistModel)]
+    enum PlaylistRoles {
+        /// Playlist row id (detail key).
+        PlaylistId,
+        /// Playlist name.
+        Name,
+        /// Entry count (dangling entries included).
+        TrackCount,
+    }
+
+    /// Roles exposed to QML delegates (`entryId`, `trackId`, `title`,
+    /// `artist`, `durationMs`, `missing`, `dangling`).
+    #[qenum(PlaylistTrackModel)]
+    enum PlaylistTrackRoles {
+        /// Entry row id.
+        EntryId,
+        /// Linked track row id.
+        TrackId,
+        /// Entry title (`Unavailable track` when dangling).
+        Title,
+        /// Entry artist (`Unknown Artist` when untagged).
+        Artist,
+        /// Duration in milliseconds (0 when unknown).
+        DurationMs,
+        /// File vanished from disk (badge in the delegate).
+        Missing,
+        /// Track row gone (placeholder row, distinct badge).
+        Dangling,
+    }
+
+    extern "RustQt" {
+        #[qobject]
+        #[base = QAbstractListModel]
+        #[qml_element]
+        type PlaylistModel = super::PlaylistModelRust;
+
+        #[qobject]
+        #[base = QAbstractListModel]
+        #[qml_element]
+        type PlaylistTrackModel = super::PlaylistTrackModelRust;
+    }
+
+    extern "RustQt" {
+        /// # Safety
+        ///
+        /// Inherited `beginResetModel` for `PlaylistModel`.
+        #[inherit]
+        #[cxx_name = "beginResetModel"]
+        unsafe fn begin_reset_model_playlists(self: Pin<&mut PlaylistModel>);
+        /// # Safety
+        ///
+        /// Inherited `endResetModel` for `PlaylistModel`.
+        #[inherit]
+        #[cxx_name = "endResetModel"]
+        unsafe fn end_reset_model_playlists(self: Pin<&mut PlaylistModel>);
+
+        /// # Safety
+        ///
+        /// Inherited `beginResetModel` for `PlaylistTrackModel`.
+        #[inherit]
+        #[cxx_name = "beginResetModel"]
+        unsafe fn begin_reset_model_playlist_tracks(self: Pin<&mut PlaylistTrackModel>);
+        /// # Safety
+        ///
+        /// Inherited `endResetModel` for `PlaylistTrackModel`.
+        #[inherit]
+        #[cxx_name = "endResetModel"]
+        unsafe fn end_reset_model_playlist_tracks(self: Pin<&mut PlaylistTrackModel>);
+    }
+
+    extern "RustQt" {
+        /// Reload all playlists; emits model reset.
+        #[qinvokable]
+        fn refresh(self: Pin<&mut PlaylistModel>);
+
+        /// Drop all rows without touching the index (view-only reset).
+        #[qinvokable]
+        fn clear(self: Pin<&mut PlaylistModel>);
+
+        /// Create a playlist; returns its id (-1 + `errorText` on failure).
+        /// Exposed to QML as `createPlaylist`.
+        #[qinvokable]
+        #[cxx_name = "createPlaylist"]
+        fn create_playlist(self: Pin<&mut PlaylistModel>, name: &QString) -> i32;
+
+        /// Create an auto-named playlist for the row-menu fast path; returns
+        /// its id (-1 + `errorText` on failure). Exposed as `createPlaylistAuto`.
+        #[qinvokable]
+        #[cxx_name = "createPlaylistAuto"]
+        fn create_playlist_auto(self: Pin<&mut PlaylistModel>) -> i32;
+
+        /// Rename a playlist; failures surface through `errorText`.
+        /// Exposed to QML as `renamePlaylist`.
+        #[qinvokable]
+        #[cxx_name = "renamePlaylist"]
+        fn rename_playlist(self: Pin<&mut PlaylistModel>, id: i32, name: &QString);
+
+        /// Delete a playlist and its entries; failures surface via `errorText`.
+        /// Exposed to QML as `deletePlaylist`.
+        #[qinvokable]
+        #[cxx_name = "deletePlaylist"]
+        fn delete_playlist(self: Pin<&mut PlaylistModel>, id: i32);
+
+        /// Add one track to a playlist; returns 1 (0 + error text when the
+        /// track is missing, gone, or unplayable). Exposed as `addTrack`.
+        #[qinvokable]
+        #[cxx_name = "addTrack"]
+        fn add_track(self: Pin<&mut PlaylistModel>, playlist_id: i32, track_id: i32) -> i32;
+
+        /// Playlist id at `row` (-1 when out of range).
+        /// Exposed to QML as `playlistIdAt`.
+        #[qinvokable]
+        #[cxx_name = "playlistIdAt"]
+        fn playlist_id_at(self: &PlaylistModel, row: i32) -> i32;
+        /// Playlist name at `row` (empty when out of range).
+        /// Exposed to QML as `playlistNameAt`.
+        #[qinvokable]
+        #[cxx_name = "playlistNameAt"]
+        fn playlist_name_at(self: &PlaylistModel, row: i32) -> QString;
+
+        /// Last failure, or empty when clear. Exposed as `errorText`.
+        #[qinvokable]
+        #[cxx_name = "errorText"]
+        fn error_text(self: &PlaylistModel) -> QString;
+
+        /// Row count override for `QAbstractListModel` (see above on `parent`).
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "rowCount"]
+        fn row_count_playlists(self: &PlaylistModel, parent: &QModelIndex) -> i32;
+
+        /// Role data override for `QAbstractListModel`.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "data"]
+        fn data_playlists(self: &PlaylistModel, index: &QModelIndex, role: i32) -> QVariant;
+
+        /// Role-name table override; without it QML sees no custom roles.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "roleNames"]
+        fn role_names_playlists(self: &PlaylistModel) -> QHash_i32_QByteArray;
+
+        /// Load one playlist's entries in play order; emits model reset.
+        /// Exposed to QML as `refreshPlaylist`.
+        #[qinvokable]
+        #[cxx_name = "refreshPlaylist"]
+        fn refresh_playlist(self: Pin<&mut PlaylistTrackModel>, playlist_id: i32);
+
+        /// Drop all rows without touching the index (view-only reset).
+        #[qinvokable]
+        fn clear(self: Pin<&mut PlaylistTrackModel>);
+
+        /// Remove the entry at `index` (ignored when out of range).
+        /// Exposed to QML as `removeAt`.
+        #[qinvokable]
+        #[cxx_name = "removeAt"]
+        fn remove_at(self: Pin<&mut PlaylistTrackModel>, index: i32);
+
+        /// Move the entry at `from` to `to` (clamped, ignored out of range).
+        /// Exposed to QML as `moveItem`.
+        #[qinvokable]
+        #[cxx_name = "moveItem"]
+        fn move_item(self: Pin<&mut PlaylistTrackModel>, from: i32, to: i32);
+
+        /// Add one track to the open playlist; returns 1 (0 + error text
+        /// when unavailable). Exposed to QML as `addTrack`.
+        #[qinvokable]
+        #[cxx_name = "addTrack"]
+        fn add_track(self: Pin<&mut PlaylistTrackModel>, track_id: i32) -> i32;
+
+        /// Entry id at `row` (-1 when out of range).
+        /// Exposed to QML as `entryIdAt`.
+        #[qinvokable]
+        #[cxx_name = "entryIdAt"]
+        fn entry_id_at(self: &PlaylistTrackModel, row: i32) -> i32;
+
+        /// Track id at `row` (-1 when out of range), for play-from-detail.
+        /// Exposed to QML as `trackIdAt`.
+        #[qinvokable]
+        #[cxx_name = "trackIdAt"]
+        fn track_id_at(self: &PlaylistTrackModel, row: i32) -> i32;
+        /// Whether the row at `row` can play (present, resolved, on disk).
+        /// Exposed to QML as `isPlayableAt`.
+        #[qinvokable]
+        #[cxx_name = "isPlayableAt"]
+        fn is_playable_at(self: &PlaylistTrackModel, row: i32) -> bool;
+
+        /// Last failure, or empty when clear. Exposed as `errorText`.
+        #[qinvokable]
+        #[cxx_name = "errorText"]
+        fn error_text(self: &PlaylistTrackModel) -> QString;
+
+        /// Row count override for `QAbstractListModel` (see above on `parent`).
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "rowCount"]
+        fn row_count_playlist_tracks(self: &PlaylistTrackModel, parent: &QModelIndex) -> i32;
+
+        /// Role data override for `QAbstractListModel`.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "data"]
+        fn data_playlist_tracks(
+            self: &PlaylistTrackModel,
+            index: &QModelIndex,
+            role: i32,
+        ) -> QVariant;
+
+        /// Role-name table override; without it QML sees no custom roles.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "roleNames"]
+        fn role_names_playlist_tracks(self: &PlaylistTrackModel) -> QHash_i32_QByteArray;
     }
 
     /// Roles exposed to QML delegates as `title` / `artist` (S1 bridge

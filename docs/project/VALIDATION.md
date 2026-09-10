@@ -230,3 +230,10 @@
 - **Evidence:** Schema v4 (`playlists` unique names + `playlist_tracks` surrogate ids, deliberate no-FK on `track_id` for dangling-as-missing) + `tunex-library::playlist` (full CRUD, add/remove/move with dense positions, left-join hydration). 172/172 workspace tests ✓ (duplicate/blank/missing-id errors explicit, repeats distinct, renames keep links, root removal dangles, file restart round-trip, v1→v4 chain preserves rows), `doctor` ✓, `sonar` ✓ QG OK (82.8% new coverage, 0 violations).
 - **Waiver:** none
 - **Follow-up:** W-024. W-023 learnings: `rusqlite::OptionalExtension` turns maybe-one-row lookups into one call; `TrackRow::from_row` went `pub(crate)` so the join hydrator shares it.
+
+### 2026-09-10 — S3 W-024: playlists UI green
+- **Phase:** 6 (Implement, slice S3)
+- **Result:** pass
+- **Evidence:** App-scoped `PlaylistModel` (create/rename/delete/add + auto-named create) shared with library/search `TrackMenu` and `PlaylistsView` + `PlaylistTrackModel` (detail order, dangling/missing badges, remove/Alt-move) + `QueueModel.enqueuePlaylist` + `PlaylistsView` (sidebar/detail, Overlay create/rename/delete dialogs, play/queue all, three empty states). 183/183 workspace tests ✓, `doctor` ✓, `sonar` ✓ QG OK (80.0% new coverage, 0 violations), `qmllint`/`qmlformat`/CMake green, offscreen smoke clean (started, MPRIS name owned). qt-qml-review: Overlay parenting, playable-not-dangling menu guards, header wrap at 960, `modelReset` menu dismiss, shared model so row-menu adds land without a second index.
+- **Waiver:** none (KWin visual proof deferred to the W-025 gate by design)
+- **Follow-up:** W-025. W-024 learnings: playlist list and row-menu pickers must share one `PlaylistModel` or adds vanish until a later refresh; Play all must skip `playAt(0)` when enqueue returns 0 (all dangling); `TrackRow` play is disabled for missing *and* dangling (color-only badges are not enough).

@@ -523,6 +523,38 @@ impl QueueModelRust {
             0
         }
     }
+
+    /// Enqueue one playlist in entry order, skipping dangling and missing
+    /// entries. Returns the number enqueued.
+    fn do_enqueue_playlist(&mut self, playlist_id: i64) -> i32 {
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let entries = match tunex_library::list_entries(&db, playlist_id) {
+            Ok(entries) => entries,
+            Err(err) => {
+                tracing::warn!(name = "queue.playlist_failed", error = %err, "entries lookup failed");
+                self.last_error = Some("That playlist is no longer in the library.".to_owned());
+                return 0;
+            }
+        };
+        let mut added = 0;
+        if let Some(controller) = &mut self.controller {
+            for entry in &entries {
+                let playable = entry.track.as_ref().filter(|row| !row.missing);
+                if let Some(item) = playable.and_then(queue_item_from_row) {
+                    controller.enqueue(item);
+                    added += 1;
+                }
+            }
+        }
+        self.sync_rows();
+        self.last_error = None;
+        added
+    }
 }
 
 /// Queue item type for [`resolve_track`](QueueModelRust::resolve_track).
@@ -773,6 +805,24 @@ impl qobject::QueueModel {
         added
     }
 
+    /// Enqueue one playlist in entry order (dangling and missing entries
+    /// skipped); returns the number enqueued.
+    #[must_use]
+    pub fn enqueue_playlist(mut self: Pin<&mut Self>, playlist_id: i32) -> i32 {
+        let added = self
+            .as_mut()
+            .rust_mut()
+            .do_enqueue_playlist(i64::from(playlist_id));
+        if added > 0 {
+            // SAFETY: reset pair strictly paired on this single path.
+            unsafe {
+                self.as_mut().begin_reset_model_queue();
+                self.as_mut().end_reset_model_queue();
+            };
+        }
+        added
+    }
+
     /// Row count override for `QAbstractListModel`.
     pub fn row_count_queue(&self, _parent: &QModelIndex) -> i32 {
         self.rust().row_count()
@@ -951,6 +1001,28 @@ mod tests {
         assert_eq!(model.row_count(), 1, "out-of-range remove ignored");
         model.do_clear_queue();
         assert_eq!(model.row_count(), 0);
+    }
+
+    #[test]
+    fn enqueue_playlist_plays_entries_in_order_skipping_dangling() {
+        let (mut model, _guard) = model_with_seeded_library("queue-playlist");
+        let db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        let id = tunex_library::create_playlist(&db, "Mix").expect("create works");
+        let tracks = tunex_library::list_tracks(&db).expect("list works");
+        let mut db = db;
+        for row in &tracks {
+            tunex_library::add_to_playlist(&mut db, id, row.id).expect("add works");
+        }
+        drop(db);
+        assert_eq!(model.do_enqueue_playlist(id), 3);
+        assert_eq!(model.row_count(), 3);
+        // Delete a track row: its entry dangles and is skipped next time.
+        let db = tunex_library::open_file(&model.index_path).expect("reopen works");
+        db.execute("DELETE FROM tracks WHERE path LIKE '%a1.flac'", [])
+            .expect("delete works");
+        drop(db);
+        model.do_clear_queue();
+        assert_eq!(model.do_enqueue_playlist(id), 2);
     }
 
     #[test]

@@ -57,6 +57,14 @@ impl LibraryTrackModelRust {
         self.tracks.clear();
     }
 
+    /// Whether the row at `row` can play (present and on disk).
+    fn is_playable_at(&self, row: i32) -> bool {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.tracks.get(index))
+            .is_some_and(|entry| !entry.6)
+    }
+
     /// Database row id at `row` (-1 when out of range), for row-menu and
     /// keyboard enqueue/play by position.
     fn track_id_at(&self, row: i32) -> i32 {
@@ -242,6 +250,11 @@ impl qobject::LibraryTrackModel {
         self.rust().track_id_at(row)
     }
 
+    /// Whether the row at `row` can play (present and on disk).
+    pub fn is_playable_at(&self, row: i32) -> bool {
+        self.rust().is_playable_at(row)
+    }
+
     /// Row count override for `QAbstractListModel`.
     pub fn row_count_tracks(&self, _parent: &QModelIndex) -> i32 {
         self.rust().row_count()
@@ -413,6 +426,15 @@ mod tests {
             model.row_data(99, LibraryTrackRoles::Title),
             QVariant::default()
         );
+    }
+
+    #[test]
+    fn playable_guard_rejects_missing() {
+        let model = model_with_two_songs();
+        assert!(model.is_playable_at(0));
+        assert!(!model.is_playable_at(1), "missing rows never play");
+        assert!(!model.is_playable_at(99));
+        assert!(!model.is_playable_at(-1));
     }
 
     #[test]

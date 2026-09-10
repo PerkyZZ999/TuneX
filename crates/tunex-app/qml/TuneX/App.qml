@@ -3,9 +3,9 @@ import QtQuick.Controls.Basic
 import TuneX 1.0
 
 // Application shell (S1 W-003): navigation rail, top bar with view history
-// and the global search field, and per-section content. Home is real (hero
-// + empty state); search is live in S3; other sections are honest stubs
-// until their slices land. Settings and player surfaces arrive with S4.
+// and the global search field, and per-section content. Home, search,
+// library, and playlists are live; settings and player surfaces arrive
+// with S4.
 Window {
     id: root
 
@@ -84,6 +84,12 @@ Window {
     // closed); the panel only mirrors display state while open.
     QueueModel {
         id: queueModel
+    }
+
+    // App-scoped so library/search row menus and the Playlists section
+    // share one list (adds from a ⋯ menu land without a second index).
+    PlaylistModel {
+        id: playlistModel
     }
 
     Timer {
@@ -288,6 +294,7 @@ Window {
                     visible: root.section === "search"
                     query: searchField.text
                     queue: queueModel
+                    playlists: playlistModel
                     onFocusFieldRequested: searchField.forceActiveFocus()
                     onClearRequested: {
                         searchField.text = "";
@@ -298,12 +305,13 @@ Window {
                 LibraryView {
                     visible: root.section === "library"
                     queue: queueModel
+                    playlists: playlistModel
                 }
 
-                SectionStub {
+                PlaylistsView {
                     visible: root.section === "playlists"
-                    title: qsTr("Playlists")
-                    note: qsTr("Playlists and favorites land in S3.")
+                    queue: queueModel
+                    playlists: playlistModel
                 }
 
                 SectionStub {
