@@ -16,7 +16,7 @@
 - **Acceptance:** Instant FTS5 search across 7 fields with debounce + stale-cancel; queue full ops + shuffle/repeat + gapless album; playlists full CRUD + play + restart persistence.
 - **Requirements:** R-008, R-010 (full), R-012, R-NFR-01
 - **Validation:** typing manual + queue/FTS5 unit tests + gapless listen check
-- **Status:** todo
+- **Status:** done (W-019–W-025, 2026-09-10; FTS5+queue+playlists GUI-proven, no loop-back; known deferrals: untagged fixtures do not FTS-match display "Unknown", full `makepkg` → S5, async seek → S4 before the player slider)
 
 ## Slice S4 — Player UI complete (M4)
 - **Acceptance:** Mini-player + expanded/now-playing (blurred art, controls, progress, volume), keyboard map (space/search/esc/nav), best-effort position restore, animations short/purposeful.

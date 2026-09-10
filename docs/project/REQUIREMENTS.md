@@ -58,7 +58,7 @@
 - **Description:** FTS5 external-content + BM25 over title/artist/album/album-artist/composer/genre/filename, ~150ms debounce, LIMIT 200/group, stale-cancel.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] Typing filters tracks/albums/artists live; offline works
+  - [x] Typing filters tracks/albums/artists live; offline works
 - **Validation method:** manual + test
 
 ### R-009 — Core playback
@@ -72,7 +72,7 @@
 - **Description:** Independent queue: add/remove/reorder/clear/play-next/play-now/shuffle/repeat; gapless via about-to-finish; survives navigation (not restart in V1).
 - **Priority:** must
 - **Acceptance:**
-  - [ ] Queue ops reflect instantly; gapless transition has no audible gap on album fixture
+  - [x] Queue ops reflect instantly; gapless transition has no audible gap on album fixture
 - **Validation method:** manual
 
 ### R-011 — Volume / mute / position
@@ -86,7 +86,7 @@
 - **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] Full CRUD + play persists across restart
+  - [x] Full CRUD + play persists across restart
 - **Validation method:** manual + test
 
 ### R-013 — MPRIS + media keys
