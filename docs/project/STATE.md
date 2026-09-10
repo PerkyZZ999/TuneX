@@ -15,8 +15,8 @@
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` for W-017 (QG OK)
-- Latest validation entry: 2026-09-10 W-017 folders UI + persistence green (118 tests, QG OK)
+- Latest passed gate: S2 slice gate W-018 (PASS, no loop-back)
+- Latest validation entry: 2026-09-10 S2 gate green (118 tests, QG OK, 5 GUI evidence shots)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -30,7 +30,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1 done; S2 through W-017 done; W-018 (S2 gate) next.
+- Repo reality: S1+S2 done (W-011–W-018); S3 seeding next.
 
 ## Open loops
 - None
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-018: S2 gate — 12k-file scan observation + rename/delete fault injection + offline rerun.
+- Seed S3 work items + start S3 (search + queue depth + playlists).
 
 ## Phase checklist
 - [x] 0 Intake

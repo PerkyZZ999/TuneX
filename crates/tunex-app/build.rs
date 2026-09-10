@@ -10,6 +10,12 @@
 use cxx_qt_build::{CxxQtBuilder, QmlFile, QmlModule};
 
 fn main() {
+    // QML-only edits must rebuild the resources too: without these
+    // directives Cargo reruns this script only when build.rs itself changes,
+    // silently testing stale UI (caught live in the W-018 gate run).
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=qml/TuneX");
+    println!("cargo:rerun-if-changed=src/bridge");
     CxxQtBuilder::new_qml_module(
         QmlModule::new("TuneX")
             .version(1, 0)

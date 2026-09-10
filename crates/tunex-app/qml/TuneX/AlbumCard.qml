@@ -7,14 +7,17 @@ import QtQuick
 Item {
     id: root
 
-    required property int albumId
-    required property string title
-    required property string artist
-    required property int year
-    required property int trackCount
+    // Plain (not required) properties, set from model roles at instantiation:
+    // `required` construction-time initialization races the delegate context
+    // in this setup and locks role bindings to their defaults (W-018 gate).
+    property int albumId: -1
+    property string title: ""
+    property string artist: ""
+    property int year: 0
+    property int trackCount: 0
     // Bound at instantiation (`cardIndex: index`): lets activation sync the
     // view's currentIndex so the highlight follows the drilled album.
-    required property int cardIndex
+    property int cardIndex: -1
     // First letters of the first two words, uppercase.
     readonly property string monogram: {
         const words = root.title.split(/\s+/).filter(function(word) {
@@ -25,7 +28,10 @@ Item {
         });
         return letters.join("");
     }
-    readonly property string metaLine: root.artist + (root.year > 0 ? " • " + root.year : "") + " • " + qsTr("%n song(s)", "", root.trackCount)
+    // No translation files ship in V1, so %n plurals would render literally
+    // ("40 song(s)"); translators get an explicit singular/plural pair.
+    readonly property string countLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
+    readonly property string metaLine: root.artist + (root.year > 0 ? " • " + root.year : "") + " • " + countLine
 
     signal activated(int id)
 
@@ -37,6 +43,7 @@ Item {
     Accessible.onPressAction: root.activated(root.albumId)
     Keys.onReturnPressed: root.activated(root.albumId)
     Keys.onEnterPressed: root.activated(root.albumId)
+    Keys.onSpacePressed: root.activated(root.albumId)
 
     Column {
         anchors.fill: parent

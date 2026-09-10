@@ -9,11 +9,14 @@ import QtQuick
 Item {
     id: root
 
-    required property string title
-    required property string artist
-    required property int trackNumber
-    required property int durationMs
-    required property bool missing
+    // Plain (not required) properties, set from model roles at instantiation:
+    // `required` construction-time initialization races the delegate context
+    // in this setup and locks role bindings to their defaults (W-018 gate).
+    property string title: ""
+    property string artist: ""
+    property int trackNumber: 0
+    property int durationMs: 0
+    property bool missing: false
     // m:ss, em dash when unknown. Numbers need no translation.
     readonly property string durationText: root.durationMs > 0 ? Math.floor(root.durationMs / 60000) + ":" + String(Math.floor(root.durationMs / 1000) % 60).padStart(2, "0") : "—"
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"

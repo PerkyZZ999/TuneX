@@ -7,8 +7,11 @@ import QtQuick.Controls.Basic
 Column {
     id: root
 
-    required property string title
-    required property string note
+    // Plain (not required) properties: view delegates in this project must
+    // avoid `required` — its construction-time initialization races the
+    // delegate model context and locks role bindings to defaults (W-018).
+    property string title: ""
+    property string note: ""
     // Optional action (W-017 folders entry); hidden when unlabeled.
     property string actionLabel: ""
 

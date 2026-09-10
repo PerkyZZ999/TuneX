@@ -6,9 +6,12 @@ import QtQuick
 Item {
     id: root
 
-    required property string artistName
-    required property int albumCount
-    required property int trackCount
+    // Plain (not required) properties, set from model roles at instantiation:
+    // `required` construction-time initialization races the delegate context
+    // in this setup and locks role bindings to their defaults (W-018 gate).
+    property string artistName: ""
+    property int albumCount: 0
+    property int trackCount: 0
     readonly property string monogram: {
         const words = root.artistName.split(/\s+/).filter(function(word) {
             return word.length > 0;
@@ -18,7 +21,11 @@ Item {
         });
         return letters.join("");
     }
-    readonly property string metaLine: qsTr("%n album(s)", "", root.albumCount) + " • " + qsTr("%n song(s)", "", root.trackCount)
+    // No translation files ship in V1, so %n plurals would render literally;
+    // translators get explicit singular/plural pairs instead.
+    readonly property string albumsLine: root.albumCount === 1 ? qsTr("1 album") : qsTr("%1 albums").arg(root.albumCount)
+    readonly property string songsLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
+    readonly property string metaLine: albumsLine + " • " + songsLine
 
     width: GridView.view.cellWidth
     height: GridView.view.cellHeight
