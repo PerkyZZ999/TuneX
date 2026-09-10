@@ -5,7 +5,7 @@
 - **Source spec:** docs/SPEC.md (v1.1 patched 2026-09-09)
 - **Workflow profile:** product
 - **Profile rationale:** Shipping Linux desktop app with native audio/DB/GPU surface. Not disposable (prototype rejected), not regulated (high-risk rejected). Full gates + decision locks + release/observe loops required.
-- **Current phase:** 6 — Implement (S3 done 2026-09-10, S4 next)
+- **Current phase:** 6 — Implement (S3 done 2026-09-10, S4 active)
 - **Status:** active
 - **MVP success signal:** User installs TuneX on Arch via AUR PKGBUILD, adds music dir, scans without UI freeze, browses/searches/plays with artwork, controls via app + MPRIS, manages queue + playlists, restarts without state loss, all offline.
 - **Last updated:** 2026-09-10
@@ -30,7 +30,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2+S3 done; S4 next (player UI complete).
+- Repo reality: S1+S2+S3 done; S4 active (W-026 MiniPlayer next).
 
 ## Open loops
 - None
@@ -39,7 +39,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Seed S4 work items (MiniPlayer, now-playing, keyboard map, position restore) and start W-026.
+- W-026: MiniPlayer persistent transport (art, title/artist, play/pause, next/prev, read-only progress, volume, queue toggle).
 
 ## Phase checklist
 - [x] 0 Intake

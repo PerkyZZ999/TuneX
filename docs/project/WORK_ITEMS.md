@@ -1,11 +1,17 @@
-# Work items (current slice: S3 — Search + queue depth + playlists)
+# Work items (current slice: S4 — Player UI complete)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4–S6 seeded when S3 completes.
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S5–S6 seeded when S4 completes.
 
 ## Current slice
-S3 — Search + queue depth + playlists (M3+M4 core). Goal: find anything instantly, queue everything fluidly, playlists persist — FTS5 search with debounce + stale-cancel, full queue ops wired to the library, playlist CRUD + play.
+S4 — Player UI complete (M4). Goal: MiniPlayer + expanded now-playing, keyboard map, best-effort position restore — persistent transport, Space/media keys, last-track+position when the file still exists.
 
 ## Queue
+- [ ] W-026 — MiniPlayer persistent transport: art thumb, title/artist, play/pause, next/prev, read-only progress, volume, queue toggle; 76px opaque bottom bar below 1280px (R-010, R-011 volume, R-018 functional)
+- [ ] W-027 — Async seek (event + AsyncDone) so a FLUSH seek never wedges an EOS pipeline — required before any UI slider (R-011, W-021 follow-up)
+- [ ] W-028 — Expanded Now Playing overlay: blurred art, full controls, progress scrub (depends on W-027) (R-018)
+- [ ] W-029 — Keyboard map: Space play/pause, media next/prev/volume, search `/`+Ctrl+K already live, Esc/back, documented list (R-014)
+- [ ] W-030 — Best-effort last-track + position restore on restart when the file still exists (R-011, R-015)
+- [ ] W-031 — S4 gate: keyboard walkthrough + offline run + a11y/contrast/blur-off check; close or loop back
 - [x] W-019 — Search backend: multi-term FTS5 parser (AND across 7 fields, quoted literals, prefix tails) + debounced worker (~150 ms) with generation stale-cancel + grouped results (tracks/albums/artists, LIMIT 200/group) + TrackRow hydration (R-008, R-NFR-01). Verified: multi-term AND narrows, punctuation literal, prefix stems, empty short-circuits, groups resolve with counts, dup-title ownership guard; burst coalesces to latest, stale dropped worker- and controller-side, missing→empty, corrupt→surfaced-then-cleared; 134 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (S3776 split into coalesce/supersede helpers).
 - [x] W-020 — Search UI: search field + shortcut focus, results views reusing TrackRow/AlbumCard/ArtistCard, QML search models fed by controller, loading/empty/no-result states, Esc clears (R-008, R-014 part). Verified: pill field in topbar (`/` + Ctrl+K, scope-aware Esc drill→text→back, Down/Enter into results); per-model workers (submit/pollSearch/isSearching/errorText) with staggered settle flags; hint/loading/no-results/empty/error/200-cap states; album drill + back-resubmit; qmllint/qmlformat/CMake green + offscreen smoke clean, KWin proof deferred to W-025 gate; qt-qml-review (6 agents, 7 fixes); 140 tests ✓, `doctor` ✓, `sonar` ✓ QG OK.
 - [x] W-021 — Queue depth backend: QueueItem library enrichment (track id/artist/album/duration/art key) + enqueue-from-library helpers (tracks/album/artist, play-next/play-now) + engine advance/end-of-track wiring + gapless album check (R-010 full). Verified: enriched items round-trip tags; provider advances cursor on silent handoffs; missing files skip via stat precheck with error events (no 10 s pipeline block); repeat-one never replays broken tracks; next/previous/restart wiring deterministic; gapless 2-clip album plays Loading→Playing→Stopped with cursor following; album/artist enqueue ordered, missing skipped; 155 tests ✓, `doctor` ✓, `sonar` ✓ QG OK (S3776 split into play_pick).
