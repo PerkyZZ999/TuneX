@@ -61,4 +61,12 @@ QtObject {
     readonly property int progressTrack: 4
     readonly property int targetMin: 44
     readonly property int artThumb: 48
+    // Now Playing overlay (DESIGN.md: art ≥320, play 64, blur 24–40, 200ms).
+    readonly property int nowPlayingArt: 320
+    readonly property int playPrimary: 64
+    readonly property int blurMax: 32
+    readonly property int overlayMs: 200
+    readonly property int artCrossfadeMs: 180
+    readonly property int thumbSize: 12
+    readonly property real overlayTint: 0.68
 }

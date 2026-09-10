@@ -15,6 +15,7 @@ Window {
     property int historyAt: 0
     property string section: "home"
     property bool playerActive: false
+    property bool nowPlayingOpen: false
     readonly property bool canGoBack: historyAt > 0
     readonly property bool canGoForward: historyAt < history.length - 1
     readonly property bool wideShell: root.width >= Theme.shellWide
@@ -69,6 +70,14 @@ Window {
             queueDrawer.open();
     }
 
+    function openNowPlaying() {
+        root.nowPlayingOpen = true;
+    }
+
+    function closeNowPlaying() {
+        root.nowPlayingOpen = false;
+    }
+
     function syncPlayer() {
         queueModel.poll();
         const state = queueModel.playbackState();
@@ -78,6 +87,9 @@ Window {
 
         if (miniPlayer.visible)
             miniPlayer.sync();
+
+        if (nowPlayingLoader.item)
+            nowPlayingLoader.item.sync();
 
     }
 
@@ -99,6 +111,9 @@ Window {
     Shortcut {
         sequences: ["/", "Ctrl+K"]
         onActivated: {
+            if (root.nowPlayingOpen)
+                return ;
+
             if (!searchField.activeFocus) {
                 if (root.section !== "search")
                     root.navigate("search");
@@ -148,6 +163,7 @@ Window {
                 root.navigate("library");
             }
             onCloseRequested: queueDrawer.close()
+            onExpandRequested: root.openNowPlaying()
         }
 
     }
@@ -379,6 +395,7 @@ Window {
                         embedded: true
                         tracking: visible
                         onBrowseRequested: root.navigate("library")
+                        onExpandRequested: root.openNowPlaying()
                     }
 
                 }
@@ -396,6 +413,32 @@ Window {
             queue: queueModel
             queueOpen: queueDrawer.opened
             onQueueToggleRequested: root.toggleQueue()
+            onExpandRequested: root.openNowPlaying()
+        }
+
+    }
+
+    Loader {
+        id: nowPlayingLoader
+
+        active: root.nowPlayingOpen
+        anchors.fill: parent
+        z: 20
+        sourceComponent: nowPlayingComponent
+    }
+
+    Component {
+        id: nowPlayingComponent
+
+        NowPlayingView {
+            queue: queueModel
+            onCloseRequested: root.closeNowPlaying()
+            onQueueToggleRequested: {
+                root.closeNowPlaying();
+                if (!root.wideShell)
+                    root.toggleQueue();
+
+            }
         }
 
     }

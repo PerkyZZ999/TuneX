@@ -444,6 +444,38 @@ impl QueueModelRust {
         self.write_audio_config();
     }
 
+    /// Seek to an absolute position. Negative values clamp to zero; failures
+    /// surface as `errorText` (nothing loaded, out of range, refused).
+    fn seek_ms(&mut self, position_ms: i32) {
+        if !self.ensure_controller() {
+            return;
+        }
+        let millis = u64::try_from(position_ms.max(0)).unwrap_or(0);
+        let position = Duration::from_millis(millis);
+        if let Some(controller) = &mut self.controller {
+            match controller.seek(position) {
+                Ok(()) => self.last_error = None,
+                Err(err) => self.last_error = Some(err.to_string()),
+            }
+        }
+    }
+
+    /// Whether glass should fall back to opaque surfaces.
+    fn reduce_transparency(&self) -> bool {
+        tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .appearance
+            .reduce_transparency
+    }
+
+    /// Whether overlay motion should be instant.
+    fn reduce_motion(&self) -> bool {
+        tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .appearance
+            .reduce_motion
+    }
+
     /// Write volume + mute into the settings file (best-effort).
     fn write_audio_config(&self) {
         let Some(controller) = &self.controller else {
@@ -846,6 +878,21 @@ impl qobject::QueueModel {
         self.as_mut().rust_mut().set_muted(muted);
     }
 
+    /// Seek to an absolute position in milliseconds.
+    pub fn seek_ms(mut self: Pin<&mut Self>, position_ms: i32) {
+        self.as_mut().rust_mut().seek_ms(position_ms);
+    }
+
+    /// Whether glass should fall back to opaque surfaces.
+    pub fn reduce_transparency(&self) -> bool {
+        self.rust().reduce_transparency()
+    }
+
+    /// Whether overlay motion should be instant.
+    pub fn reduce_motion(&self) -> bool {
+        self.rust().reduce_motion()
+    }
+
     /// Cursor position (-1 when idle).
     pub fn current_index(&self) -> i32 {
         self.rust().current_index()
@@ -1211,5 +1258,29 @@ mod tests {
         assert!(model.is_muted());
         let loaded = tunex_core::load_from(&model.config_path).expect("mute saved");
         assert!(loaded.playback.muted);
+    }
+
+    #[test]
+    fn seek_without_track_surfaces_error() {
+        let (mut model, _guard) = model_with_seeded_library("queue-seek");
+        model.seek_ms(1_000);
+        let message = model.error_message().expect("seek error surfaced");
+        assert!(
+            message.contains("nothing loaded"),
+            "unexpected seek error: {message}"
+        );
+    }
+
+    #[test]
+    fn appearance_flags_read_from_config() {
+        let (model, _guard) = model_with_seeded_library("queue-appear");
+        assert!(!model.reduce_transparency());
+        assert!(!model.reduce_motion());
+        let mut config = tunex_core::TunexConfig::default();
+        config.appearance.reduce_transparency = true;
+        config.appearance.reduce_motion = true;
+        tunex_core::save_to(&model.config_path, &config).expect("appearance saved");
+        assert!(model.reduce_transparency());
+        assert!(model.reduce_motion());
     }
 }

@@ -5,8 +5,8 @@ import TuneX 1.0
 // QueuePanel (S3 W-022, S4 W-026): Up Next list plus the persistent-player
 // summary. Hosted as the 320px right column at ≥1280px, or inside a right
 // Drawer below that. Transport, shuffle/repeat, reorder, and the playing
-// marker stay here; MiniPlayer is the narrow-width bar. Progress is
-// read-only until W-027.
+// marker stay here; MiniPlayer is the narrow-width bar. Progress here is
+// read-only; scrub lives on the Now Playing overlay (W-028).
 Rectangle {
     id: root
 
@@ -45,6 +45,7 @@ Rectangle {
 
     signal browseRequested()
     signal closeRequested()
+    signal expandRequested()
 
     function formatTime(ms) {
         const total = Math.max(0, Math.floor(ms / 1000));
@@ -183,57 +184,69 @@ Rectangle {
 
         }
 
-        Row {
-            id: nowPlayingRow
+        MouseArea {
+            id: nowPlayingHit
 
             visible: root.hasCurrent
             width: parent.width
             height: visible ? Theme.artThumb : 0
-            spacing: Theme.spaceSm
+            cursorShape: Qt.PointingHandCursor
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Open Now Playing")
+            onClicked: root.expandRequested()
 
-            Rectangle {
-                width: Theme.artThumb
-                height: Theme.artThumb
-                radius: Theme.radiusMd
-                color: Theme.surfaceRaised
-                Accessible.ignored: true
+            Row {
+                id: nowPlayingRow
 
-                Text {
-                    anchors.centerIn: parent
-                    text: root.monogram
-                    textFormat: Text.PlainText
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontTitle
-                    font.weight: Font.DemiBold
-                    color: Theme.muted
+                width: parent.width
+                height: parent.height
+                spacing: Theme.spaceSm
+
+                Rectangle {
+                    width: Theme.artThumb
+                    height: Theme.artThumb
+                    radius: Theme.radiusMd
+                    color: Theme.surfaceRaised
+                    Accessible.ignored: true
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: root.monogram
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontTitle
+                        font.weight: Font.DemiBold
+                        color: Theme.muted
+                    }
+
                 }
 
-            }
+                Column {
+                    width: parent.width - Theme.artThumb - Theme.spaceSm
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 0
 
-            Column {
-                width: parent.width - Theme.artThumb - Theme.spaceSm
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 0
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: root.shownTitle
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontBody
+                        font.weight: Font.DemiBold
+                        color: Theme.foreground
+                    }
 
-                Text {
-                    width: parent.width
-                    elide: Text.ElideRight
-                    text: root.shownTitle
-                    textFormat: Text.PlainText
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontBody
-                    font.weight: Font.DemiBold
-                    color: Theme.foreground
-                }
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: root.shownArtist
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontBodySm
+                        color: Theme.muted
+                    }
 
-                Text {
-                    width: parent.width
-                    elide: Text.ElideRight
-                    text: root.shownArtist
-                    textFormat: Text.PlainText
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontBodySm
-                    color: Theme.muted
                 }
 
             }

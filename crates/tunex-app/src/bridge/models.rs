@@ -516,6 +516,22 @@ pub mod qobject {
         #[cxx_name = "setMuted"]
         fn set_muted(self: Pin<&mut QueueModel>, muted: bool);
 
+        /// Seek to an absolute position in milliseconds. Posts a flush seek
+        /// and returns immediately (W-027). Exposed to QML as `seekMs`.
+        #[qinvokable]
+        #[cxx_name = "seekMs"]
+        fn seek_ms(self: Pin<&mut QueueModel>, position_ms: i32);
+
+        /// Opaque-surface preference from config. Exposed as `reduceTransparency`.
+        #[qinvokable]
+        #[cxx_name = "reduceTransparency"]
+        fn reduce_transparency(self: &QueueModel) -> bool;
+
+        /// Instant-motion preference from config. Exposed as `reduceMotion`.
+        #[qinvokable]
+        #[cxx_name = "reduceMotion"]
+        fn reduce_motion(self: &QueueModel) -> bool;
+
         /// Cursor position (-1 when idle). Exposed as `currentIndex`.
         #[qinvokable]
         #[cxx_name = "currentIndex"]

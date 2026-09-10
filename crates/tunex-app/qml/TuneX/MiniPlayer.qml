@@ -3,9 +3,9 @@ import QtQuick.Controls.Basic
 import TuneX 1.0
 
 // MiniPlayer (S4 W-026): opaque 76px bottom transport for windows below
-// 1280px. Hidden until the first play. Progress is read-only (seek is
-// W-027); volume and mute write through QueueModel. Artwork is the
-// generated monogram until the art worker lands.
+// 1280px. Hidden until the first play. Progress is read-only; scrub lives
+// on the Now Playing overlay. Volume and mute write through QueueModel.
+// Artwork is the generated monogram until the art worker lands.
 Rectangle {
     id: root
 
@@ -33,6 +33,7 @@ Rectangle {
     readonly property real progress: root.durationMs > 0 ? Math.min(1, root.positionMs / root.durationMs) : 0
 
     signal queueToggleRequested()
+    signal expandRequested()
 
     function formatTime(ms) {
         const total = Math.max(0, Math.floor(ms / 1000));
@@ -64,6 +65,19 @@ Rectangle {
         height: 1
         color: Theme.border
         Accessible.ignored: true
+    }
+
+    MouseArea {
+        id: expandHit
+
+        anchors.left: parent.left
+        anchors.right: transport.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        cursorShape: Qt.PointingHandCursor
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Open Now Playing")
+        onClicked: root.expandRequested()
     }
 
     Rectangle {
