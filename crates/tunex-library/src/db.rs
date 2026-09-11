@@ -12,8 +12,8 @@ use rusqlite::{Connection, Row};
 use rusqlite_migration::{M, Migrations};
 use tunex_core::{Error, Result};
 
-/// Current schema version (v4: playlists + entries with dangling links).
-pub const SCHEMA_VERSION: usize = 4;
+/// Current schema version (v5: covering indexes for the grouped joins).
+pub const SCHEMA_VERSION: usize = 5;
 
 /// v1 DDL, frozen: roots + tracks skeleton (landed in S1, never edited).
 const V1_SCHEMA: &str = "CREATE TABLE library_roots(
@@ -123,6 +123,18 @@ const V4_SCHEMA: &str = "
         );
         CREATE INDEX idx_playlist_tracks_lookup ON playlist_tracks(playlist_id, position);";
 
+/// v5 DDL: cover the two foreign keys every grouped query joins on.
+///
+/// Without them the album and artist projections ([`ALBUM_LIST_SELECT`],
+/// [`ARTIST_LIST_SELECT`]) scan the whole `tracks` table once per group, so
+/// their cost is `groups x tracks` rather than `matched rows`. Measured on a
+/// 50k-track index (S6 W-041): search p95 fell from ~1.0 s to under 18 ms,
+/// because a search hydrates up to 200 album groups and 200 artist groups and
+/// was paying 200 full scans for each.
+const V5_SCHEMA: &str = "
+        CREATE INDEX idx_tracks_album_id ON tracks(album_id);
+        CREATE INDEX idx_tracks_artist_id ON tracks(artist_id);";
+
 /// Versioned migrations, oldest first. Append-only: never edit a landed
 /// migration, always add a new one.
 fn migrations() -> Migrations<'static> {
@@ -131,6 +143,7 @@ fn migrations() -> Migrations<'static> {
         M::up(V2_SCHEMA),
         M::up(V3_SCHEMA),
         M::up(V4_SCHEMA),
+        M::up(V5_SCHEMA),
     ])
 }
 
@@ -264,10 +277,43 @@ pub fn open_file(path: &std::path::Path) -> Result<Connection> {
     let mut db = Connection::open(path).map_err(|err| db_error(&err))?;
     db.pragma_update(None, "journal_mode", "WAL")
         .map_err(|err| db_error(&err))?;
-    migrations()
-        .to_latest(&mut db)
-        .map_err(|err| Error::Database(err.to_string()))?;
+    // WAL keeps readers off a writer's back, but two writers still collide,
+    // and the scan worker writes continuously while the UI reads and writes.
+    // Without a timeout SQLite fails a contended write immediately instead of
+    // waiting the moment or two the other write needs.
+    db.busy_timeout(BUSY_TIMEOUT)
+        .map_err(|err| db_error(&err))?;
+    migrate(&mut db)?;
     Ok(db)
+}
+
+/// How long a connection waits on another connection's write lock.
+const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Bring one connection's schema up to date, tolerating a concurrent winner.
+///
+/// `rusqlite_migration` reads `user_version` outside the transaction that
+/// applies the DDL, so two connections opening the same out-of-date index —
+/// exactly what the app and its scan worker do on the first start after an
+/// upgrade — can both decide to migrate, and the loser then replays DDL that
+/// already landed. Its transaction rolls back untouched, so the only thing
+/// left to decide is whether the schema ended up current; if it did, the
+/// other connection did the work and this one has nothing left to do.
+///
+/// This leans on every migration being DDL, which fails when replayed. A
+/// migration whose replay would *succeed* (inserting rows, say) would commit
+/// twice over, so keep the ladder declarative.
+fn migrate(db: &mut Connection) -> Result<()> {
+    if schema_version(db)? >= SCHEMA_VERSION {
+        return Ok(());
+    }
+    let Err(err) = migrations().to_latest(db) else {
+        return Ok(());
+    };
+    if schema_version(db)? == SCHEMA_VERSION {
+        return Ok(());
+    }
+    Err(Error::Database(err.to_string()))
 }
 
 /// Applied schema version (equals [`SCHEMA_VERSION`] on fresh databases).
@@ -938,10 +984,10 @@ mod tests {
     }
 
     #[test]
-    fn fresh_database_reports_schema_v4() {
+    fn fresh_database_reports_schema_v5() {
         let db = open_memory().expect("in-memory opens");
         assert_eq!(schema_version(&db).expect("version reads"), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 4);
+        assert_eq!(SCHEMA_VERSION, 5);
     }
 
     #[test]
@@ -977,10 +1023,11 @@ mod tests {
             M::up(super::V2_SCHEMA),
             M::up(super::V3_SCHEMA),
             M::up(super::V4_SCHEMA),
+            M::up(super::V5_SCHEMA),
         ])
         .to_latest(&mut db)
-        .expect("v3+v4 migrate");
-        assert_eq!(schema_version(&db).expect("version reads"), 4);
+        .expect("v3+v4+v5 migrate");
+        assert_eq!(schema_version(&db).expect("version reads"), 5);
         let tracks = list_tracks(&db).expect("list works");
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].title.as_deref(), Some("Old"));
@@ -995,6 +1042,73 @@ mod tests {
                 .expect("playlists list")
                 .is_empty()
         );
+        // v5 covers the grouped-query joins on an already-populated table.
+        let indexes: Vec<String> = db
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'tracks'")
+            .and_then(|mut statement| {
+                statement
+                    .query_map([], |row| row.get(0))?
+                    .collect::<rusqlite::Result<Vec<String>>>()
+            })
+            .expect("index list reads");
+        assert!(indexes.iter().any(|name| name == "idx_tracks_album_id"));
+        assert!(indexes.iter().any(|name| name == "idx_tracks_artist_id"));
+    }
+
+    #[test]
+    fn concurrent_opens_migrate_an_out_of_date_index_once() {
+        // The app and its scan worker open the same file index at the same
+        // time, so the first start after an upgrade runs this race for real.
+        let dir = std::env::temp_dir().join(format!("tunex-race-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("setup works");
+        // The window between reading `user_version` and applying the DDL is
+        // microseconds wide, so one round proves nothing: repeat the whole
+        // out-of-date-index scenario often enough to land inside it.
+        for round in 0..40 {
+            race_one_upgrade(&dir.join(format!("library-{round}.db")));
+        }
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    /// An index left at the schema version before the newest migration.
+    fn write_out_of_date_index(path: &std::path::Path) {
+        let mut old = Connection::open(path).expect("file opens");
+        old.pragma_update(None, "journal_mode", "WAL")
+            .expect("wal enables");
+        Migrations::new(vec![
+            M::up(super::V1_SCHEMA),
+            M::up(super::V2_SCHEMA),
+            M::up(super::V3_SCHEMA),
+            M::up(super::V4_SCHEMA),
+        ])
+        .to_latest(&mut old)
+        .expect("v4 applies");
+    }
+
+    /// One v4 index opened by four connections at once; every open must come
+    /// back at the current schema version.
+    fn race_one_upgrade(path: &std::path::Path) {
+        write_out_of_date_index(path);
+
+        let ready = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let openers: Vec<_> = (0..4)
+            .map(|_| {
+                let path = path.to_path_buf();
+                let ready = std::sync::Arc::clone(&ready);
+                std::thread::spawn(move || {
+                    ready.wait();
+                    open_file(&path).map(|db| schema_version(&db))
+                })
+            })
+            .collect();
+        for opener in openers {
+            let version = opener
+                .join()
+                .expect("opener thread finishes")
+                .expect("a concurrent open still succeeds")
+                .expect("version reads");
+            assert_eq!(version, SCHEMA_VERSION);
+        }
     }
 
     #[test]
