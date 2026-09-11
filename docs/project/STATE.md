@@ -16,7 +16,7 @@
 
 ## Current evidence
 - Latest passed gate: `rust-tc sonar` for the W-037 S5 gate (QG OK, 81.0% new coverage)
-- Latest validation entry: 2026-09-11 repeat-one replay fixed during W-038 (see VALIDATION.md)
+- Latest validation entry: 2026-09-11 restored track reaches Up Next, fixed during W-038 (see VALIDATION.md)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `.cursor/rules/` (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc`, `testing-gui.mdc`); prose copies in `docs/rules/`; GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed

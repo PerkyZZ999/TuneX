@@ -252,7 +252,9 @@ impl QueueModelRust {
             );
             return;
         }
-        self.sync_rows();
+        // Deliberately no `sync_rows` here: leaving the restored entry for
+        // the caller's own change check is what makes that poll report a
+        // change, and a change is what emits the model reset Up Next needs.
         uri.clone_into(&mut self.saved_uri);
         // Seed the toast cursor silently: resuming is not a track change.
         self.last_notified_uri = self
@@ -1748,6 +1750,33 @@ mod tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
+    }
+
+    #[test]
+    fn restored_track_reports_the_row_change_so_up_next_rebuilds() {
+        // `poll` only emits the model reset when `poll_queue` reports a
+        // change, so a restore that quietly filled the rows left Up Next
+        // showing its empty state while the mini-player played the track.
+        let (model, guard, _id) = model_with_playable_track("queue-session-restore-reset");
+        let dest = guard.0.join("sine.wav");
+        let uri = tunex_player::path_to_uri(&dest).expect("fixture uri");
+        let mut config = tunex_core::TunexConfig::default();
+        config.playback.last_uri = Some(uri);
+        config.playback.last_position_ms = 1_500;
+        tunex_core::save_to(&model.config_path, &config).expect("session seeded");
+        let config_path = model.config_path.clone();
+        let index_path = model.index_path.clone();
+        drop(model);
+
+        let mut restored = QueueModelRust {
+            index_path,
+            config_path,
+            ..Default::default()
+        };
+        assert!(
+            restored.poll_queue(),
+            "the poll that restores a track must report rows changed"
+        );
     }
 
     #[test]
