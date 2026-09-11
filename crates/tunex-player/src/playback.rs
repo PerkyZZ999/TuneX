@@ -9,7 +9,8 @@
 //!
 //! Failure discipline: unloadable tracks are skipped forward (cycle-guarded),
 //! never retried in place — a broken file under repeat-one steps to the next
-//! track instead of replaying itself forever. Skips surface as
+//! track instead of replaying itself forever, while a track that simply ended
+//! follows the repeat mode. Skips surface as
 //! [`PlayerEvent::PlaybackError`] through [`poll`](PlaybackController::poll),
 //! alongside the engine's own events.
 
@@ -426,20 +427,26 @@ impl PlaybackController {
             drained
         };
         for event in drained {
-            match &event {
-                PlayerEvent::EndOfTrack | PlayerEvent::PlaybackError(_) => {
+            // A track that ended normally advances by the repeat mode, so
+            // repeat-one replays it; one that *failed* advances error-aware,
+            // stepping past it instead of retrying it forever.
+            let after_error = match &event {
+                PlayerEvent::EndOfTrack => false,
+                PlayerEvent::PlaybackError(_) => true,
+                PlayerEvent::StateChanged(_) | PlayerEvent::DurationChanged(_) => {
                     out.push(event);
-                    // Skip failures already queue as pending error events;
-                    // only an engine-stop failure needs reporting here.
-                    if let Err(err) = self.advance(true) {
-                        tracing::warn!(
-                            name = "player.advance_failed",
-                            error = %err,
-                            "end-of-track advance failed"
-                        );
-                    }
+                    continue;
                 }
-                _ => out.push(event),
+            };
+            out.push(event);
+            // Skip failures already queue as pending error events;
+            // only an engine-stop failure needs reporting here.
+            if let Err(err) = self.advance(after_error) {
+                tracing::warn!(
+                    name = "player.advance_failed",
+                    error = %err,
+                    "end-of-track advance failed"
+                );
             }
         }
         self.retry_restore_seek();
@@ -935,6 +942,43 @@ mod tests {
             poll_until(&mut controller, Duration::from_secs(10), |controller| {
                 controller.state() == PlaybackState::Playing
             });
+        });
+    }
+
+    #[test]
+    fn repeat_one_replays_the_track_at_its_natural_end() {
+        // A second queued track makes the difference visible: stepping onto
+        // it is repeat-off behaviour, staying put is repeat-one. Two ends,
+        // because the first replay is what the mode is for.
+        within_deadline(Duration::from_secs(30), "two repeat-one ends", || {
+            let mut controller = test_controller(false);
+            controller.enqueue(fixture_item("sine.opus"));
+            controller.enqueue(fixture_item("sine.ogg"));
+            controller.set_repeat(RepeatMode::One);
+            controller.play().expect("playback starts");
+            let mut ends = 0_u32;
+            let deadline = std::time::Instant::now() + Duration::from_secs(25);
+            while ends < 2 {
+                for event in controller.poll() {
+                    match event {
+                        PlayerEvent::EndOfTrack => ends += 1,
+                        PlayerEvent::PlaybackError(message) => {
+                            panic!("healthy track errored: {message}");
+                        }
+                        PlayerEvent::StateChanged(_) | PlayerEvent::DurationChanged(_) => {}
+                    }
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "repeat-one stopped after {ends} end(s)"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert_eq!(
+                controller.current_index(),
+                Some(0),
+                "repeat-one replays the same track instead of stepping forward"
+            );
         });
     }
 
