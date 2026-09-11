@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // PlaylistNameDialog (S3 W-024, glass in S6 W-038): name entry for playlist
 // create/rename. The action names the verb and stays disabled for blank

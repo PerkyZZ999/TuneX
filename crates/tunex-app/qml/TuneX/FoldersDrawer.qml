@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
-import TuneX 1.0
+import TuneX
 
 // FoldersDrawer (S2 W-017, glass in S6 W-038): music-folder management over
 // LibraryManager — native add dialog, per-folder remove, manual rescan,

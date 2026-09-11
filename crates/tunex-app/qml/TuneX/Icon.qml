@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import TuneX 1.0
+import TuneX
 
 // Icon (S6 W-038): one Lucide line family — 2px stroke at 24px, round caps
 // and joins, scaled for 16/20px. Drawn on the GPU from upstream path data

@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import TuneX 1.0
+import TuneX
 
 // Artwork (S6 W-040): the one place a cover is drawn. The generated monogram
 // sits underneath at all times; a cover fades in over it when one decodes

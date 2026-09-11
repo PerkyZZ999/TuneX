@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // ArtistCard (S2 W-016): circular monogram, name, collection counts.
 // Display-only in S2 — artist drill-down arrives with S3 search — so the

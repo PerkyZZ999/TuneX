@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Effects
-import TuneX 1.0
+import TuneX
 
 // PlayButton (S6 W-038): the primary transport control — a filled primary
 // circle with the play/pause glyph, shared by the docked panel, the

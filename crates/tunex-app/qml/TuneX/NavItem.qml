@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Effects
-import TuneX 1.0
+import TuneX
 
 // One selectable row in the navigation rail: Lucide glyph + label, accent
 // bar when selected. Compact mode hides the label (64px icon strip). The

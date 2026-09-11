@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // Honest section placeholder for the nav skeleton (S1 W-003): names the
 // section and the slice that builds it. Replaced by real views in S2+.

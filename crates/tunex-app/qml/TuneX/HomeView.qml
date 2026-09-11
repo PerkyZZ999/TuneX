@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // Home (DESIGN_BRIEF + IA): hero, library-backed chips, album rail,
 // playlist rail, library shortcuts. Real models only — no invented rows.

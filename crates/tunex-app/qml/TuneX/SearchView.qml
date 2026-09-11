@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // SearchView (S3 W-020): grouped live results — Songs, then Albums, then
 // Artists. The query binds from the shell search field; each group owns a

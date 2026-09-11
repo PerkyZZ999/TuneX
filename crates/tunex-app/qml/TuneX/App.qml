@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // Application shell (S1 W-003): navigation rail, top bar with view history
 // and the global search field, and per-section content. Home, search,
@@ -11,7 +11,7 @@ Window {
     id: root
 
     // View history: reassigned (never mutated in place) so bindings update.
-    property var history: ["home"]
+    property list<string> history: ["home"]
     property int historyAt: 0
     property string section: "home"
     property bool playerActive: false

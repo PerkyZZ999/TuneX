@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Effects
-import TuneX 1.0
+import TuneX
 
 // NowPlayingView (S4 W-028, strong glass in S6 W-038): the expanded overlay
 // at any width and the only strong-glass surface (DESIGN.md Elevation &

@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // AlbumCard (S2 W-016, artwork in S6 W-040): artwork-first card, 12px
 // radius, two-line meta. The cover is resolved lazily — the card asks for it

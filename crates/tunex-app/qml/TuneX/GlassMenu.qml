@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // GlassMenu (S6 W-038): context menus on the glass-panel contract (DESIGN.md
 // Components) — subtle glass with the overlay shadow, lg radius, 40px

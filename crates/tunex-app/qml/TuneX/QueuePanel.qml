@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // QueuePanel (S3 W-022, S4 W-026, S6 W-038): Up Next list plus the
 // persistent-player summary. Docked as the opaque 320px right column at

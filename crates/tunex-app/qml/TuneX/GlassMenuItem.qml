@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // GlassMenuItem (S6 W-038): one 40px body-md row in a GlassMenu. Hover or
 // keyboard highlight steps an inset `hover` surface (sm radius); keyboard

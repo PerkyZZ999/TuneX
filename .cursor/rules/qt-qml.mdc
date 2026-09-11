@@ -38,3 +38,5 @@ Do **not** load `qt-cpp-review` / `qt-cpp-docs` for app code: TuneX has no C++ a
 ## Checks (binding, see `AGENTS.md`)
 
 `scripts/qml-lint.sh` clean (Qt 6 `qmllint` + `qmlformat`; the Arch PATH binaries are Qt 5) · CMake build passes · `qt-qml-review` before committing QML · `DESIGN.md` lint (0 errors) when tokens touched.
+
+The lint script also loads the local `QtQmlBestPractices` QQMLSA plugin and gates on its eight `Plugin.BestPractices.*` categories: unversioned imports, concrete property types over `var`, no mutable state in view delegates, layout children sized with `Layout.*`, declarative bindings over `Component.onCompleted` assignments, no customization under a native Controls style, interaction signals over `onValueChanged`, and no redundant `QtQuick.Window` import. It is discovered (sibling checkout, installed plugin dir, or `TUNEX_QMLLINT_PLUGIN_PATH`), so a machine without it still lints and reports which categories went unchecked.

@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // LibraryView (S2 W-016): browse the indexed library — Songs list, Albums
 // grid, Artists grid. Models load from the index on completion; a missing
@@ -24,6 +24,17 @@ Item {
     readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
 
     signal foldersRequested
+
+    // Display name for one tab key (the tab strip models keys, not labels).
+    function tabLabel(key) {
+        if (key === "albums")
+            return qsTr("Albums");
+
+        if (key === "artists")
+            return qsTr("Artists");
+
+        return qsTr("Songs");
+    }
 
     function drillIntoAlbum(id, title) {
         root.albumId = id;
@@ -112,27 +123,16 @@ Item {
                 spacing: Theme.spaceXs
 
                 Repeater {
-                    model: [
-                        {
-                            "key": "songs",
-                            "label": qsTr("Songs")
-                        },
-                        {
-                            "key": "albums",
-                            "label": qsTr("Albums")
-                        },
-                        {
-                            "key": "artists",
-                            "label": qsTr("Artists")
-                        }
-                    ]
+                    // Keys only, so the model stays a typed string list; the
+                    // translated label comes from `root.tabLabel`.
+                    model: ["songs", "albums", "artists"]
 
                     Chip {
-                        required property var modelData
+                        required property string modelData
 
-                        label: modelData.label
-                        selected: root.tab === modelData.key
-                        onActivated: root.tab = modelData.key
+                        label: root.tabLabel(modelData)
+                        selected: root.tab === modelData
+                        onActivated: root.tab = modelData
                     }
                 }
             }

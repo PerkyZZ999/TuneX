@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // Pill primary/secondary action. One primary per view (DESIGN.md). Disabled
 // fades the whole control to 38% on the desaturated raised surface, label

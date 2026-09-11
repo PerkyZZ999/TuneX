@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // Filter chip (DESIGN.md chip / chip-selected). Selected steps the surface;
 // meaning also lives in the label (never color-only).

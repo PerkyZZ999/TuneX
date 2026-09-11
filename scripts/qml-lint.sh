@@ -18,6 +18,15 @@
 # with these cxx-qt models). Every other warning fails the gate
 # (--max-warnings 0).
 #
+# BestPractices plugin: the QQMLSA plugin in the sibling QtQmlBestPractices
+# project adds eight Qt Quick best-practice categories on top of qmllint's
+# own. It is a separate local project with no published remote, so it is
+# discovered rather than required — present means its categories are part of
+# the gate, absent (a clean CI container) means the baseline lint still runs
+# and the script says which categories went unchecked. Point
+# TUNEX_QMLLINT_PLUGIN_PATH at another build directory to override discovery,
+# or set it to `off` to skip the plugin deliberately.
+#
 # Usage: scripts/qml-lint.sh [file.qml ...]   (default: every module file)
 # Needs one prior cargo build of tunex-app (for plugin.qmltypes); the
 # pre-commit hook and CI run the Rust gate first, which provides it.
@@ -33,6 +42,47 @@ QMLFORMAT="$QT_BINS/qmlformat"
 for tool in "$QMLLINT" "$QMLFORMAT"; do
     [[ -x "$tool" ]] || { echo "qml-lint: missing Qt 6 tool $tool (install qt6-declarative)" >&2; exit 1; }
 done
+
+# Categories the plugin ships (see QtQmlBestPractices/README.md). Every one is
+# enabled at `warning`, which --max-warnings 0 turns into a gate failure.
+BEST_PRACTICES=(
+    prefer-typed-properties
+    layout-child-geometry
+    versioned-imports
+    no-state-in-delegates
+    imperative-completed-assignment
+    native-style-customization
+    prefer-interaction-signals
+    redundant-window-import
+)
+
+PLUGIN_LIB="libBestPracticesPlugin.so"
+QT_PLUGINS="$(qmake6 -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
+plugin_dir="${TUNEX_QMLLINT_PLUGIN_PATH-}"
+if [[ -z "$plugin_dir" ]]; then
+    for candidate in "$ROOT/../QtQmlBestPractices/build" "${QT_PLUGINS:-/usr/lib/qt6/plugins}/qmllint"; do
+        if [[ -f "$candidate/$PLUGIN_LIB" ]]; then
+            plugin_dir="$(cd "$candidate" && pwd)"
+            break
+        fi
+    done
+fi
+
+plugin_args=()
+if [[ "$plugin_dir" == "off" ]]; then
+    echo "qml-lint: BestPractices plugin skipped (TUNEX_QMLLINT_PLUGIN_PATH=off)" >&2
+elif [[ -n "$plugin_dir" && -f "$plugin_dir/$PLUGIN_LIB" ]]; then
+    # Already-installed plugins load on their own; -P is for a build tree.
+    [[ "$plugin_dir" == "${QT_PLUGINS:-}/qmllint" ]] || plugin_args+=(-P "$plugin_dir")
+    for category in "${BEST_PRACTICES[@]}"; do
+        plugin_args+=("--Plugin.BestPractices.$category" warning)
+    done
+elif [[ -n "$plugin_dir" ]]; then
+    echo "qml-lint: no $PLUGIN_LIB under $plugin_dir (build it: cmake -S . -B build && cmake --build build)" >&2
+    exit 1
+else
+    echo "qml-lint: BestPractices plugin not found — ${#BEST_PRACTICES[@]} categories unchecked" >&2
+fi
 
 # Newest generated type info wins (cargo target dir or the CMake build).
 TYPES="$(find "$ROOT/target" "$ROOT/build" -path '*qml_modules/TuneX/plugin.qmltypes' \
@@ -71,7 +121,8 @@ fi
 
 status=0
 lint_log="$STAGE/qmllint.log"
-if ! (cd "$STAGE" && "$QMLLINT" -I "$STAGE" --unqualified disable --max-warnings 0 "${targets[@]}") \
+if ! (cd "$STAGE" && "$QMLLINT" -I "$STAGE" --unqualified disable --max-warnings 0 \
+    "${plugin_args[@]}" "${targets[@]}") \
     >"$lint_log" 2>&1; then
     status=1
 fi

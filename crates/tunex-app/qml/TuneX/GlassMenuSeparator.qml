@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // GlassMenuSeparator (S6 W-038): the 1px `border` hairline between
 // GlassMenu groups (DESIGN.md divider token).

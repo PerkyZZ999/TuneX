@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // PlaylistsView (S3 W-024, glass in S6 W-038): sidebar of user playlists
 // plus the detail pane for the selection — Play all / Queue all with rename
@@ -253,14 +253,22 @@ Item {
                 }
 
                 delegate: Item {
-                    property string name: model.name
-                    property int trackCount: model.trackCount
-                    property int playlistId: model.playlistId
+                    id: sidebarRow
+
+                    // Model roles as required delegate properties (the rail's
+                    // playlist entries take the same shape): the row reads
+                    // them, never stores state of its own. `index` joins them
+                    // because a delegate with required properties no longer
+                    // receives the context properties.
+                    required property int index
+                    required property string name
+                    required property int trackCount
+                    required property int playlistId
 
                     width: playlistsView.width
                     height: 56
                     Accessible.role: Accessible.ListItem
-                    Accessible.name: name
+                    Accessible.name: sidebarRow.name
 
                     // Hover surface, 120ms colour-only like the track rows;
                     // the selected row keeps the view's own highlight.
@@ -284,8 +292,8 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            playlistsView.currentIndex = index;
-                            root.selectPlaylist(playlistId, name);
+                            playlistsView.currentIndex = sidebarRow.index;
+                            root.selectPlaylist(sidebarRow.playlistId, sidebarRow.name);
                         }
                     }
 
@@ -301,18 +309,18 @@ Item {
                             width: parent.width
                             elide: Text.ElideRight
                             clip: true
-                            text: name
+                            text: sidebarRow.name
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontBody
-                            font.weight: root.playlistId === playlistId ? Font.DemiBold : Font.Normal
+                            font.weight: root.playlistId === sidebarRow.playlistId ? Font.DemiBold : Font.Normal
                             color: Theme.foreground
                         }
 
                         Text {
                             width: parent.width
                             elide: Text.ElideRight
-                            text: trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(trackCount)
+                            text: sidebarRow.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(sidebarRow.trackCount)
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontCaption

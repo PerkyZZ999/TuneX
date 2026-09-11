@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // GlassDialog (S6 W-038): dialogs on the glass-panel contract (DESIGN.md
 // Components) — title-md header, body content, and a footer pairing one

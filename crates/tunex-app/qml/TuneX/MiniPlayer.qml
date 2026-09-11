@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // MiniPlayer (S4 W-026, icon transport in S6 W-038): opaque 76px bottom
 // transport for windows below 1280px (DESIGN.md: opaque, never glass).

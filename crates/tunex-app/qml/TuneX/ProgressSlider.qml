@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // ProgressSlider (S6 W-038): the ProgressBar / VolumeControl track from the
 // DESIGN_BRIEF inventory — 4px `hover` track, cyan `accentSecondary` fill,

@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import TuneX 1.0
+import TuneX
 
 // Home greeting hero (DESIGN_BRIEF HeroCard). Photoreal night backdrop
 // from assets/hero-night.png; chrome recedes. Time-of-day line, one

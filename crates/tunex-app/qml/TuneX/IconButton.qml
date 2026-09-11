@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import TuneX 1.0
+import TuneX
 
 // IconButton: icon-only control for universal transport/media symbols and
 // close (DESIGN.md: icon-only needs an accessible name plus a tooltip).

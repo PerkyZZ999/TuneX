@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // PlaylistCard (DESIGN_BRIEF inventory): artwork-first 12px card, two-line
 // meta, bound to PlaylistModel roles. Placeholder glyph until mosaic art.

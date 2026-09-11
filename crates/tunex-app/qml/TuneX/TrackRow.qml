@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // TrackRow (S2 W-016, actions in S3 W-022): one song row — number,
 // title/artist, duration, missing badge, now-playing marker. Solid text on

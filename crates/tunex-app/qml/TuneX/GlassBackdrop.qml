@@ -16,7 +16,7 @@
 
 import QtQuick
 import QtQuick.Effects
-import TuneX 1.0
+import TuneX
 
 Item {
     id: root

@@ -1,5 +1,5 @@
 import QtQuick
-import TuneX 1.0
+import TuneX
 
 // TrackMenu (S3 W-022, playlist items in W-024, glass in S6 W-038): row
 // actions for library and search song lists — play now, play next, add to
