@@ -1,8 +1,13 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Effects
+import TuneX 1.0
 
 // One selectable row in the navigation rail: Lucide glyph + label, accent
-// bar when selected. Compact mode hides the label (64px icon strip).
+// bar when selected. Compact mode hides the label (64px icon strip). The
+// selected bar carries one of the two sanctioned glows (DESIGN.md Glow
+// discipline). Mouse presses do not take focus, so the 2px ring appears
+// for keyboard focus only.
 Item {
     id: root
 
@@ -28,11 +33,21 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Theme.radiusMd
+        radius: Theme.radiusSm
         color: root.selected ? Theme.selected : (navMouse.containsMouse || root.activeFocus ? Theme.hover : "transparent")
     }
 
+    RectangularShadow {
+        anchors.fill: accentBar
+        visible: root.selected
+        radius: accentBar.radius
+        blur: Theme.glowNavBlur
+        color: Qt.alpha(Theme.accent, Theme.glowNavOpacity)
+    }
+
     Rectangle {
+        id: accentBar
+
         width: 3
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -75,13 +90,12 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onPressed: root.forceActiveFocus()
         onClicked: root.activated()
     }
 
     Rectangle {
         anchors.fill: parent
-        radius: Theme.radiusMd
+        radius: Theme.radiusSm
         color: "transparent"
         border.width: 2
         border.color: Theme.focus

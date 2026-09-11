@@ -3,15 +3,21 @@ import QtQuick.Controls.Basic
 import QtQuick.Effects
 import TuneX 1.0
 
-// NowPlayingView (S4 W-028): expanded overlay — strong glass over content
-// at any width. Same player state as MiniPlayer / docked panel; Close or
-// Esc returns without touching scroll. Scrub posts async seeks (W-027).
+// NowPlayingView (S4 W-028, strong glass in S6 W-038): the expanded overlay
+// at any width and the only strong-glass surface (DESIGN.md Elevation &
+// Depth): artwork backdrop → ~32px blur → 68% dark tint → 1px top highlight
+// → soft shadow under the floating art → content. Same player state as the
+// MiniPlayer and docked panel; Close or Esc returns without touching
+// scroll (the popup takes focus so Esc always reaches it). Scrub posts
+// async seeks (W-027). With Appearance.reduceTransparency the backdrop is
+// solid `surface` and nothing blurs.
 Popup {
     id: root
 
     required property QueueModel queue
     property int transportState: 0
     property bool shuffleOn: false
+    property int repeatModeValue: 0
     property string repeatLabel: qsTr("Repeat: Off")
     property string errorLine: ""
     property string titleText: ""
@@ -19,9 +25,8 @@ Popup {
     property int positionMs: 0
     property int durationMs: 0
     property bool muted: false
-    property bool reduceTransparency: false
-    property bool reduceMotion: false
-    readonly property int motionMs: root.reduceMotion ? 0 : Theme.overlayMs
+    readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
+    readonly property int motionMs: Appearance.duration(Theme.overlayMs)
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
     readonly property string monogram: {
@@ -39,14 +44,14 @@ Popup {
     signal closeRequested
     signal queueToggleRequested
 
-    function formatTime(ms) {
+    function formatTime(ms: int): string {
         const total = Math.max(0, Math.floor(ms / 1000));
         const minutes = Math.floor(total / 60);
         const seconds = String(total % 60).padStart(2, "0");
         return minutes + ":" + seconds;
     }
 
-    function repeatText(mode) {
+    function repeatText(mode: int): string {
         if (mode === 1)
             return qsTr("Repeat: All");
 
@@ -59,15 +64,14 @@ Popup {
     function sync() {
         root.transportState = root.queue.playbackState();
         root.shuffleOn = root.queue.isShuffle();
-        root.repeatLabel = root.repeatText(root.queue.repeatMode());
+        root.repeatModeValue = root.queue.repeatMode();
+        root.repeatLabel = root.repeatText(root.repeatModeValue);
         root.errorLine = root.queue.errorText();
         root.titleText = root.queue.currentTitle();
         root.artistText = root.queue.currentArtist();
         root.positionMs = root.queue.positionMs();
         root.durationMs = root.queue.durationMs();
         root.muted = root.queue.isMuted();
-        root.reduceTransparency = root.queue.reduceTransparency();
-        root.reduceMotion = root.queue.reduceMotion();
         if (!volumeSlider.pressed)
             volumeSlider.value = root.queue.volumePct();
 
@@ -81,6 +85,7 @@ Popup {
     padding: 0
     modal: true
     dim: false
+    focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     Component.onCompleted: {
         root.sync();
@@ -88,26 +93,24 @@ Popup {
     }
     onClosed: root.closeRequested()
     onTitleTextChanged: {
-        if (root.opened && !root.reduceMotion)
+        if (root.opened && !Appearance.reduceMotion)
             artCrossfade.restart();
     }
 
     SequentialAnimation {
         id: artCrossfade
 
-        NumberAnimation {
+        OpacityAnimator {
             target: art
-            property: "opacity"
             to: 0
-            duration: root.reduceMotion ? 0 : Theme.artCrossfadeMs / 2
+            duration: Appearance.duration(Theme.artCrossfadeMs / 2)
             easing.type: Easing.OutCubic
         }
 
-        NumberAnimation {
+        OpacityAnimator {
             target: art
-            property: "opacity"
             to: 1
-            duration: root.reduceMotion ? 0 : Theme.artCrossfadeMs / 2
+            duration: Appearance.duration(Theme.artCrossfadeMs / 2)
             easing.type: Easing.OutCubic
         }
     }
@@ -135,41 +138,55 @@ Popup {
     background: Item {
         anchors.fill: parent
 
+        // Opaque base: the blur never covers everything (its edges sample
+        // transparent space past the item), so without this the shell shows
+        // through the tint — the W-038 audit found list rows readable
+        // behind the overlay.
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.background
+        }
+
+        // Backdrop source, hidden: MultiEffect renders it into its own
+        // texture. W-040 swaps in the current track's artwork.
         Item {
             id: backdropSource
 
             anchors.fill: parent
             visible: false
-            layer.enabled: !root.reduceTransparency
 
             Rectangle {
                 anchors.fill: parent
                 color: Theme.surfaceRaised
             }
 
+            // Placeholder atmosphere until artwork lands: a soft blue
+            // bloom behind the crest (the `selected` tone reads through the
+            // tint; `hover` was indistinguishable from the base).
             Rectangle {
                 anchors.centerIn: parent
+                anchors.verticalCenterOffset: -Theme.spaceXxl
                 width: Theme.nowPlayingArt * 2
                 height: width
                 radius: width / 2
-                color: Theme.hover
+                color: Theme.selected
             }
         }
 
         MultiEffect {
             anchors.fill: parent
             source: backdropSource
-            visible: !root.reduceTransparency
+            visible: !Appearance.reduceTransparency
             autoPaddingEnabled: false
-            blurEnabled: !root.reduceTransparency
-            blurMax: Theme.blurMax
+            blurEnabled: true
+            blurMax: Theme.strongBlur
+            blurMultiplier: Theme.strongBlurMultiplier
             blur: 1
         }
 
         Rectangle {
             anchors.fill: parent
-            color: root.reduceTransparency ? Theme.surface : Theme.background
-            opacity: root.reduceTransparency ? 1 : Theme.overlayTint
+            color: Appearance.reduceTransparency ? Theme.surface : Qt.alpha(Theme.background, Theme.overlayTint)
         }
 
         Rectangle {
@@ -177,8 +194,8 @@ Popup {
             anchors.right: parent.right
             anchors.top: parent.top
             height: 1
-            color: Theme.foreground
-            opacity: 0.12
+            visible: !Appearance.reduceTransparency
+            color: Qt.alpha(Theme.foreground, 0.12)
             Accessible.ignored: true
         }
     }
@@ -192,20 +209,19 @@ Popup {
             y: root.opened ? 0 : Theme.spaceMd
             // Popup is not an Item, so the accessible pane lives here.
             Accessible.role: Accessible.Pane
-            Accessible.name: qsTr("Now Playing") + ", " + root.shownTitle + ", " + root.shownArtist
+            Accessible.name: root.hasCurrent ? qsTr("Now Playing") + ", " + root.shownTitle + ", " + root.shownArtist : qsTr("Now Playing, nothing playing")
 
-            Button {
+            IconButton {
                 id: closeButton
 
                 anchors.top: parent.top
                 anchors.right: parent.right
                 anchors.topMargin: Theme.spaceMd
                 anchors.rightMargin: Theme.spaceMd
-                height: Theme.targetMin
                 z: 1
-                text: qsTr("Close")
-                Accessible.name: qsTr("Close Now Playing")
-                onClicked: root.close()
+                iconName: "x"
+                accessibleName: qsTr("Close Now Playing")
+                onActivated: root.close()
             }
 
             Flickable {
@@ -233,16 +249,18 @@ Popup {
                         width: parent.width
                         height: Theme.nowPlayingArt
 
-                        Rectangle {
-                            anchors.centerIn: art
-                            width: art.width + Theme.spaceSm
-                            height: art.height + Theme.spaceSm
-                            radius: width / 2
-                            color: Theme.background
-                            opacity: 0.45
-                            Accessible.ignored: true
+                        // The art floats on the glass: the one soft shadow
+                        // in the strong-glass stack.
+                        RectangularShadow {
+                            anchors.fill: art
+                            radius: art.radius
+                            offset.y: Theme.shadowOverlayY
+                            blur: Theme.shadowOverlayBlur
+                            color: Qt.alpha(Theme.shadow, Theme.shadowOverlayOpacity)
                         }
 
+                        // Missing art is the one circular shape in V1: the
+                        // monogram crest (DESIGN.md Shapes).
                         Rectangle {
                             id: art
 
@@ -251,10 +269,10 @@ Popup {
                             height: Theme.nowPlayingArt
                             radius: width / 2
                             color: Theme.surfaceRaised
-                            opacity: 1
                             Accessible.ignored: true
 
                             Text {
+                                visible: root.hasCurrent
                                 anchors.centerIn: parent
                                 text: root.monogram
                                 textFormat: Text.PlainText
@@ -262,6 +280,14 @@ Popup {
                                 font.pixelSize: Theme.fontDisplay
                                 font.weight: Font.DemiBold
                                 color: Theme.muted
+                            }
+
+                            Icon {
+                                visible: !root.hasCurrent
+                                anchors.centerIn: parent
+                                name: "music"
+                                iconSize: 48
+                                stroke: Theme.muted
                             }
                         }
                     }
@@ -274,7 +300,9 @@ Popup {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             wrapMode: Text.WordWrap
-                            text: root.shownTitle
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                            text: root.hasCurrent ? root.shownTitle : qsTr("Nothing playing")
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontHeadline
@@ -285,8 +313,8 @@ Popup {
                         Text {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
-                            wrapMode: Text.WordWrap
-                            text: root.shownArtist
+                            elide: Text.ElideRight
+                            text: root.hasCurrent ? root.shownArtist : qsTr("Play something from your library")
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontBody
@@ -307,6 +335,9 @@ Popup {
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontCaption
+                            font.features: {
+                                "tnum": 1
+                            }
                             color: Theme.muted
                         }
 
@@ -319,10 +350,13 @@ Popup {
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontCaption
+                            font.features: {
+                                "tnum": 1
+                            }
                             color: Theme.muted
                         }
 
-                        Slider {
+                        ProgressSlider {
                             id: seekSlider
 
                             anchors.left: overlayPosition.right
@@ -330,127 +364,64 @@ Popup {
                             anchors.right: overlayDuration.left
                             anchors.rightMargin: Theme.spaceSm
                             anchors.verticalCenter: parent.verticalCenter
-                            height: Theme.targetMin
                             from: 0
                             to: Math.max(1, root.durationMs)
                             enabled: root.durationMs > 0
                             Accessible.name: qsTr("Playback position %1 of %2").arg(root.positionText).arg(root.durationText)
                             onMoved: root.queue.seekMs(Math.round(value))
-
-                            background: Rectangle {
-                                x: seekSlider.leftPadding
-                                y: seekSlider.topPadding + (seekSlider.availableHeight - height) / 2
-                                implicitHeight: Theme.progressTrack
-                                width: seekSlider.availableWidth
-                                height: Theme.progressTrack
-                                radius: Theme.radiusXs
-                                color: Theme.hover
-
-                                Rectangle {
-                                    width: seekSlider.visualPosition * parent.width
-                                    height: parent.height
-                                    radius: Theme.radiusXs
-                                    color: Theme.accentSecondary
-                                }
-                            }
-
-                            handle: Rectangle {
-                                x: seekSlider.leftPadding + seekSlider.visualPosition * (seekSlider.availableWidth - width)
-                                y: seekSlider.topPadding + (seekSlider.availableHeight - height) / 2
-                                implicitWidth: Theme.thumbSize
-                                implicitHeight: Theme.thumbSize
-                                width: seekSlider.hovered || seekSlider.pressed || seekSlider.activeFocus ? Theme.thumbSize : Theme.spaceSm
-                                height: width
-                                radius: width / 2
-                                color: Theme.foreground
-                                border.color: Theme.focus
-                                border.width: seekSlider.activeFocus ? 2 : 0
-                            }
                         }
                     }
 
                     Row {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        spacing: Theme.spaceSm
+                        spacing: Theme.spaceMd
 
-                        Button {
-                            height: Theme.targetMin
+                        IconButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconName: "shuffle"
+                            accessibleName: root.shuffleOn ? qsTr("Shuffle: On") : qsTr("Shuffle: Off")
                             checkable: true
                             checked: root.shuffleOn
-                            text: root.shuffleOn ? qsTr("Shuffle: On") : qsTr("Shuffle: Off")
-                            Accessible.name: root.shuffleOn ? qsTr("Shuffle on") : qsTr("Shuffle off")
-                            onClicked: {
+                            onActivated: {
                                 root.queue.toggleShuffle();
                                 root.sync();
                             }
                         }
 
-                        Button {
-                            width: Theme.targetMin
-                            height: Theme.targetMin
-                            text: qsTr("Prev")
-                            Accessible.name: qsTr("Previous track")
-                            onClicked: root.queue.previousTrack(root.queue.positionMs())
+                        IconButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconName: "skip-back"
+                            glyphSize: 24
+                            accessibleName: qsTr("Previous track")
+                            onActivated: root.queue.previousTrack(root.queue.positionMs())
                         }
 
-                        Item {
-                            width: Theme.playPrimary
-                            height: Theme.playPrimary
+                        PlayButton {
+                            id: playButton
 
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: Theme.playPrimary + Theme.spaceLg
-                                height: width
-                                radius: width / 2
-                                color: Theme.accent
-                                opacity: root.transportState === 2 ? 0.35 : 0
-                                Accessible.ignored: true
-                            }
-
-                            Button {
-                                id: playButton
-
-                                anchors.fill: parent
-                                text: root.transportState === 2 ? qsTr("Pause") : qsTr("Play")
-                                Accessible.name: root.transportState === 2 ? qsTr("Pause") : qsTr("Play")
-                                onClicked: {
-                                    root.queue.playPause();
-                                    root.transportState = root.transportState === 2 ? 3 : 2;
-                                }
-
-                                background: Rectangle {
-                                    radius: width / 2
-                                    color: Theme.primary
-                                    border.color: Theme.focus
-                                    border.width: playButton.activeFocus ? 2 : 0
-                                }
-
-                                contentItem: Text {
-                                    text: playButton.text
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontLabel
-                                    font.weight: Font.DemiBold
-                                    color: Theme.primaryText
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
+                            anchors.verticalCenter: parent.verticalCenter
+                            playing: root.transportState === 2
+                            onActivated: {
+                                root.queue.playPause();
+                                root.transportState = root.transportState === 2 ? 3 : 2;
                             }
                         }
 
-                        Button {
-                            width: Theme.targetMin
-                            height: Theme.targetMin
-                            text: qsTr("Next")
-                            Accessible.name: qsTr("Next track")
-                            onClicked: root.queue.nextTrack()
+                        IconButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconName: "skip-forward"
+                            glyphSize: 24
+                            accessibleName: qsTr("Next track")
+                            onActivated: root.queue.nextTrack()
                         }
 
-                        Button {
-                            height: Theme.targetMin
-                            text: root.repeatLabel
-                            Accessible.name: root.repeatLabel
-                            onClicked: {
+                        IconButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconName: root.repeatModeValue === 2 ? "repeat-1" : "repeat"
+                            accessibleName: root.repeatLabel
+                            checkable: true
+                            checked: root.repeatModeValue !== 0
+                            onActivated: {
                                 root.queue.cycleRepeat();
                                 root.sync();
                             }
@@ -461,84 +432,64 @@ Popup {
                         width: parent.width
                         spacing: Theme.spaceXs
 
-                        Button {
+                        IconButton {
                             id: muteButton
 
-                            width: Theme.targetMin
-                            height: Theme.targetMin
+                            iconName: root.muted ? "volume-x" : "volume"
+                            accessibleName: root.muted ? qsTr("Unmute") : qsTr("Mute")
                             checkable: true
                             checked: root.muted
-                            text: qsTr("Mute")
-                            Accessible.name: root.muted ? qsTr("Unmute") : qsTr("Mute")
-                            onClicked: {
+                            onActivated: {
                                 root.queue.setMuted(!root.muted);
                                 root.muted = !root.muted;
                             }
                         }
 
-                        Slider {
+                        ProgressSlider {
                             id: volumeSlider
 
                             width: parent.width - muteButton.width - queueButton.width - Theme.spaceXs * 2
-                            height: Theme.targetMin
                             from: 0
                             to: 100
                             stepSize: 1
                             Accessible.name: qsTr("Volume")
                             onMoved: root.queue.setVolumePct(Math.round(value))
-
-                            background: Rectangle {
-                                x: volumeSlider.leftPadding
-                                y: volumeSlider.topPadding + (volumeSlider.availableHeight - height) / 2
-                                implicitHeight: Theme.progressTrack
-                                width: volumeSlider.availableWidth
-                                height: Theme.progressTrack
-                                radius: Theme.radiusXs
-                                color: Theme.hover
-
-                                Rectangle {
-                                    width: volumeSlider.visualPosition * parent.width
-                                    height: parent.height
-                                    radius: Theme.radiusXs
-                                    color: Theme.accentSecondary
-                                }
-                            }
-
-                            handle: Rectangle {
-                                x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
-                                y: volumeSlider.topPadding + (volumeSlider.availableHeight - height) / 2
-                                implicitWidth: Theme.thumbSize
-                                implicitHeight: Theme.thumbSize
-                                width: volumeSlider.hovered || volumeSlider.pressed || volumeSlider.activeFocus ? Theme.thumbSize : Theme.spaceSm
-                                height: width
-                                radius: width / 2
-                                color: Theme.foreground
-                                border.color: Theme.focus
-                                border.width: volumeSlider.activeFocus ? 2 : 0
-                            }
                         }
 
-                        Button {
+                        IconButton {
                             id: queueButton
 
-                            height: Theme.targetMin
-                            text: qsTr("Up Next")
-                            Accessible.name: qsTr("Open Up Next queue")
-                            onClicked: root.queueToggleRequested()
+                            iconName: "list-music"
+                            accessibleName: qsTr("Open Up Next")
+                            onActivated: root.queueToggleRequested()
                         }
                     }
 
-                    Text {
+                    // Errors pair the alert glyph with words (never colour
+                    // alone).
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
                         visible: root.errorLine !== ""
-                        width: parent.width
                         height: visible ? implicitHeight : 0
-                        wrapMode: Text.WordWrap
-                        text: root.errorLine
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontCaption
-                        color: Theme.error
-                        horizontalAlignment: Text.AlignHCenter
+                        spacing: Theme.spaceSm
+
+                        Icon {
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "alert"
+                            iconSize: 16
+                            stroke: Theme.error
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.min(implicitWidth, column.width - Theme.spaceLg)
+                            wrapMode: Text.WordWrap
+                            text: root.errorLine
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontCaption
+                            color: Theme.error
+                        }
                     }
                 }
             }

@@ -1,7 +1,10 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import TuneX 1.0
 
-// Pill primary/secondary action. One primary per view (DESIGN.md).
+// Pill primary/secondary action. One primary per view (DESIGN.md). Disabled
+// fades the whole control to 38% on the desaturated raised surface, label
+// and glyph included; the 2px ring follows keyboard focus only.
 Button {
     id: root
 
@@ -11,6 +14,7 @@ Button {
     implicitHeight: Theme.targetMin
     leftPadding: Theme.spaceLg
     rightPadding: Theme.spaceLg
+    opacity: root.enabled ? 1 : 0.38
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontLabel
     font.weight: Font.Medium
@@ -26,9 +30,8 @@ Button {
 
             return root.hovered || root.pressed ? Theme.hover : Theme.surfaceRaised;
         }
-        opacity: root.enabled ? 1 : 0.38
-        border.width: root.activeFocus ? 2 : (root.primary ? 0 : 1)
-        border.color: root.activeFocus ? Theme.focus : Theme.border
+        border.width: root.visualFocus ? 2 : (root.primary && root.enabled ? 0 : 1)
+        border.color: root.visualFocus ? Theme.focus : Theme.border
     }
 
     contentItem: Row {
@@ -39,14 +42,15 @@ Button {
             anchors.verticalCenter: parent.verticalCenter
             name: root.glyph
             iconSize: 20
-            stroke: root.primary ? Theme.primaryText : Theme.foreground
+            stroke: root.primary && root.enabled ? Theme.primaryText : Theme.foreground
         }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
+            textFormat: Text.PlainText
             font: root.font
-            color: root.primary ? Theme.primaryText : Theme.foreground
+            color: root.primary && root.enabled ? Theme.primaryText : Theme.foreground
         }
     }
 }

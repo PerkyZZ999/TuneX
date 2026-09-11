@@ -57,6 +57,8 @@ QtObject {
     readonly property int railWidth: 240
     readonly property int railNarrow: 64
     readonly property int panelWidth: 320
+    // Dialog measure: title + one field or two lines of body copy.
+    readonly property int dialogWidth: 440
     // DESIGN.md: three-column shell at ≥1280; 76px opaque mini-player below.
     readonly property int shellWide: 1280
     readonly property int shellCompact: 1024
@@ -67,14 +69,42 @@ QtObject {
     // Now Playing overlay (DESIGN.md: art ≥320, play 64, blur 24–40, 200ms).
     readonly property int nowPlayingArt: 320
     readonly property int playPrimary: 64
-    readonly property int blurMax: 32
     readonly property int overlayMs: 200
     readonly property int artCrossfadeMs: 180
     readonly property int thumbSize: 12
     readonly property real overlayTint: 0.68
+    // Blur. DESIGN.md sizes blur like CSS `blur()`; MultiEffect's blurMax is
+    // not that scale (measured in KWin, S6 W-038: blurMax 32 softens an edge
+    // ~10px). Calibrated: blurMax 64 ≈ CSS 16px (subtle glass, 12–20px);
+    // blurMax 64 × multiplier 1 ≈ CSS 32px (strong glass, 24–40px).
+    readonly property int strongBlur: 64
+    readonly property real strongBlurMultiplier: 1
     // Subtle glass for drawers, dialogs, and context menus (DESIGN.md
     // Elevation & Depth: 12–20px blur, 60–75% dark tint). Strong glass stays
     // exclusive to Now Playing; rows, rail, cards, mini-player stay opaque.
-    readonly property int glassBlur: 16
+    readonly property int glassBlur: 64
     readonly property real glassTint: 0.7
+    // Elevation (DESIGN.md: one restrained shadow scale, black). Blur values
+    // are the CSS radius × 1.2, the documented RectangularShadow match.
+    // Overlay: dialogs/drawers/menus `0 8px 32px rgba(0,0,0,0.45)`.
+    readonly property color shadow: "#000000"
+    readonly property int shadowOverlayBlur: 38
+    readonly property int shadowOverlayY: 8
+    readonly property real shadowOverlayOpacity: 0.45
+    // Hero `0 4px 24px rgba(0,0,0,0.35)`; cards carry none.
+    readonly property int shadowHeroBlur: 29
+    readonly property int shadowHeroY: 4
+    readonly property real shadowHeroOpacity: 0.35
+    // Glow, exactly twice: the playing transport button
+    // (`0 0 24px rgba(91,140,255,0.35)`, accent) and the selected-nav bar.
+    readonly property int glowBlur: 29
+    readonly property real glowOpacity: 0.35
+    readonly property int glowNavBlur: 10
+    readonly property real glowNavOpacity: 0.55
+    // Translucent dark scrim behind modal overlays (never a blur of the UI).
+    readonly property real scrimOpacity: 0.6
+    // Motion budget (DESIGN.md Motion & Accessibility; OutCubic everywhere).
+    // Durations go through Appearance.duration() so reduce-motion zeroes them.
+    readonly property int motionHover: 120
+    readonly property int motionRow: 160
 }

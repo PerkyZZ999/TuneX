@@ -1,4 +1,5 @@
 import QtQuick
+import TuneX 1.0
 
 // EmptyState (S2 W-016): explicit, actionable empty surface for library
 // views. Never a blank screen: always a title plus guidance. An action

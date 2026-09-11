@@ -1,11 +1,11 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX 1.0
 
-// MiniPlayer (S4 W-026): opaque 76px bottom transport for windows below
-// 1280px. Hidden until the first play. Progress is read-only; scrub lives
-// on the Now Playing overlay. Volume and mute write through QueueModel.
-// Artwork is the generated monogram until the art worker lands.
+// MiniPlayer (S4 W-026, icon transport in S6 W-038): opaque 76px bottom
+// transport for windows below 1280px (DESIGN.md: opaque, never glass).
+// Hidden until the first play; idle after that shows honest "Nothing
+// playing" copy. Progress is read-only; scrub lives on the Now Playing
+// overlay. Volume and mute write through QueueModel.
 Rectangle {
     id: root
 
@@ -31,6 +31,7 @@ Rectangle {
     readonly property string positionText: root.formatTime(root.positionMs)
     readonly property string durationText: root.durationMs > 0 ? root.formatTime(root.durationMs) : "—"
     readonly property real progress: root.durationMs > 0 ? Math.min(1, root.positionMs / root.durationMs) : 0
+    readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
 
     signal queueToggleRequested
     signal expandRequested
@@ -55,7 +56,7 @@ Rectangle {
 
     color: Theme.surface
     Accessible.role: Accessible.Pane
-    Accessible.name: qsTr("Now playing") + ", " + root.shownTitle + ", " + root.shownArtist
+    Accessible.name: root.hasCurrent ? qsTr("Now playing") + ", " + root.shownTitle + ", " + root.shownArtist : qsTr("Nothing playing")
 
     Rectangle {
         anchors.left: parent.left
@@ -114,7 +115,7 @@ Rectangle {
         Text {
             width: parent.width
             elide: Text.ElideRight
-            text: root.shownTitle
+            text: root.hasCurrent ? root.shownTitle : qsTr("Nothing playing")
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
@@ -125,7 +126,7 @@ Rectangle {
         Text {
             width: parent.width
             elide: Text.ElideRight
-            text: root.shownArtist
+            text: root.hasCurrent ? root.shownArtist : qsTr("Play something from your library")
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBodySm
@@ -141,55 +142,28 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.spaceXs
 
-        Button {
-            width: Theme.targetMin
-            height: Theme.targetMin
-            padding: 4
-            font.pixelSize: Theme.fontCaption
-            text: qsTr("Prev")
-            Accessible.name: qsTr("Previous track")
-            onClicked: root.queue.previousTrack(root.queue.positionMs())
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
+            iconName: "skip-back"
+            accessibleName: qsTr("Previous track")
+            onActivated: root.queue.previousTrack(root.queue.positionMs())
         }
 
-        Button {
-            id: playButton
-
-            width: Theme.targetMin
-            height: Theme.targetMin
-            text: root.transportState === 2 ? qsTr("Pause") : qsTr("Play")
-            Accessible.name: root.transportState === 2 ? qsTr("Pause") : qsTr("Play")
-            onClicked: {
+        PlayButton {
+            anchors.verticalCenter: parent.verticalCenter
+            diameter: Theme.targetMin
+            playing: root.transportState === 2
+            onActivated: {
                 root.queue.playPause();
                 root.transportState = root.transportState === 2 ? 3 : 2;
             }
-
-            background: Rectangle {
-                radius: width / 2
-                color: Theme.primary
-                border.color: Theme.focus
-                border.width: playButton.activeFocus ? 2 : 0
-            }
-
-            contentItem: Text {
-                text: playButton.text
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
-                font.weight: Font.DemiBold
-                color: Theme.primaryText
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
         }
 
-        Button {
-            width: Theme.targetMin
-            height: Theme.targetMin
-            padding: 4
-            font.pixelSize: Theme.fontCaption
-            text: qsTr("Next")
-            Accessible.name: qsTr("Next track")
-            onClicked: root.queue.nextTrack()
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
+            iconName: "skip-forward"
+            accessibleName: qsTr("Next track")
+            onActivated: root.queue.nextTrack()
         }
     }
 
@@ -197,9 +171,9 @@ Rectangle {
         id: progressBlock
 
         anchors.left: transport.right
-        anchors.leftMargin: Theme.spaceSm
+        anchors.leftMargin: Theme.spaceMd
         anchors.right: muteButton.left
-        anchors.rightMargin: Theme.spaceSm
+        anchors.rightMargin: Theme.spaceMd
         anchors.verticalCenter: parent.verticalCenter
         height: Theme.targetMin
         Accessible.role: Accessible.StaticText
@@ -214,6 +188,9 @@ Rectangle {
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontCaption
+            font.features: {
+                "tnum": 1
+            }
             color: Theme.muted
         }
 
@@ -226,16 +203,17 @@ Rectangle {
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontCaption
+            font.features: {
+                "tnum": 1
+            }
             color: Theme.muted
         }
 
         Rectangle {
-            id: progressTrack
-
             anchors.left: positionLabel.right
-            anchors.leftMargin: Theme.spaceXs
+            anchors.leftMargin: Theme.spaceSm
             anchors.right: durationLabel.left
-            anchors.rightMargin: Theme.spaceXs
+            anchors.rightMargin: Theme.spaceSm
             anchors.verticalCenter: parent.verticalCenter
             height: Theme.progressTrack
             radius: Theme.radiusXs
@@ -251,85 +229,45 @@ Rectangle {
         }
     }
 
-    Button {
+    IconButton {
         id: muteButton
 
         anchors.right: volumeSlider.left
-        anchors.rightMargin: Theme.spaceXs
         anchors.verticalCenter: parent.verticalCenter
-        width: Theme.targetMin
-        height: Theme.targetMin
-        padding: 2
-        font.pixelSize: Theme.fontCaption
+        iconName: root.muted ? "volume-x" : "volume"
+        accessibleName: root.muted ? qsTr("Unmute") : qsTr("Mute")
         checkable: true
         checked: root.muted
-        text: qsTr("Mute")
-        Accessible.name: root.muted ? qsTr("Unmute") : qsTr("Mute")
-        onClicked: {
+        onActivated: {
             root.queue.setMuted(!root.muted);
             root.muted = !root.muted;
         }
     }
 
-    Slider {
+    ProgressSlider {
         id: volumeSlider
 
         anchors.right: queueButton.left
         anchors.rightMargin: Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
-        width: 96
-        height: Theme.targetMin
+        width: 104
         from: 0
         to: 100
         stepSize: 1
         Accessible.name: qsTr("Volume")
         onMoved: root.queue.setVolumePct(Math.round(value))
-
-        background: Rectangle {
-            x: volumeSlider.leftPadding
-            y: volumeSlider.topPadding + (volumeSlider.availableHeight - height) / 2
-            implicitWidth: 96
-            implicitHeight: Theme.progressTrack
-            width: volumeSlider.availableWidth
-            height: Theme.progressTrack
-            radius: Theme.radiusXs
-            color: Theme.hover
-
-            Rectangle {
-                width: volumeSlider.visualPosition * parent.width
-                height: parent.height
-                radius: Theme.radiusXs
-                color: Theme.accentSecondary
-            }
-        }
-
-        handle: Rectangle {
-            x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
-            y: volumeSlider.topPadding + (volumeSlider.availableHeight - height) / 2
-            implicitWidth: 12
-            implicitHeight: 12
-            width: volumeSlider.hovered || volumeSlider.pressed || volumeSlider.activeFocus ? 12 : 8
-            height: width
-            radius: width / 2
-            color: Theme.foreground
-            border.color: Theme.focus
-            border.width: volumeSlider.activeFocus ? 2 : 0
-        }
     }
 
-    Button {
+    IconButton {
         id: queueButton
 
         anchors.right: parent.right
         anchors.rightMargin: Theme.spaceMd
         anchors.verticalCenter: parent.verticalCenter
-        height: Theme.targetMin
-        padding: 4
-        font.pixelSize: Theme.fontCaption
+        iconName: "list-music"
+        accessibleName: root.queueOpen ? qsTr("Close Up Next") : qsTr("Open Up Next")
         checkable: true
         checked: root.queueOpen
-        text: qsTr("Up Next")
-        Accessible.name: root.queueOpen ? qsTr("Close Up Next queue") : qsTr("Open Up Next queue")
-        onClicked: root.queueToggleRequested()
+        onActivated: root.queueToggleRequested()
     }
 }

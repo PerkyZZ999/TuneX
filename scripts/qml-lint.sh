@@ -41,8 +41,13 @@ TYPES="$(find "$ROOT/target" "$ROOT/build" -path '*qml_modules/TuneX/plugin.qmlt
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
-mkdir -p "$STAGE/TuneX"
-cp "$SRC"/*.qml "$TYPES" "$STAGE/TuneX/"
+# Mirror the runtime layout exactly: the module qmldir sits in TuneX/ and
+# lists files under qml/TuneX/, which has no qmldir of its own. Types from
+# the Rust bridge then resolve only through an explicit `import TuneX`,
+# as at runtime (a file missing that import fails to load in the app).
+mkdir -p "$STAGE/TuneX/qml/TuneX"
+cp "$SRC"/*.qml "$STAGE/TuneX/qml/TuneX/"
+cp "$TYPES" "$STAGE/TuneX/"
 {
     echo "module TuneX"
     echo "typeinfo plugin.qmltypes"
@@ -50,19 +55,18 @@ cp "$SRC"/*.qml "$TYPES" "$STAGE/TuneX/"
     for file in "$SRC"/*.qml; do
         name="$(basename "$file" .qml)"
         if grep -q '^pragma Singleton' "$file"; then
-            echo "singleton $name 1.0 $name.qml"
+            echo "singleton $name 1.0 qml/TuneX/$name.qml"
         else
-            echo "$name 1.0 $name.qml"
+            echo "$name 1.0 qml/TuneX/$name.qml"
         fi
     done
 } >"$STAGE/TuneX/qmldir"
 
+targets=()
 if [[ $# -gt 0 ]]; then
-    targets=()
-    for file in "$@"; do targets+=("TuneX/$(basename "$file")"); done
+    for file in "$@"; do targets+=("TuneX/qml/TuneX/$(basename "$file")"); done
 else
-    targets=()
-    for file in "$SRC"/*.qml; do targets+=("TuneX/$(basename "$file")"); done
+    for file in "$SRC"/*.qml; do targets+=("TuneX/qml/TuneX/$(basename "$file")"); done
 fi
 
 status=0
@@ -72,7 +76,7 @@ if ! (cd "$STAGE" && "$QMLLINT" -I "$STAGE" --unqualified disable --max-warnings
     status=1
 fi
 # Staged paths map back to source paths so findings stay clickable.
-sed "s#TuneX/#crates/tunex-app/qml/TuneX/#g" "$lint_log" >&2
+sed "s#TuneX/qml/TuneX/#crates/tunex-app/qml/TuneX/#g" "$lint_log" >&2
 [[ $status -eq 0 ]] || echo "qml-lint: qmllint reported findings" >&2
 
 for target in "${targets[@]}"; do

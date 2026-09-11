@@ -128,7 +128,7 @@
 - **Description:** Dark-first frosted-obsidian, restrained glass (strong only where hierarchical), centralized tokens, short purposeful animations.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] No neon/low-contrast text; track rows opaque; dialogs/menus/now-playing glass per SPEC §21
+  - [x] No neon/low-contrast text; track rows opaque; dialogs/menus/now-playing glass per SPEC §21 (W-038)
 - **Validation method:** manual
 
 ## NFR (all must, validated at slice + M6)

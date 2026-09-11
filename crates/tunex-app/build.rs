@@ -45,9 +45,15 @@ fn main() {
                 "qml/TuneX/TrackMenu.qml",
                 "qml/TuneX/PlaylistsView.qml",
                 "qml/TuneX/PlaylistNameDialog.qml",
+                "qml/TuneX/PlayButton.qml",
+                "qml/TuneX/ProgressSlider.qml",
+                "qml/TuneX/GlassMenu.qml",
+                "qml/TuneX/GlassMenuItem.qml",
+                "qml/TuneX/GlassMenuSeparator.qml",
+                "qml/TuneX/GlassDialog.qml",
             ])
             .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true))
-            .qml_file(QmlFile::from("qml/TuneX/Glass.qml").singleton(true))
+            .qml_file(QmlFile::from("qml/TuneX/Appearance.qml").singleton(true))
             .qml_file(QmlFile::from("qml/TuneX/GlassBackdrop.qml")),
     )
     .files(["src/bridge/models.rs"])

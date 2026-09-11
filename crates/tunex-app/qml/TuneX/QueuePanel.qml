@@ -1,12 +1,13 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX 1.0
 
-// QueuePanel (S3 W-022, S4 W-026): Up Next list plus the persistent-player
-// summary. Hosted as the 320px right column at ≥1280px, or inside a right
-// Drawer below that. Transport, shuffle/repeat, reorder, and the playing
-// marker stay here; MiniPlayer is the narrow-width bar. Progress here is
-// read-only; scrub lives on the Now Playing overlay (W-028).
+// QueuePanel (S3 W-022, S4 W-026, S6 W-038): Up Next list plus the
+// persistent-player summary. Docked as the opaque 320px right column at
+// ≥1280px; inside the compact Drawer it is transparent so the drawer's
+// subtle glass shows through (rows stay transparent over it, never glass).
+// Transport, shuffle/repeat, reorder, and the playing marker stay here;
+// MiniPlayer is the narrow-width bar. Progress here is read-only; scrub
+// lives on the Now Playing overlay (W-028).
 Rectangle {
     id: root
 
@@ -19,6 +20,7 @@ Rectangle {
     // Local mirrors of model state (functions carry no notifiers).
     property int transportState: 0
     property bool shuffleOn: false
+    property int repeatModeValue: 0
     property string repeatLabel: qsTr("Repeat: Off")
     property string errorLine: ""
     property int seenCursor: -2
@@ -67,7 +69,8 @@ Rectangle {
     function sync() {
         root.transportState = root.queue.playbackState();
         root.shuffleOn = root.queue.isShuffle();
-        root.repeatLabel = root.repeatText(root.queue.repeatMode());
+        root.repeatModeValue = root.queue.repeatMode();
+        root.repeatLabel = root.repeatText(root.repeatModeValue);
         root.errorLine = root.queue.errorText();
         root.titleText = root.queue.currentTitle();
         root.artistText = root.queue.currentArtist();
@@ -89,13 +92,14 @@ Rectangle {
         }
     }
 
-    color: Theme.surface
+    color: root.embedded ? Theme.surface : "transparent"
     onTrackingChanged: {
         if (root.tracking)
             root.sync();
     }
 
     Rectangle {
+        visible: root.embedded
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -121,35 +125,29 @@ Rectangle {
         target: root.queue
     }
 
-    Menu {
+    GlassMenu {
         id: rowMenu
 
         property int rowIndex: -1
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Play now")
             onTriggered: root.queue.playAt(rowMenu.rowIndex)
         }
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Move up")
             onTriggered: root.queue.moveItem(rowMenu.rowIndex, rowMenu.rowIndex - 1)
         }
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Move down")
             onTriggered: root.queue.moveItem(rowMenu.rowIndex, rowMenu.rowIndex + 1)
         }
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Remove from Up Next")
             onTriggered: root.queue.removeAt(rowMenu.rowIndex)
-        }
-
-        background: GlassBackdrop {
-            cornerRadius: Theme.radiusLg
-            transparencyOff: root.queue.reduceTransparency()
-            disableBlur: true
         }
     }
 
@@ -158,26 +156,18 @@ Rectangle {
         anchors.margins: Theme.spaceLg
         spacing: Theme.spaceMd
 
-        Row {
+        Item {
             id: headerRow
 
             visible: !root.embedded
             width: parent.width
             height: visible ? Theme.targetMin : 0
-            clip: true
 
-            Item {
-                width: parent.width - closeButton.width
-                height: 1
-            }
-
-            PrimaryButton {
-                id: closeButton
-
-                visible: !root.embedded
-                primary: false
-                text: qsTr("Close")
-                onClicked: root.closeRequested()
+            IconButton {
+                anchors.right: parent.right
+                iconName: "x"
+                accessibleName: qsTr("Close Up Next")
+                onActivated: root.closeRequested()
             }
         }
 
@@ -313,8 +303,9 @@ Rectangle {
             IconButton {
                 id: muteButton
 
-                iconName: "volume"
+                iconName: root.muted ? "volume-x" : "volume"
                 accessibleName: root.muted ? qsTr("Unmute") : qsTr("Mute")
+                checkable: true
                 checked: root.muted
                 onActivated: {
                     root.queue.setMuted(!root.muted);
@@ -322,46 +313,15 @@ Rectangle {
                 }
             }
 
-            Slider {
+            ProgressSlider {
                 id: volumeSlider
 
                 width: parent.width - muteButton.width - Theme.spaceXs
-                height: Theme.targetMin
                 from: 0
                 to: 100
                 stepSize: 1
                 Accessible.name: qsTr("Volume")
                 onMoved: root.queue.setVolumePct(Math.round(value))
-
-                background: Rectangle {
-                    x: volumeSlider.leftPadding
-                    y: volumeSlider.topPadding + (volumeSlider.availableHeight - height) / 2
-                    implicitHeight: Theme.progressTrack
-                    width: volumeSlider.availableWidth
-                    height: Theme.progressTrack
-                    radius: Theme.radiusXs
-                    color: Theme.hover
-
-                    Rectangle {
-                        width: volumeSlider.visualPosition * parent.width
-                        height: parent.height
-                        radius: Theme.radiusXs
-                        color: Theme.accentSecondary
-                    }
-                }
-
-                handle: Rectangle {
-                    x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
-                    y: volumeSlider.topPadding + (volumeSlider.availableHeight - height) / 2
-                    implicitWidth: 12
-                    implicitHeight: 12
-                    width: volumeSlider.hovered || volumeSlider.pressed || volumeSlider.activeFocus ? 12 : 8
-                    height: width
-                    radius: width / 2
-                    color: Theme.foreground
-                    border.color: Theme.focus
-                    border.width: volumeSlider.activeFocus ? 2 : 0
-                }
             }
         }
 
@@ -374,6 +334,7 @@ Rectangle {
             IconButton {
                 iconName: "shuffle"
                 accessibleName: root.shuffleOn ? qsTr("Shuffle: On") : qsTr("Shuffle: Off")
+                checkable: true
                 checked: root.shuffleOn
                 onActivated: {
                     root.queue.toggleShuffle();
@@ -393,39 +354,12 @@ Rectangle {
                 onActivated: root.queue.previousTrack(root.queue.positionMs())
             }
 
-            Item {
-                width: Theme.playPrimary
-                height: Theme.playPrimary
-                Accessible.role: Accessible.Button
-                Accessible.name: root.transportState === 2 ? qsTr("Pause") : qsTr("Play")
+            PlayButton {
+                playing: root.transportState === 2
                 enabled: queueList.count > 0 || root.transportState === 2 || root.transportState === 3
-                Keys.onSpacePressed: playHit.clicked(null)
-                activeFocusOnTab: true
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: width / 2
-                    color: Theme.primary
-                    border.width: parent.activeFocus ? 2 : 0
-                    border.color: Theme.focus
-                }
-
-                Icon {
-                    anchors.centerIn: parent
-                    name: root.transportState === 2 ? "pause" : "play"
-                    iconSize: 24
-                    stroke: Theme.primaryText
-                }
-
-                MouseArea {
-                    id: playHit
-
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        root.queue.playPause();
-                        root.transportState = root.transportState === 2 ? 3 : 2;
-                    }
+                onActivated: {
+                    root.queue.playPause();
+                    root.transportState = root.transportState === 2 ? 3 : 2;
                 }
             }
 
@@ -442,9 +376,10 @@ Rectangle {
             }
 
             IconButton {
-                iconName: "repeat"
+                iconName: root.repeatModeValue === 2 ? "repeat-1" : "repeat"
                 accessibleName: root.repeatLabel
-                checked: root.queue.repeatMode() !== 0
+                checkable: true
+                checked: root.repeatModeValue !== 0
                 onActivated: {
                     root.queue.cycleRepeat();
                     root.sync();

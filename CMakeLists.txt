@@ -10,9 +10,10 @@ project(TuneX
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Explicit minimum per project policy; 6.8 opts into the QML module
-# defaults this project relies on (QTP0001/QTP0005 via REQUIRES below).
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickEffects)
+# Explicit minimum per project policy: 6.9 for QtQuick.Effects
+# RectangularShadow (DESIGN.md shadow/glow scale, S6 W-038); 6.8 policies
+# still opt into the QML module defaults (QTP0001/QTP0005 via REQUIRES).
+find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickEffects)
 
 qt_standard_project_setup(REQUIRES 6.8)
 

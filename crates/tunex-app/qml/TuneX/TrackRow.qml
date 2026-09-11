@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls.Basic
+import TuneX 1.0
 
 // TrackRow (S2 W-016, actions in S3 W-022): one song row — number,
 // title/artist, duration, missing badge, now-playing marker. Solid text on
@@ -139,17 +139,19 @@ Item {
         }
     }
 
-    Button {
+    // Always visible (touch and keyboard targets are never hover-only);
+    // quiet muted glyph at the 40px dense-list exception size.
+    IconButton {
         id: menuButton
 
         anchors.right: danglingBadge.left
         anchors.rightMargin: Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
-        width: 40
-        height: 40
-        text: qsTr("⋯")
-        Accessible.name: qsTr("More actions for %1").arg(root.title)
-        onClicked: root.menuRequested(root.trackId, root.rowIndex, root.dangling)
+        size: 40
+        iconName: "ellipsis"
+        glyphColor: Theme.muted
+        accessibleName: qsTr("More actions for %1").arg(root.title)
+        onActivated: root.menuRequested(root.trackId, root.rowIndex, root.dangling)
     }
 
     Column {

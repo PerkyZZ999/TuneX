@@ -1,10 +1,10 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX 1.0
 
-// PlaylistsView (S3 W-024): sidebar of user playlists plus the detail pane
-// for the selection — header actions (play/queue/rename/delete), entries
-// with missing/dangling badges, and empty states for no playlists, no
+// PlaylistsView (S3 W-024, glass in S6 W-038): sidebar of user playlists
+// plus the detail pane for the selection — Play all / Queue all with rename
+// and delete one ⋯ menu deep (progressive disclosure), entries with
+// missing/dangling badges, and empty states for no playlists, no
 // selection, and empty lists. Refreshes on every show so row-menu adds from
 // other views land immediately.
 Item {
@@ -23,10 +23,24 @@ Item {
         root.errorLine = "";
         entries.refreshPlaylist(id);
         root.errorLine = entries.errorText();
+        root.syncSidebarCursor();
+    }
+
+    // The sidebar highlight follows the open playlist, however it opened
+    // (rail entry, create dialog, or a click here).
+    function syncSidebarCursor() {
+        for (let row = 0; row < playlistsView.count; row++) {
+            if (playlists.playlistIdAt(row) === root.playlistId) {
+                playlistsView.currentIndex = row;
+                return;
+            }
+        }
+        playlistsView.currentIndex = -1;
     }
 
     function refreshAll() {
         playlists.refresh();
+        root.syncSidebarCursor();
         if (root.playlistId >= 0) {
             entries.refreshPlaylist(root.playlistId);
             root.errorLine = entries.errorText();
@@ -61,10 +75,6 @@ Item {
     PlaylistNameDialog {
         id: nameDialog
 
-        parent: Overlay.overlay
-        anchors.centerIn: Overlay.overlay
-        modal: true
-        queue: root.queue
         onNameAccepted: name => {
             if (root.playlistId >= 0 && root.renaming) {
                 playlists.renamePlaylist(root.playlistId, name);
@@ -80,14 +90,11 @@ Item {
         }
     }
 
-    Dialog {
+    GlassDialog {
         id: deleteDialog
 
-        parent: Overlay.overlay
-        anchors.centerIn: Overlay.overlay
-        modal: true
         title: qsTr("Delete playlist?")
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        acceptLabel: qsTr("Delete")
         onAccepted: {
             playlists.deletePlaylist(root.playlistId);
             root.errorLine = playlists.errorText();
@@ -99,18 +106,13 @@ Item {
         }
 
         Text {
-            width: 320
+            width: parent.width
             wrapMode: Text.WordWrap
             text: qsTr("Delete “%1” and its entries? This cannot be undone.").arg(root.playlistName)
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
             color: Theme.foreground
-        }
-
-        background: GlassBackdrop {
-            cornerRadius: Theme.radiusLg
-            transparencyOff: root.queue.reduceTransparency()
         }
     }
 
@@ -130,34 +132,34 @@ Item {
         target: entries
     }
 
-    Menu {
+    GlassMenu {
         id: entryMenu
 
         property int rowIndex: -1
         property int rowTrackId: -1
         property bool rowPlayable: false
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Play now")
             enabled: entryMenu.rowPlayable
             onTriggered: root.queue.playTrackNow(entryMenu.rowTrackId)
         }
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Play next")
             enabled: entryMenu.rowPlayable
             onTriggered: root.queue.playTrackNext(entryMenu.rowTrackId)
         }
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Add to Up Next")
             enabled: entryMenu.rowPlayable
             onTriggered: root.queue.enqueueTrack(entryMenu.rowTrackId)
         }
 
-        MenuSeparator {}
+        GlassMenuSeparator {}
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Move up")
             onTriggered: {
                 entries.moveItem(entryMenu.rowIndex, entryMenu.rowIndex - 1);
@@ -165,7 +167,7 @@ Item {
             }
         }
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Move down")
             onTriggered: {
                 entries.moveItem(entryMenu.rowIndex, entryMenu.rowIndex + 1);
@@ -173,7 +175,7 @@ Item {
             }
         }
 
-        MenuItem {
+        GlassMenuItem {
             text: qsTr("Remove from playlist")
             onTriggered: {
                 entries.removeAt(entryMenu.rowIndex);
@@ -181,11 +183,22 @@ Item {
                 root.errorLine = entries.errorText();
             }
         }
+    }
 
-        background: GlassBackdrop {
-            cornerRadius: Theme.radiusLg
-            transparencyOff: root.queue.reduceTransparency()
-            disableBlur: true
+    GlassMenu {
+        id: playlistMenu
+
+        GlassMenuItem {
+            text: qsTr("Rename…")
+            onTriggered: {
+                root.renaming = true;
+                nameDialog.openFor(root.playlistName);
+            }
+        }
+
+        GlassMenuItem {
+            text: qsTr("Delete…")
+            onTriggered: deleteDialog.open()
         }
     }
 
@@ -200,10 +213,13 @@ Item {
             height: parent.height
             spacing: Theme.spaceMd
 
+            // Secondary: Play all owns the view's one primary action.
             PrimaryButton {
                 id: newButton
 
                 width: parent.width
+                primary: false
+                glyph: "plus"
                 text: qsTr("New playlist")
                 Accessible.name: qsTr("New playlist")
                 onClicked: root.openCreate()
@@ -321,6 +337,7 @@ Item {
                     PrimaryButton {
                         id: playAllButton
 
+                        glyph: "play"
                         text: qsTr("Play all")
                         enabled: entriesView.count > 0
                         onClicked: root.playAll()
@@ -335,23 +352,15 @@ Item {
                         onClicked: root.queue.enqueuePlaylist(root.playlistId)
                     }
 
-                    PrimaryButton {
-                        id: renameButton
+                    // Rename and delete are secondary: one ⋯ entry, not a
+                    // toolbar (IA progressive-disclosure map).
+                    IconButton {
+                        id: moreButton
 
-                        primary: false
-                        text: qsTr("Rename")
-                        onClicked: {
-                            root.renaming = true;
-                            nameDialog.openFor(root.playlistName);
-                        }
-                    }
-
-                    PrimaryButton {
-                        id: deleteButton
-
-                        primary: false
-                        text: qsTr("Delete")
-                        onClicked: deleteDialog.open()
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "ellipsis"
+                        accessibleName: qsTr("More actions for %1").arg(root.playlistName)
+                        onActivated: playlistMenu.popup(moreButton, 0, moreButton.height)
                     }
                 }
             }

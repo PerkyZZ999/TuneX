@@ -1,8 +1,13 @@
 import QtQuick
+import QtQuick.Effects
+import TuneX 1.0
 
 // Home greeting hero (DESIGN_BRIEF HeroCard). Photoreal night backdrop
 // from assets/hero-night.png; chrome recedes. Time-of-day line, one
 // primary action, TuneX wordmark on the trailing edge (mockup chrome).
+// Elevation: the hero step `0 4px 24px rgba(0,0,0,0.35)`; the photo and its
+// readability scrim are masked to the lg radius as one static layer (item
+// clipping is rectangular), text and the action stay outside the layer.
 Item {
     id: root
 
@@ -34,47 +39,75 @@ Item {
 
     implicitHeight: 320
     height: 320
-    clip: true
+
+    RectangularShadow {
+        anchors.fill: card
+        radius: card.radius
+        offset.y: Theme.shadowHeroY
+        blur: Theme.shadowHeroBlur
+        color: Qt.alpha(Theme.shadow, Theme.shadowHeroOpacity)
+    }
 
     Rectangle {
+        id: cardMask
+
+        anchors.fill: card
+        radius: Theme.radiusLg
+        visible: false
+        layer.enabled: true
+    }
+
+    Rectangle {
+        id: card
+
         anchors.fill: parent
         radius: Theme.radiusLg
         color: Theme.chrome
-        clip: true
 
-        Image {
+        Item {
+            id: photo
+
             anchors.fill: parent
-            source: "qrc:/qt/qml/TuneX/hero-night.png"
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: true
-            Accessible.ignored: true
-        }
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: cardMask
+            }
 
-        // Left readability scrim — never raw art behind text (DESIGN.md).
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: parent.width * 0.58
-            Accessible.ignored: true
+            Image {
+                anchors.fill: parent
+                source: "qrc:/qt/qml/TuneX/hero-night.png"
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+                Accessible.ignored: true
+            }
 
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
+            // Left readability scrim — never raw art behind text (DESIGN.md).
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: parent.width * 0.58
+                Accessible.ignored: true
 
-                GradientStop {
-                    position: 0
-                    color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.82)
-                }
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
 
-                GradientStop {
-                    position: 0.7
-                    color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.28)
-                }
+                    GradientStop {
+                        position: 0
+                        color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.82)
+                    }
 
-                GradientStop {
-                    position: 1
-                    color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0)
+                    GradientStop {
+                        position: 0.7
+                        color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.28)
+                    }
+
+                    GradientStop {
+                        position: 1
+                        color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0)
+                    }
                 }
             }
         }

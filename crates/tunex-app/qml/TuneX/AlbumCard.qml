@@ -1,4 +1,5 @@
 import QtQuick
+import TuneX 1.0
 
 // AlbumCard (S2 W-016): artwork-first card, 12px radius, two-line meta.
 // Artwork arrives with the W-017 background worker; until then the card

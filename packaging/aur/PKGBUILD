@@ -9,7 +9,8 @@ pkgrel=1
 pkgdesc="Local-first music player for Linux (Rust + Qt Quick)"
 arch=('x86_64')
 url="https://github.com/PerkyZZ999/TuneX"
-license=('GPL-3.0-or-later')
+# ISC + MIT: embedded Lucide icon path data (LICENSES/Lucide.txt).
+license=('GPL-3.0-or-later' 'ISC' 'MIT')
 depends=('qt6-base' 'qt6-declarative' 'gstreamer' 'gst-plugins-base' 'gst-plugins-good' 'gst-plugins-bad' 'gst-plugins-ugly' 'gst-libav' 'sqlite' 'hicolor-icon-theme')
 makedepends=('cmake' 'ninja' 'rust' 'git' 'qt6-shadertools' 'pkgconf')
 source=("tunex::git+${url}.git")
@@ -40,4 +41,5 @@ package() {
     install -Dm644 tunex/packaging/aur/tunex.desktop "$pkgdir/usr/share/applications/tunex.desktop"
     install -Dm644 tunex/packaging/aur/tunex.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/tunex.png"
     install -Dm644 tunex/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 tunex/LICENSES/Lucide.txt "$pkgdir/usr/share/licenses/$pkgname/Lucide.txt"
 }
