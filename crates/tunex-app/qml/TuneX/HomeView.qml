@@ -11,7 +11,9 @@ Item {
     required property LibraryManager library
     property string chipKey: "all"
     property bool canContinue: false
-    readonly property bool libraryEmpty: albumCounter.count === 0
+    // The rail counts even while hidden; a delegate-less counter view would
+    // not (QQmlDelegateModel reports 0 rows without a delegate).
+    readonly property bool libraryEmpty: albumRail.count === 0
     readonly property int railCell: 180
 
     signal browseRequested(string tab)
@@ -76,15 +78,6 @@ Item {
 
     LibraryTrackModel {
         id: songs
-    }
-
-    ListView {
-        id: albumCounter
-
-        visible: false
-        width: 1
-        height: 1
-        model: albums
     }
 
     Flickable {
