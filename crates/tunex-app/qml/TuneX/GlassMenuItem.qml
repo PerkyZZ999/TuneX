@@ -44,6 +44,12 @@ MenuItem {
         width: root.width - Theme.spaceXs * 2
         radius: Theme.radiusSm
         color: root.highlighted && root.enabled ? Theme.hover : "transparent"
+        Behavior on color {
+            ColorAnimation {
+                duration: Appearance.duration(Theme.motionHover)
+                easing.type: Easing.OutCubic
+            }
+        }
         border.width: root.visualFocus ? 2 : 0
         border.color: Theme.focus
     }

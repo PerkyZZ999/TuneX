@@ -88,6 +88,12 @@ Item {
                 radius: Theme.radiusMd
                 color: Theme.hover
                 opacity: hoverArea.containsMouse ? 0.45 : 0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Appearance.duration(Theme.motionHover)
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
         }
 

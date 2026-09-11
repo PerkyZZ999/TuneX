@@ -65,6 +65,13 @@ Item {
         }
         border.width: root.activeFocus ? 2 : 0
         border.color: Theme.focus
+
+        Behavior on color {
+            ColorAnimation {
+                duration: Appearance.duration(Theme.motionHover)
+                easing.type: Easing.OutCubic
+            }
+        }
     }
 
     Icon {

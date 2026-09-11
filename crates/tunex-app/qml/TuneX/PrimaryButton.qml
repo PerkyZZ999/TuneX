@@ -32,6 +32,13 @@ Button {
         }
         border.width: root.visualFocus ? 2 : (root.primary && root.enabled ? 0 : 1)
         border.color: root.visualFocus ? Theme.focus : Theme.border
+
+        Behavior on color {
+            ColorAnimation {
+                duration: Appearance.duration(Theme.motionHover)
+                easing.type: Easing.OutCubic
+            }
+        }
     }
 
     contentItem: Row {

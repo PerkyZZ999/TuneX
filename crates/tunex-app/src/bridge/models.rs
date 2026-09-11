@@ -378,6 +378,48 @@ pub mod qobject {
         #[inherit]
         #[cxx_name = "endResetModel"]
         unsafe fn end_reset_model_queue(self: Pin<&mut QueueModel>);
+
+        /// # Safety
+        ///
+        /// Inherited `beginInsertRows` for `QueueModel`. Callers must pair
+        /// every call with `end_insert_rows_queue` on all paths, and the rows
+        /// must actually appear at `first..=last` before that call.
+        #[inherit]
+        #[cxx_name = "beginInsertRows"]
+        unsafe fn begin_insert_rows_queue(
+            self: Pin<&mut QueueModel>,
+            parent: &QModelIndex,
+            first: i32,
+            last: i32,
+        );
+        /// # Safety
+        ///
+        /// Inherited `endInsertRows`. Must close a `begin_insert_rows_queue`
+        /// pair.
+        #[inherit]
+        #[cxx_name = "endInsertRows"]
+        unsafe fn end_insert_rows_queue(self: Pin<&mut QueueModel>);
+
+        /// # Safety
+        ///
+        /// Inherited `beginRemoveRows` for `QueueModel`. Callers must pair
+        /// every call with `end_remove_rows_queue` on all paths, and the rows
+        /// at `first..=last` must actually be gone before that call.
+        #[inherit]
+        #[cxx_name = "beginRemoveRows"]
+        unsafe fn begin_remove_rows_queue(
+            self: Pin<&mut QueueModel>,
+            parent: &QModelIndex,
+            first: i32,
+            last: i32,
+        );
+        /// # Safety
+        ///
+        /// Inherited `endRemoveRows`. Must close a `begin_remove_rows_queue`
+        /// pair.
+        #[inherit]
+        #[cxx_name = "endRemoveRows"]
+        unsafe fn end_remove_rows_queue(self: Pin<&mut QueueModel>);
     }
 
     extern "RustQt" {

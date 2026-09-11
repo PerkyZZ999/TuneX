@@ -40,6 +40,23 @@ Item {
             root.playRequested(root.trackId, root.rowIndex, root.dangling);
     }
 
+    // Hover/focus surface (DESIGN.md `track-row` → `track-row-hover`): the
+    // row itself stays transparent over the view, and the tint fades within
+    // the 120ms colour-only budget. Unavailable rows never light up — their
+    // click area is disabled, so they report no hover.
+    Rectangle {
+        anchors.fill: parent
+        radius: Theme.radiusSm
+        color: rowArea.containsMouse || root.activeFocus ? Theme.hover : "transparent"
+
+        Behavior on color {
+            ColorAnimation {
+                duration: Appearance.duration(Theme.motionHover)
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
     // Now-playing marker: accent bar plus bold title (never color alone).
     Rectangle {
         visible: root.isCurrent
@@ -55,8 +72,11 @@ Item {
 
     // Whole-row click plays now; the ⋯ button sits above in z-order.
     MouseArea {
+        id: rowArea
+
         anchors.fill: parent
         enabled: !root.dangling && !root.missing
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.playRequested(root.trackId, root.rowIndex, root.dangling)
     }

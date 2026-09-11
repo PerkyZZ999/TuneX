@@ -472,7 +472,35 @@ Rectangle {
                 model: root.queue
                 activeFocusOnTab: true
                 clip: true
-                highlightMoveDuration: 120
+                highlightMoveDuration: Appearance.duration(Theme.motionHover)
+                // Row insert/remove, 160ms per the DESIGN.md motion budget.
+                // These only run when the model reports a single row moving,
+                // which is why `QueueModel` narrows its signals instead of
+                // resetting for every queue change.
+                add: Transition {
+                    NumberAnimation {
+                        properties: "opacity"
+                        from: 0
+                        to: 1
+                        duration: Appearance.duration(Theme.motionRow)
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                remove: Transition {
+                    NumberAnimation {
+                        properties: "opacity"
+                        to: 0
+                        duration: Appearance.duration(Theme.motionRow)
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                displaced: Transition {
+                    NumberAnimation {
+                        properties: "y"
+                        duration: Appearance.duration(Theme.motionRow)
+                        easing.type: Easing.OutCubic
+                    }
+                }
                 Accessible.role: Accessible.List
                 Accessible.name: qsTr("Up Next")
                 Keys.onReturnPressed: {

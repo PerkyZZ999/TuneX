@@ -30,6 +30,23 @@ Drawer {
     width: 360
     height: parent.height
     edge: Qt.RightEdge
+    // Overlay budget: 200ms slide, zeroed by reduce-motion.
+    enter: Transition {
+        NumberAnimation {
+            property: "position"
+            to: 1
+            duration: Appearance.duration(Theme.overlayMs)
+            easing.type: Easing.OutCubic
+        }
+    }
+    exit: Transition {
+        NumberAnimation {
+            property: "position"
+            to: 0
+            duration: Appearance.duration(Theme.overlayMs)
+            easing.type: Easing.OutCubic
+        }
+    }
     onOpened: root.sync()
 
     Overlay.modal: Rectangle {

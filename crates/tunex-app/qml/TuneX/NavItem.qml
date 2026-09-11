@@ -35,6 +35,12 @@ Item {
         anchors.fill: parent
         radius: Theme.radiusSm
         color: root.selected ? Theme.selected : (navMouse.containsMouse || root.activeFocus ? Theme.hover : "transparent")
+        Behavior on color {
+            ColorAnimation {
+                duration: Appearance.duration(Theme.motionHover)
+                easing.type: Easing.OutCubic
+            }
+        }
     }
 
     RectangularShadow {

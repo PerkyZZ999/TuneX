@@ -16,7 +16,7 @@
 
 ## Current evidence
 - Latest passed gate: `rust-tc sonar` for the W-037 S5 gate (QG OK, 81.0% new coverage)
-- Latest validation entry: 2026-09-11 W-038 glass hierarchy audit + restraint pass accepted (see VALIDATION.md)
+- Latest validation entry: 2026-09-11 W-039 transitions + micro-interactions accepted (see VALIDATION.md)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `.cursor/rules/` (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc`, `testing-gui.mdc`); prose copies in `docs/rules/`; GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
@@ -31,7 +31,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2+S3+S4+S5 done; visual-contract refactor landed; S6 active — W-038 done (glass hierarchy + restraint), W-039–W-042 next. Three player/shell defects found during W-038 are fixed and validated: the end-of-track UI freeze, repeat-one never replaying, and the restored track missing from Up Next.
+- Repo reality: S1+S2+S3+S4+S5 done; visual-contract refactor landed; S6 active — W-038 (glass hierarchy + restraint) and W-039 (motion) done, W-040–W-042 next. Three player/shell defects found during W-038 are fixed and validated: the end-of-track UI freeze, repeat-one never replaying, and the restored track missing from Up Next.
 
 ## Open loops
 - None

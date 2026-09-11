@@ -55,10 +55,62 @@ impl std::fmt::Debug for qobject::QueueRoles {
 /// Queue row: display strings plus duration, now-playing flag, row identity.
 type QueueRow = (QString, QString, QString, i32, bool, i32);
 
+/// How the row list moved since the view last heard about it.
+///
+/// A reset rebuilds every delegate, which cancels the row's own enter and
+/// exit animations (DESIGN.md gives them 160 ms) and drops whatever the view
+/// was doing — so a change that is really one row says so.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RowChange {
+    /// Nothing to announce.
+    None,
+    /// Exactly this row appeared.
+    Inserted(usize),
+    /// Exactly this row went away.
+    Removed(usize),
+    /// Anything wider: the view rebuilds.
+    Reset,
+}
+
+/// Classify `now` against what the view was last told (`published`).
+///
+/// Only the single-row cases are narrowed; a cursor move (which rewrites the
+/// now-playing flag on two rows) and bulk enqueues stay resets.
+fn row_change(published: &[QueueRow], now: &[QueueRow]) -> RowChange {
+    if published == now {
+        return RowChange::None;
+    }
+    if now.len() == published.len() + 1 {
+        if let Some(at) = single_extra(published, now) {
+            return RowChange::Inserted(at);
+        }
+    }
+    if published.len() == now.len() + 1 {
+        if let Some(at) = single_extra(now, published) {
+            return RowChange::Removed(at);
+        }
+    }
+    RowChange::Reset
+}
+
+/// Index of the one row `longer` has that `shorter` does not, when the rest
+/// match in order; `None` when more than one row differs.
+fn single_extra(shorter: &[QueueRow], longer: &[QueueRow]) -> Option<usize> {
+    let at = shorter
+        .iter()
+        .zip(longer)
+        .position(|(old, new)| old != new)
+        .unwrap_or(shorter.len());
+    (shorter[at..] == longer[at + 1..]).then_some(at)
+}
+
 /// Up Next row store plus the playback controller.
 #[derive(Debug)]
 pub struct QueueModelRust {
     rows: Vec<QueueRow>,
+    /// The rows the view has been told about, so a change can be announced
+    /// as what it is (see [`row_change`]).
+    published: Vec<QueueRow>,
     controller: Option<PlaybackController>,
     index_path: PathBuf,
     config_path: PathBuf,
@@ -79,6 +131,7 @@ impl Default for QueueModelRust {
     fn default() -> Self {
         Self {
             rows: Vec::new(),
+            published: Vec::new(),
             controller: None,
             index_path: tunex_core::library_db_path(),
             config_path: tunex_core::config_file(),
@@ -98,6 +151,30 @@ impl QueueModelRust {
     /// Drop all rows.
     fn drop_rows(&mut self) {
         self.rows.clear();
+    }
+
+    /// How the rows moved since the view last heard about them.
+    fn pending_change(&self) -> RowChange {
+        row_change(&self.published, &self.rows)
+    }
+
+    /// Put the rows back to the state the view last saw, returning the
+    /// current ones. Queue mutations rebuild rows as they go, so announcing
+    /// an insert or removal means briefly showing the old shape again — see
+    /// `apply_rows`.
+    fn rewind_rows(&mut self) -> Vec<QueueRow> {
+        std::mem::replace(&mut self.rows, self.published.clone())
+    }
+
+    /// Put back the rows taken by [`rewind_rows`](Self::rewind_rows).
+    fn restore_rows(&mut self, rows: Vec<QueueRow>) {
+        self.rows = rows;
+    }
+
+    /// Record the rows as announced; call it once the matching model signal
+    /// has been emitted.
+    fn mark_published(&mut self) {
+        self.published.clone_from(&self.rows);
     }
 
     /// Current row count.
@@ -1017,31 +1094,66 @@ impl QueueModelRust {
 type QueueItem = tunex_player::QueueItem;
 
 impl qobject::QueueModel {
-    /// Drain controller events; emits model reset and returns true exactly
-    /// when rows changed (length or cursor moved).
+    /// Announce the current rows with the narrowest signal that fits: one
+    /// row appearing or leaving says so, anything wider resets.
+    ///
+    /// A single-row signal is what lets Up Next animate the row in or out
+    /// (DESIGN.md motion budget) and leaves the other delegates — and the
+    /// scroll position — alone. Queue mutations rebuild the rows as they go,
+    /// so the rows are walked back to the shape the view last saw for the
+    /// "about to change" half of the pair, which is where Qt expects it.
+    fn apply_rows(mut self: Pin<&mut Self>) {
+        let change = self.rust().pending_change();
+        match change {
+            RowChange::None => return,
+            RowChange::Inserted(at) | RowChange::Removed(at) => {
+                let inserting = matches!(change, RowChange::Inserted(_));
+                let row = i32::try_from(at).unwrap_or(i32::MAX);
+                let parent = QModelIndex::default();
+                let announced = self.as_mut().rust_mut().rewind_rows();
+                // SAFETY: each pair opens and closes on this single path,
+                // with the rows carrying the old shape at the open and the
+                // new shape before the close.
+                unsafe {
+                    if inserting {
+                        self.as_mut().begin_insert_rows_queue(&parent, row, row);
+                    } else {
+                        self.as_mut().begin_remove_rows_queue(&parent, row, row);
+                    }
+                    self.as_mut().rust_mut().restore_rows(announced);
+                    if inserting {
+                        self.as_mut().end_insert_rows_queue();
+                    } else {
+                        self.as_mut().end_remove_rows_queue();
+                    }
+                }
+            }
+            // SAFETY: reset pair strictly paired on this single path.
+            // Rows are already rebuilt; the reset only notifies.
+            RowChange::Reset => unsafe {
+                self.as_mut().begin_reset_model_queue();
+                self.as_mut().end_reset_model_queue();
+            },
+        }
+        self.as_mut().rust_mut().mark_published();
+    }
+
+    /// Drain controller events; announces the row change and returns true
+    /// exactly when rows changed (length or cursor moved).
     #[must_use]
     pub fn poll(mut self: Pin<&mut Self>) -> bool {
         let changed = self.as_mut().rust_mut().poll_queue();
         if !changed {
             return false;
         }
-        // SAFETY: reset pair strictly paired on this single path.
-        // Rows already rebuilt by `poll_queue`; the reset only notifies.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
         true
     }
 
     /// Start or resume playback.
     pub fn play(mut self: Pin<&mut Self>) {
         self.as_mut().rust_mut().do_play();
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Pause, holding position.
@@ -1052,73 +1164,45 @@ impl qobject::QueueModel {
     /// Toggle play/pause from the panel transport.
     pub fn play_pause(mut self: Pin<&mut Self>) {
         self.as_mut().rust_mut().do_play_pause();
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Step to the next track (stopping at a bare end).
     pub fn next_track(mut self: Pin<&mut Self>) {
         self.as_mut().rust_mut().do_next();
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Step back, honoring the restart threshold (`position_ms` past it
     /// restarts the current track instead).
     pub fn previous_track(mut self: Pin<&mut Self>, position_ms: i32) {
         self.as_mut().rust_mut().do_previous(position_ms);
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Play the entry at `index` now (Up Next direct play). Out-of-range
     /// indices are ignored; unloadable entries surface text.
     pub fn play_at(mut self: Pin<&mut Self>, index: i32) {
         self.as_mut().rust_mut().do_play_at(index);
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Remove the entry at `index` (ignored when out of range).
     pub fn remove_at(mut self: Pin<&mut Self>, index: i32) {
         self.as_mut().rust_mut().do_remove(index);
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Move an entry (ignored when out of range).
     pub fn move_item(mut self: Pin<&mut Self>, from: i32, to: i32) {
         self.as_mut().rust_mut().do_move(from, to);
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Empty the queue (the loaded track keeps playing).
     pub fn clear_queue(mut self: Pin<&mut Self>) {
         self.as_mut().rust_mut().do_clear_queue();
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Drop all rows without touching the controller (view-only reset; rows
@@ -1130,6 +1214,7 @@ impl qobject::QueueModel {
             self.as_mut().rust_mut().drop_rows();
             self.as_mut().end_reset_model_queue();
         };
+        self.as_mut().rust_mut().mark_published();
     }
 
     /// Toggle shuffle; returns the new state.
@@ -1236,11 +1321,7 @@ impl qobject::QueueModel {
             .rust_mut()
             .do_enqueue_track(i64::from(track_id));
         if added > 0 {
-            // SAFETY: reset pair strictly paired on this single path.
-            unsafe {
-                self.as_mut().begin_reset_model_queue();
-                self.as_mut().end_reset_model_queue();
-            };
+            self.as_mut().apply_rows();
         }
         added
     }
@@ -1254,11 +1335,7 @@ impl qobject::QueueModel {
             .rust_mut()
             .do_play_track_next(i64::from(track_id));
         if added > 0 {
-            // SAFETY: reset pair strictly paired on this single path.
-            unsafe {
-                self.as_mut().begin_reset_model_queue();
-                self.as_mut().end_reset_model_queue();
-            };
+            self.as_mut().apply_rows();
         }
         added
     }
@@ -1269,11 +1346,7 @@ impl qobject::QueueModel {
         self.as_mut()
             .rust_mut()
             .do_play_track_now(i64::from(track_id));
-        // SAFETY: reset pair strictly paired on this single path.
-        unsafe {
-            self.as_mut().begin_reset_model_queue();
-            self.as_mut().end_reset_model_queue();
-        };
+        self.as_mut().apply_rows();
     }
 
     /// Enqueue one album in disc/track order; returns the number enqueued.
@@ -1284,11 +1357,7 @@ impl qobject::QueueModel {
             .rust_mut()
             .do_enqueue_album(i64::from(album_id));
         if added > 0 {
-            // SAFETY: reset pair strictly paired on this single path.
-            unsafe {
-                self.as_mut().begin_reset_model_queue();
-                self.as_mut().end_reset_model_queue();
-            };
+            self.as_mut().apply_rows();
         }
         added
     }
@@ -1301,11 +1370,7 @@ impl qobject::QueueModel {
             .rust_mut()
             .do_enqueue_artist(&artist.to_string());
         if added > 0 {
-            // SAFETY: reset pair strictly paired on this single path.
-            unsafe {
-                self.as_mut().begin_reset_model_queue();
-                self.as_mut().end_reset_model_queue();
-            };
+            self.as_mut().apply_rows();
         }
         added
     }
@@ -1319,11 +1384,7 @@ impl qobject::QueueModel {
             .rust_mut()
             .do_enqueue_playlist(i64::from(playlist_id));
         if added > 0 {
-            // SAFETY: reset pair strictly paired on this single path.
-            unsafe {
-                self.as_mut().begin_reset_model_queue();
-                self.as_mut().end_reset_model_queue();
-            };
+            self.as_mut().apply_rows();
         }
         added
     }
@@ -1396,10 +1457,23 @@ fn us_to_ms_saturating(micros: i64) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::QueueModelRust;
     use super::qobject::QueueRoles;
+    use super::{QueueModelRust, QueueRow, RowChange, row_change};
     use crate::bridge::test_support::seeded_index;
     use cxx_qt_lib::{QString, QVariant};
+
+    /// Queue row carrying just what the diff looks at: identity and the
+    /// now-playing flag.
+    fn row(track_id: i32, current: bool) -> QueueRow {
+        (
+            QString::from(format!("Track {track_id}")),
+            QString::from("Artist"),
+            QString::from("Album"),
+            1_000,
+            current,
+            track_id,
+        )
+    }
 
     /// Model pointed at a scratch seeded index (never the real home dir).
     fn model_with_seeded_library(
@@ -1750,6 +1824,50 @@ mod tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
+    }
+
+    #[test]
+    fn row_change_announces_nothing_when_the_rows_match() {
+        let rows = vec![row(1, true), row(2, false)];
+        assert_eq!(row_change(&rows, &rows), RowChange::None);
+    }
+
+    #[test]
+    fn row_change_announces_an_appended_row() {
+        let before = vec![row(1, true)];
+        let after = vec![row(1, true), row(2, false)];
+        assert_eq!(row_change(&before, &after), RowChange::Inserted(1));
+    }
+
+    #[test]
+    fn row_change_announces_a_row_inserted_mid_queue() {
+        // "Play next" lands directly after the playing track.
+        let before = vec![row(1, true), row(3, false)];
+        let after = vec![row(1, true), row(2, false), row(3, false)];
+        assert_eq!(row_change(&before, &after), RowChange::Inserted(1));
+    }
+
+    #[test]
+    fn row_change_announces_a_removed_row() {
+        let before = vec![row(1, true), row(2, false), row(3, false)];
+        let after = vec![row(1, true), row(3, false)];
+        assert_eq!(row_change(&before, &after), RowChange::Removed(1));
+    }
+
+    #[test]
+    fn row_change_resets_when_the_cursor_moves() {
+        // Two rows rewrite their now-playing flag, which is wider than one
+        // row: the view rebuilds rather than animating anything.
+        let before = vec![row(1, true), row(2, false)];
+        let after = vec![row(1, false), row(2, true)];
+        assert_eq!(row_change(&before, &after), RowChange::Reset);
+    }
+
+    #[test]
+    fn row_change_resets_when_a_whole_album_arrives() {
+        let before = vec![row(1, true)];
+        let after = vec![row(1, true), row(2, false), row(3, false)];
+        assert_eq!(row_change(&before, &after), RowChange::Reset);
     }
 
     #[test]

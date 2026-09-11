@@ -50,6 +50,13 @@ Item {
         radius: width / 2
         color: hit.containsMouse ? Theme.primaryHover : Theme.primary
         opacity: root.enabled ? 1 : 0.38
+
+        Behavior on color {
+            ColorAnimation {
+                duration: Appearance.duration(Theme.motionHover)
+                easing.type: Easing.OutCubic
+            }
+        }
     }
 
     // Focus ring sits outside the disc so it reads against the page.

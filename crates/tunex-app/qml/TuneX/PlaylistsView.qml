@@ -233,7 +233,7 @@ Item {
                 model: playlists
                 activeFocusOnTab: true
                 clip: true
-                highlightMoveDuration: 120
+                highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 Accessible.role: Accessible.List
                 Accessible.name: qsTr("Playlists")
                 Keys.onReturnPressed: {
@@ -262,8 +262,26 @@ Item {
                     Accessible.role: Accessible.ListItem
                     Accessible.name: name
 
-                    MouseArea {
+                    // Hover surface, 120ms colour-only like the track rows;
+                    // the selected row keeps the view's own highlight.
+                    Rectangle {
                         anchors.fill: parent
+                        radius: Theme.radiusSm
+                        color: sidebarArea.containsMouse ? Theme.hover : "transparent"
+
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Appearance.duration(Theme.motionHover)
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: sidebarArea
+
+                        anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             playlistsView.currentIndex = index;
@@ -414,7 +432,7 @@ Item {
                     model: entries
                     activeFocusOnTab: true
                     clip: true
-                    highlightMoveDuration: 120
+                    highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: root.playlistName
                     Keys.onReturnPressed: {

@@ -273,6 +273,24 @@ Window {
         height: parent.height
         edge: Qt.RightEdge
         interactive: !root.wideShell
+        // Overlay budget: 200ms slide, zeroed by reduce-motion. The scrim
+        // fades with it (Overlay.modal below).
+        enter: Transition {
+            NumberAnimation {
+                property: "position"
+                to: 1
+                duration: Appearance.duration(Theme.overlayMs)
+                easing.type: Easing.OutCubic
+            }
+        }
+        exit: Transition {
+            NumberAnimation {
+                property: "position"
+                to: 0
+                duration: Appearance.duration(Theme.overlayMs)
+                easing.type: Easing.OutCubic
+            }
+        }
 
         QueuePanel {
             id: drawerQueue

@@ -29,6 +29,12 @@ Item {
         anchors.fill: parent
         radius: Theme.radiusPill
         color: root.selected ? Theme.selected : (chipMouse.containsMouse ? Theme.hover : "transparent")
+        Behavior on color {
+            ColorAnimation {
+                duration: Appearance.duration(Theme.motionHover)
+                easing.type: Easing.OutCubic
+            }
+        }
         border.width: root.activeFocus ? 2 : 1
         border.color: root.activeFocus ? Theme.focus : (root.selected ? Theme.selected : Theme.border)
     }

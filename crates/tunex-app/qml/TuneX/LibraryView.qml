@@ -214,7 +214,7 @@ Item {
                 focus: root.tab === "songs" && !root.libraryEmpty
                 activeFocusOnTab: true
                 clip: true
-                highlightMoveDuration: 120
+                highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 Accessible.role: Accessible.List
                 Accessible.name: root.drilled ? root.albumTitle : qsTr("Songs")
                 Keys.onReturnPressed: {
@@ -278,7 +278,7 @@ Item {
                 clip: true
                 cellWidth: root.gridCell
                 cellHeight: cellWidth + 64
-                highlightMoveDuration: 120
+                highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 Accessible.role: Accessible.List
                 Accessible.name: qsTr("Albums")
 
@@ -317,7 +317,7 @@ Item {
                 clip: true
                 cellWidth: root.gridCell
                 cellHeight: cellWidth + 64
-                highlightMoveDuration: 120
+                highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 Accessible.role: Accessible.List
                 Accessible.name: qsTr("Artists")
 
