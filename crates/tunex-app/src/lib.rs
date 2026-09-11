@@ -50,6 +50,11 @@ unsafe extern "C" {
 /// Boot Qt, load the `TuneX` module's `App` shell, run until quit.
 /// Returns the process exit code; never returns normally.
 pub fn run() -> i32 {
+    // Wall clock from the first line of `run` to the loaded shell: the
+    // "cold start to interactive" number the M6 targets are written against
+    // (SPEC §perf), reported by the app itself rather than guessed from
+    // outside.
+    let started = std::time::Instant::now();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -103,6 +108,11 @@ pub fn run() -> i32 {
         // build.rs (`qml/TuneX/App.qml` under module URI `TuneX`).
         engine.load(&QUrl::from("qrc:/qt/qml/TuneX/qml/TuneX/App.qml"));
     }
+    tracing::info!(
+        name: "app.ready",
+        startup_ms = started.elapsed().as_millis(),
+        "shell loaded"
+    );
 
     if let Some(app) = app.as_mut() {
         app.exec()
