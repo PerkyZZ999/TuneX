@@ -31,8 +31,7 @@ Menu {
         onTriggered: root.queue.enqueueTrack(root.trackId)
     }
 
-    MenuSeparator {
-    }
+    MenuSeparator {}
 
     Menu {
         title: qsTr("Add to playlist")
@@ -44,11 +43,9 @@ Menu {
                 text: model.name
                 onTriggered: root.playlists.addTrack(model.playlistId, root.trackId)
             }
-
         }
 
-        MenuSeparator {
-        }
+        MenuSeparator {}
 
         MenuItem {
             text: qsTr("New playlist")
@@ -56,7 +53,6 @@ Menu {
                 const id = root.playlists.createPlaylistAuto();
                 if (id >= 0)
                     root.playlists.addTrack(id, root.trackId);
-
             }
         }
 
@@ -65,7 +61,6 @@ Menu {
             transparencyOff: root.queue.reduceTransparency()
             disableBlur: true
         }
-
     }
 
     background: GlassBackdrop {
@@ -73,5 +68,4 @@ Menu {
         transparencyOff: root.queue.reduceTransparency()
         disableBlur: true
     }
-
 }

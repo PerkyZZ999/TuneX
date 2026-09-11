@@ -31,7 +31,7 @@ Coding rules live in `.cursor/rules/` as Cursor project rules (`rust.mdc`, `qt-q
 1. **Work slice by slice.** Current queue is `docs/project/WORK_ITEMS.md` (S1 first). Do exactly one slice, keep requirement → slice → work item → evidence links current.
 2. **Checks + commit after every task/phase/slice.** `rust-tc` is the public gate — never invoke `just` directly. "All checks" for the touched area, all green, then one commit per logical change:
    - Rust: `rust-tc doctor` (fmt + clippy + nextest + doctests + deny + shear + hack); fast loop: `rust-tc quick`. Sonar upload when requested: `rust-tc sonar` (never nests `doctor`).
-   - QML: `qmllint` on touched files · `qmlformat --check` (or repo-configured verify) · CMake build passes
+   - QML: `scripts/qml-lint.sh` (Qt 6 `qmllint` in module context + `qmlformat` verify; on Arch the PATH `qmllint`/`qmlformat` are Qt 5 — never use them) · CMake build passes
    - Design tokens touched: `npx @google/design.md lint docs/DESIGN.md` — 0 errors required
    - Packaging touched: `makepkg` / clean-chroot build check
    - Never commit with failing checks. Never commit secrets. Conventional Commits (`feat|fix|docs|refactor|test|chore(scope): …`).

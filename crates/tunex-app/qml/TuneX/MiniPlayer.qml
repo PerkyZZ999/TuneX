@@ -20,10 +20,10 @@ Rectangle {
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
     readonly property string monogram: {
-        const words = root.shownTitle.split(/\s+/).filter(function(word) {
+        const words = root.shownTitle.split(/\s+/).filter(function (word) {
             return word.length > 0;
         });
-        const letters = words.slice(0, 2).map(function(word) {
+        const letters = words.slice(0, 2).map(function (word) {
             return word[0].toUpperCase();
         });
         return letters.join("");
@@ -32,8 +32,8 @@ Rectangle {
     readonly property string durationText: root.durationMs > 0 ? root.formatTime(root.durationMs) : "—"
     readonly property real progress: root.durationMs > 0 ? Math.min(1, root.positionMs / root.durationMs) : 0
 
-    signal queueToggleRequested()
-    signal expandRequested()
+    signal queueToggleRequested
+    signal expandRequested
 
     function formatTime(ms) {
         const total = Math.max(0, Math.floor(ms / 1000));
@@ -51,7 +51,6 @@ Rectangle {
         root.muted = root.queue.isMuted();
         if (!volumeSlider.pressed)
             volumeSlider.value = root.queue.volumePct();
-
     }
 
     color: Theme.surface
@@ -101,7 +100,6 @@ Rectangle {
             font.weight: Font.DemiBold
             color: Theme.muted
         }
-
     }
 
     Column {
@@ -133,7 +131,6 @@ Rectangle {
             font.pixelSize: Theme.fontBodySm
             color: Theme.muted
         }
-
     }
 
     Row {
@@ -183,7 +180,6 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
-
         }
 
         Button {
@@ -195,7 +191,6 @@ Rectangle {
             Accessible.name: qsTr("Next track")
             onClicked: root.queue.nextTrack()
         }
-
     }
 
     Item {
@@ -253,9 +248,7 @@ Rectangle {
                 radius: Theme.radiusXs
                 color: Theme.accentSecondary
             }
-
         }
-
     }
 
     Button {
@@ -308,7 +301,6 @@ Rectangle {
                 radius: Theme.radiusXs
                 color: Theme.accentSecondary
             }
-
         }
 
         handle: Rectangle {
@@ -323,7 +315,6 @@ Rectangle {
             border.color: Theme.focus
             border.width: volumeSlider.activeFocus ? 2 : 0
         }
-
     }
 
     Button {
@@ -341,5 +332,4 @@ Rectangle {
         Accessible.name: root.queueOpen ? qsTr("Close Up Next queue") : qsTr("Open Up Next queue")
         onClicked: root.queueToggleRequested()
     }
-
 }

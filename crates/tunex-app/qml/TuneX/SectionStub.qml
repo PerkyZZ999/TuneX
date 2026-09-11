@@ -27,5 +27,4 @@ Column {
         font.pixelSize: Theme.fontBody
         color: Theme.muted
     }
-
 }

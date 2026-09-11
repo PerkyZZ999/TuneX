@@ -8,7 +8,7 @@ Item {
     property string label: ""
     property bool selected: false
 
-    signal activated()
+    signal activated
 
     implicitWidth: chipText.implicitWidth + Theme.spaceMd * 2
     implicitHeight: 32
@@ -51,5 +51,4 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: root.activated()
     }
-
 }

@@ -14,13 +14,14 @@ command -v rust-tc >/dev/null 2>&1 \
 # Main gate: the full local Rust-Toolchain validation.
 rust-tc doctor
 
-# Staged QML files get linted.
+# Staged QML files get the Qt 6 lint + format gate (module context; the
+# PATH `qmllint` on Arch is the Qt 5 one — see scripts/qml-lint.sh).
 staged_qml="$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.qml$' || true)"
 if [[ -n "$staged_qml" ]]; then
-    command -v qmllint >/dev/null 2>&1 || fail "'qmllint' not on PATH."
     # Unquoted on purpose: file list from git, one path per line.
     # shellcheck disable=SC2086
-    qmllint $staged_qml
+    "$(git rev-parse --show-toplevel)/scripts/qml-lint.sh" $staged_qml \
+        || fail "QML lint/format findings (scripts/qml-lint.sh)."
 fi
 
 # Staged design tokens get linted when the CLI is available locally.

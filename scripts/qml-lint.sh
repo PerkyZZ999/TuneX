@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# TuneX QML gate: Qt 6 `qmllint` in module context plus `qmlformat` verify.
+#
+# Why a script instead of a bare `qmllint *.qml`:
+#   - On Arch, /usr/bin/qmllint and /usr/bin/qmlformat belong to
+#     qt5-declarative (Qt 5.15). TuneX is Qt 6 (D-002), so the Qt 6 host
+#     binaries are resolved explicitly.
+#   - The source tree has no qmldir: cxx-qt-build (crates/tunex-app/build.rs)
+#     generates it at build time, lists files under qml/TuneX/, and omits the
+#     `depends QtQml` line the Rust models' QAbstractListModel base needs. Run
+#     from the source tree, qmllint sees Theme/Glass as plain components and
+#     every Rust model as unresolved. So the files are linted from a staged
+#     copy with a complete qmldir plus the generated plugin.qmltypes.
+#
+# Unqualified access is the one category switched off: delegates read model
+# roles through `model.*`/`index` context lookups by project convention (the
+# W-018 gate proved `required` delegate properties lock to their defaults
+# with these cxx-qt models). Every other warning fails the gate
+# (--max-warnings 0).
+#
+# Usage: scripts/qml-lint.sh [file.qml ...]   (default: every module file)
+# Needs one prior cargo build of tunex-app (for plugin.qmltypes); the
+# pre-commit hook and CI run the Rust gate first, which provides it.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="$ROOT/crates/tunex-app/qml/TuneX"
+
+QT_BINS="$(qmake6 -query QT_HOST_BINS 2>/dev/null || true)"
+QT_BINS="${QT_BINS:-/usr/lib/qt6/bin}"
+QMLLINT="$QT_BINS/qmllint"
+QMLFORMAT="$QT_BINS/qmlformat"
+for tool in "$QMLLINT" "$QMLFORMAT"; do
+    [[ -x "$tool" ]] || { echo "qml-lint: missing Qt 6 tool $tool (install qt6-declarative)" >&2; exit 1; }
+done
+
+# Newest generated type info wins (cargo target dir or the CMake build).
+TYPES="$(find "$ROOT/target" "$ROOT/build" -path '*qml_modules/TuneX/plugin.qmltypes' \
+    -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || true)"
+[[ -n "$TYPES" ]] || { echo "qml-lint: no plugin.qmltypes yet — build tunex-app once (rust-tc check)" >&2; exit 1; }
+
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+mkdir -p "$STAGE/TuneX"
+cp "$SRC"/*.qml "$TYPES" "$STAGE/TuneX/"
+{
+    echo "module TuneX"
+    echo "typeinfo plugin.qmltypes"
+    echo "depends QtQml"
+    for file in "$SRC"/*.qml; do
+        name="$(basename "$file" .qml)"
+        if grep -q '^pragma Singleton' "$file"; then
+            echo "singleton $name 1.0 $name.qml"
+        else
+            echo "$name 1.0 $name.qml"
+        fi
+    done
+} >"$STAGE/TuneX/qmldir"
+
+if [[ $# -gt 0 ]]; then
+    targets=()
+    for file in "$@"; do targets+=("TuneX/$(basename "$file")"); done
+else
+    targets=()
+    for file in "$SRC"/*.qml; do targets+=("TuneX/$(basename "$file")"); done
+fi
+
+status=0
+lint_log="$STAGE/qmllint.log"
+if ! (cd "$STAGE" && "$QMLLINT" -I "$STAGE" --unqualified disable --max-warnings 0 "${targets[@]}") \
+    >"$lint_log" 2>&1; then
+    status=1
+fi
+# Staged paths map back to source paths so findings stay clickable.
+sed "s#TuneX/#crates/tunex-app/qml/TuneX/#g" "$lint_log" >&2
+[[ $status -eq 0 ]] || echo "qml-lint: qmllint reported findings" >&2
+
+for target in "${targets[@]}"; do
+    source_file="$SRC/$(basename "$target")"
+    if ! diff -q <("$QMLFORMAT" "$source_file") "$source_file" >/dev/null; then
+        echo "qml-lint: not qmlformat-clean: ${source_file#"$ROOT"/} (fix: $QMLFORMAT -i <file>)" >&2
+        status=1
+    fi
+done
+
+[[ $status -eq 0 ]] && echo "qml-lint: ${#targets[@]} file(s) clean (Qt 6 qmllint + qmlformat)"
+exit $status

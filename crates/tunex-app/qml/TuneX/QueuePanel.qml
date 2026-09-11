@@ -30,10 +30,10 @@ Rectangle {
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
     readonly property string monogram: {
-        const words = root.shownTitle.split(/\s+/).filter(function(word) {
+        const words = root.shownTitle.split(/\s+/).filter(function (word) {
             return word.length > 0;
         });
-        const letters = words.slice(0, 2).map(function(word) {
+        const letters = words.slice(0, 2).map(function (word) {
             return word[0].toUpperCase();
         });
         return letters.join("");
@@ -43,9 +43,9 @@ Rectangle {
     readonly property real progress: root.durationMs > 0 ? Math.min(1, root.positionMs / root.durationMs) : 0
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
 
-    signal browseRequested()
-    signal closeRequested()
-    signal expandRequested()
+    signal browseRequested
+    signal closeRequested
+    signal expandRequested
 
     function formatTime(ms) {
         const total = Math.max(0, Math.floor(ms / 1000));
@@ -93,7 +93,6 @@ Rectangle {
     onTrackingChanged: {
         if (root.tracking)
             root.sync();
-
     }
 
     Rectangle {
@@ -152,7 +151,6 @@ Rectangle {
             transparencyOff: root.queue.reduceTransparency()
             disableBlur: true
         }
-
     }
 
     Column {
@@ -181,7 +179,6 @@ Rectangle {
                 text: qsTr("Close")
                 onClicked: root.closeRequested()
             }
-
         }
 
         MouseArea {
@@ -222,9 +219,7 @@ Rectangle {
                     font.weight: Font.DemiBold
                     color: Theme.muted
                 }
-
             }
-
         }
 
         Column {
@@ -254,7 +249,6 @@ Rectangle {
                 font.pixelSize: Theme.fontBodySm
                 color: Theme.muted
             }
-
         }
 
         Item {
@@ -307,9 +301,7 @@ Rectangle {
                     radius: Theme.radiusXs
                     color: Theme.accentSecondary
                 }
-
             }
-
         }
 
         Row {
@@ -356,7 +348,6 @@ Rectangle {
                         radius: Theme.radiusXs
                         color: Theme.accentSecondary
                     }
-
                 }
 
                 handle: Rectangle {
@@ -371,9 +362,7 @@ Rectangle {
                     border.color: Theme.focus
                     border.width: volumeSlider.activeFocus ? 2 : 0
                 }
-
             }
-
         }
 
         Row {
@@ -438,7 +427,6 @@ Rectangle {
                         root.transportState = root.transportState === 2 ? 3 : 2;
                     }
                 }
-
             }
 
             IconButton {
@@ -462,7 +450,6 @@ Rectangle {
                     root.sync();
                 }
             }
-
         }
 
         Item {
@@ -500,7 +487,6 @@ Rectangle {
                 Accessible.name: qsTr("Clear the queue (keeps playing)")
                 onClicked: root.queue.clearQueue()
             }
-
         }
 
         Text {
@@ -558,20 +544,17 @@ Rectangle {
                     const at = queueList.currentIndex >= 0 ? queueList.currentIndex : 0;
                     if (at < queueList.count)
                         root.queue.playAt(at);
-
                 }
                 Keys.onEnterPressed: {
                     const at = queueList.currentIndex >= 0 ? queueList.currentIndex : 0;
                     if (at < queueList.count)
                         root.queue.playAt(at);
-
                 }
                 Keys.onDeletePressed: {
                     if (queueList.currentIndex >= 0 && queueList.currentIndex < queueList.count)
                         root.queue.removeAt(queueList.currentIndex);
-
                 }
-                Keys.onUpPressed: (event) => {
+                Keys.onUpPressed: event => {
                     if (event.modifiers & Qt.AltModifier) {
                         const from = queueList.currentIndex;
                         if (from > 0) {
@@ -581,7 +564,7 @@ Rectangle {
                         event.accepted = true;
                     }
                 }
-                Keys.onDownPressed: (event) => {
+                Keys.onDownPressed: event => {
                     if (event.modifiers & Qt.AltModifier) {
                         const from = queueList.currentIndex;
                         if (from >= 0 && from + 1 < queueList.count) {
@@ -615,11 +598,7 @@ Rectangle {
                         rowMenu.popup();
                     }
                 }
-
             }
-
         }
-
     }
-
 }

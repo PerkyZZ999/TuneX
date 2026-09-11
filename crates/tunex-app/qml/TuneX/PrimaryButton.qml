@@ -48,7 +48,5 @@ Button {
             font: root.font
             color: root.primary ? Theme.primaryText : Theme.foreground
         }
-
     }
-
 }

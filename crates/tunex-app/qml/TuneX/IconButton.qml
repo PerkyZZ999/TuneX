@@ -20,7 +20,7 @@ Item {
         return Theme.foreground;
     }
 
-    signal activated()
+    signal activated
 
     width: Theme.targetMin
     height: Theme.targetMin
@@ -73,5 +73,4 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: root.activated()
     }
-
 }

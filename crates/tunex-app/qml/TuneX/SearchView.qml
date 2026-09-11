@@ -32,8 +32,8 @@ Item {
     // Fluid artwork columns shared by both grids (160–220px cards).
     readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
 
-    signal focusFieldRequested()
-    signal clearRequested()
+    signal focusFieldRequested
+    signal clearRequested
 
     function submitAll() {
         songs.search(root.query);
@@ -73,7 +73,7 @@ Item {
 
     function focusResults() {
         if (!root.showContent)
-            return ;
+            return;
 
         // Only move focus when rows exist to receive it; loading and empty
         // states stay readable with focus left in the field.
@@ -100,7 +100,6 @@ Item {
         // the tab leaves (results resubmit; the target tab shows them).
         if (root.tab !== "songs" && root.drilled)
             root.leaveDrillKeepTab();
-
     }
     onQueryChanged: {
         // New keystrokes supersede everything: clear the drill, drop stale
@@ -190,11 +189,8 @@ Item {
                         selected: root.tab === modelData
                         onActivated: root.tab = modelData
                     }
-
                 }
-
             }
-
         }
 
         // Error line: first worker failure, cleared on the next submit.
@@ -263,7 +259,6 @@ Item {
                 font.weight: Font.DemiBold
                 color: Theme.foreground
             }
-
         }
 
         Item {
@@ -301,7 +296,6 @@ Item {
                     font.pixelSize: Theme.fontBody
                     color: Theme.muted
                 }
-
             }
 
             EmptyState {
@@ -334,13 +328,11 @@ Item {
                         const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                         if (at < songsView.count && songs.isPlayableAt(at))
                             root.queue.playTrackNow(songs.trackIdAt(at));
-
                     }
                     Keys.onEnterPressed: {
                         const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                         if (at < songsView.count && songs.isPlayableAt(at))
                             root.queue.playTrackNow(songs.trackIdAt(at));
-
                     }
 
                     highlight: Rectangle {
@@ -360,9 +352,8 @@ Item {
                             songsView.forceActiveFocus();
                             if (!dangling && songs.isPlayableAt(index))
                                 root.queue.playTrackNow(trackId);
-
                         }
-                        onMenuRequested: (trackId) => {
+                        onMenuRequested: trackId => {
                             songsView.currentIndex = index;
                             trackMenu.trackId = trackId;
                             trackMenu.popup();
@@ -380,7 +371,6 @@ Item {
                         font.pixelSize: Theme.fontCaption
                         color: Theme.muted
                     }
-
                 }
 
                 BusyIndicator {
@@ -395,7 +385,6 @@ Item {
                     title: root.drilled ? qsTr("No tracks here") : qsTr("No songs match")
                     note: root.drilled ? qsTr("This album has no indexed tracks.") : qsTr("Try a different spelling, or browse the library.")
                 }
-
             }
 
             // Albums group: fluid artwork grid over the album hits.
@@ -431,7 +420,7 @@ Item {
                         year: model.year
                         trackCount: model.trackCount
                         cardIndex: index
-                        onActivated: (id) => {
+                        onActivated: id => {
                             albumsView.currentIndex = cardIndex;
                             root.drillIntoAlbum(id, title);
                         }
@@ -448,7 +437,6 @@ Item {
                         font.pixelSize: Theme.fontCaption
                         color: Theme.muted
                     }
-
                 }
 
                 BusyIndicator {
@@ -463,7 +451,6 @@ Item {
                     title: qsTr("No albums match")
                     note: qsTr("Try a different spelling, or browse the library.")
                 }
-
             }
 
             // Artists group: fluid monogram grid over the artist hits.
@@ -509,7 +496,6 @@ Item {
                         font.pixelSize: Theme.fontCaption
                         color: Theme.muted
                     }
-
                 }
 
                 BusyIndicator {
@@ -524,11 +510,7 @@ Item {
                     title: qsTr("No artists match")
                     note: qsTr("Try a different spelling, or browse the library.")
                 }
-
             }
-
         }
-
     }
-
 }

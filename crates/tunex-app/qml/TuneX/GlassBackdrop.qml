@@ -35,11 +35,10 @@ Item {
 
     function refresh() {
         if (root.disableBlur)
-            return ;
+            return;
 
         if (capture.visible && root.width > 0 && root.height > 0)
             capture.scheduleUpdate();
-
     }
 
     implicitWidth: 0
@@ -47,7 +46,6 @@ Item {
     onVisibleChanged: {
         if (visible)
             Qt.callLater(root.refresh);
-
     }
     onWidthChanged: root.refresh()
     onHeightChanged: root.refresh()
@@ -117,5 +115,4 @@ Item {
         opacity: 0.12
         Accessible.ignored: true
     }
-
 }

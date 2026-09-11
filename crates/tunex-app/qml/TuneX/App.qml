@@ -50,7 +50,7 @@ Window {
 
     function navigate(target) {
         if (target === root.history[root.historyAt])
-            return ;
+            return;
 
         root.history = root.history.slice(0, root.historyAt + 1).concat([target]);
         root.historyAt = root.history.length - 1;
@@ -59,7 +59,7 @@ Window {
 
     function goBack() {
         if (!root.canGoBack)
-            return ;
+            return;
 
         root.historyAt -= 1;
         root.section = root.history[root.historyAt];
@@ -67,7 +67,7 @@ Window {
 
     function goForward() {
         if (!root.canGoForward)
-            return ;
+            return;
 
         root.historyAt += 1;
         root.section = root.history[root.historyAt];
@@ -102,8 +102,8 @@ Window {
         if (miniPlayer.visible)
             miniPlayer.sync();
 
-        if (nowPlayingLoader.item)
-            nowPlayingLoader.item.sync();
+        if (nowPlayingLoader.status === Loader.Ready)
+            (nowPlayingLoader.item as NowPlayingView).sync();
 
         library.poll();
         if (library.takeFinished()) {
@@ -127,7 +127,6 @@ Window {
     onWidthChanged: {
         if (root.wideShell && queueDrawer.opened)
             queueDrawer.close();
-
     }
 
     // Global search shortcut (R-014): `/` or Ctrl+K focuses the shell field
@@ -137,7 +136,7 @@ Window {
         enabled: !root.editingText
         onActivated: {
             if (root.nowPlayingOpen)
-                return ;
+                return;
 
             if (!searchField.activeFocus) {
                 if (root.section !== "search")
@@ -262,7 +261,6 @@ Window {
         background: GlassBackdrop {
             transparencyOff: queueModel.reduceTransparency()
         }
-
     }
 
     FoldersDrawer {
@@ -323,7 +321,6 @@ Window {
                                 font.weight: Font.Bold
                                 color: Theme.primaryText
                             }
-
                         }
 
                         Text {
@@ -337,7 +334,6 @@ Window {
                             font.weight: Font.DemiBold
                             color: Theme.foreground
                         }
-
                     }
 
                     NavItem {
@@ -452,16 +448,13 @@ Window {
                                 playlistsView.selectPlaylist(model.playlistId, model.name);
                             }
                         }
-
                     }
 
                     Item {
                         width: 1
                         height: Theme.spaceSm
                     }
-
                 }
-
             }
 
             Column {
@@ -495,7 +488,6 @@ Window {
                             enabled: root.canGoForward
                             onActivated: root.goForward()
                         }
-
                     }
 
                     // Global pill search field (S3 W-020): text persists for the
@@ -526,7 +518,6 @@ Window {
                             onTextChanged: {
                                 if (searchField.text !== "" && root.section !== "search")
                                     root.navigate("search");
-
                             }
                             Keys.onEscapePressed: {
                                 // Scope-aware unwind: drill first (query preserved),
@@ -543,17 +534,14 @@ Window {
                             Keys.onDownPressed: {
                                 if (root.section === "search")
                                     searchView.focusResults();
-
                             }
                             Keys.onReturnPressed: {
                                 if (root.section === "search")
                                     searchView.focusResults();
-
                             }
                             Keys.onEnterPressed: {
                                 if (root.section === "search")
                                     searchView.focusResults();
-
                             }
 
                             background: Rectangle {
@@ -562,7 +550,6 @@ Window {
                                 border.color: searchField.activeFocus ? Theme.focus : Theme.border
                                 border.width: searchField.activeFocus ? 2 : 1
                             }
-
                         }
 
                         Icon {
@@ -573,7 +560,6 @@ Window {
                             iconSize: 20
                             stroke: Theme.muted
                         }
-
                     }
 
                     IconButton {
@@ -601,7 +587,6 @@ Window {
                         checked: root.section === "settings"
                         onActivated: root.navigate("settings")
                     }
-
                 }
 
                 Row {
@@ -620,7 +605,7 @@ Window {
                             playlists: playlistModel
                             library: library
                             canContinue: root.playerActive
-                            onBrowseRequested: (tab) => {
+                            onBrowseRequested: tab => {
                                 libraryView.tab = tab;
                                 root.navigate("library");
                             }
@@ -669,7 +654,6 @@ Window {
                             title: qsTr("Settings")
                             note: qsTr("Keyboard (R-014): Space play/pause · media next/previous · volume up/down/mute · / or Ctrl+K search · Esc closes Now Playing, then search, then back · Alt+Left/Right history. Music folders live in the Folders rail item. Playback and appearance persist in config.")
                         }
-
                     }
 
                     QueuePanel {
@@ -684,11 +668,8 @@ Window {
                         onBrowseRequested: root.navigate("library")
                         onExpandRequested: root.openNowPlaying()
                     }
-
                 }
-
             }
-
         }
 
         MiniPlayer {
@@ -702,7 +683,6 @@ Window {
             onQueueToggleRequested: root.toggleQueue()
             onExpandRequested: root.openNowPlaying()
         }
-
     }
 
     Loader {
@@ -724,10 +704,7 @@ Window {
                 root.closeNowPlaying();
                 if (!root.wideShell)
                     root.toggleQueue();
-
             }
         }
-
     }
-
 }

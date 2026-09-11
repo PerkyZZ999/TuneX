@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX 1.0
 
 // Home (DESIGN_BRIEF + IA): hero, library-backed chips, album rail,
@@ -16,8 +15,8 @@ Item {
     readonly property int railCell: 180
 
     signal browseRequested(string tab)
-    signal foldersRequested()
-    signal playlistsRequested()
+    signal foldersRequested
+    signal playlistsRequested
     signal playlistOpened(int playlistId, string name)
 
     function greetingStatus() {
@@ -30,7 +29,7 @@ Item {
     function playSomething() {
         if (root.canContinue) {
             root.queue.playPause();
-            return ;
+            return;
         }
         root.queue.clearQueue();
         for (let i = 0; i < 40; i++) {
@@ -55,15 +54,15 @@ Item {
     function activateChip(key) {
         root.chipKey = key;
         if (key === "all")
-            return ;
+            return;
 
         if (key === "folders") {
             root.foldersRequested();
-            return ;
+            return;
         }
         if (key === "playlists") {
             root.playlistsRequested();
-            return ;
+            return;
         }
         root.browseRequested(key);
     }
@@ -154,7 +153,6 @@ Item {
                     selected: false
                     onActivated: root.activateChip("folders")
                 }
-
             }
 
             Column {
@@ -190,9 +188,7 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.browseRequested("albums")
                         }
-
                     }
-
                 }
 
                 ListView {
@@ -215,15 +211,13 @@ Item {
                         year: model.year
                         trackCount: model.trackCount
                         explicitWidth: root.railCell
-                        onActivated: (id) => {
+                        onActivated: id => {
                             root.queue.clearQueue();
                             root.queue.enqueueAlbum(id);
                             root.queue.playAt(0);
                         }
                     }
-
                 }
-
             }
 
             Column {
@@ -259,9 +253,7 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.playlistsRequested()
                         }
-
                     }
-
                 }
 
                 Text {
@@ -297,13 +289,8 @@ Item {
                             return root.playlistOpened(id, name);
                         }
                     }
-
                 }
-
             }
-
         }
-
     }
-
 }

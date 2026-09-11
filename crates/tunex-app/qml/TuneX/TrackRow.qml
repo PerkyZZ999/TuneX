@@ -38,7 +38,6 @@ Item {
     Accessible.onPressAction: {
         if (!root.dangling && !root.missing)
             root.playRequested(root.trackId, root.rowIndex, root.dangling);
-
     }
 
     // Now-playing marker: accent bar plus bold title (never color alone).
@@ -112,7 +111,6 @@ Item {
             font.pixelSize: Theme.fontCaption
             color: Theme.warning
         }
-
     }
 
     Rectangle {
@@ -139,7 +137,6 @@ Item {
             font.pixelSize: Theme.fontCaption
             color: Theme.error
         }
-
     }
 
     Button {
@@ -183,7 +180,5 @@ Item {
             font.pixelSize: Theme.fontBodySm
             color: Theme.muted
         }
-
     }
-
 }

@@ -37,4 +37,4 @@ Do **not** load `qt-cpp-review` / `qt-cpp-docs` for app code: TuneX has no C++ a
 
 ## Checks (binding, see `AGENTS.md`)
 
-`qmllint` clean · `qmlformat` clean · CMake build passes · `qt-qml-review` before committing QML · `DESIGN.md` lint (0 errors) when tokens touched.
+`scripts/qml-lint.sh` clean (Qt 6 `qmllint` + `qmlformat`; the Arch PATH binaries are Qt 5) · CMake build passes · `qt-qml-review` before committing QML · `DESIGN.md` lint (0 errors) when tokens touched.

@@ -1,5 +1,5 @@
-import QtQuick
 pragma Singleton
+import QtQuick
 
 // Glass (S6 W-038): shared backdrop reference for subtle-glass overlays.
 // App sets `canvas` once to the shell content column; GlassBackdrop surfaces

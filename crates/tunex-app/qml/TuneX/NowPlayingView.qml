@@ -25,10 +25,10 @@ Popup {
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
     readonly property string monogram: {
-        const words = root.shownTitle.split(/\s+/).filter(function(word) {
+        const words = root.shownTitle.split(/\s+/).filter(function (word) {
             return word.length > 0;
         });
-        const letters = words.slice(0, 2).map(function(word) {
+        const letters = words.slice(0, 2).map(function (word) {
             return word[0].toUpperCase();
         });
         return letters.join("");
@@ -36,8 +36,8 @@ Popup {
     readonly property string positionText: root.formatTime(root.positionMs)
     readonly property string durationText: root.durationMs > 0 ? root.formatTime(root.durationMs) : "—"
 
-    signal closeRequested()
-    signal queueToggleRequested()
+    signal closeRequested
+    signal queueToggleRequested
 
     function formatTime(ms) {
         const total = Math.max(0, Math.floor(ms / 1000));
@@ -73,7 +73,6 @@ Popup {
 
         if (!seekSlider.pressed)
             seekSlider.value = root.positionMs;
-
     }
 
     parent: Overlay.overlay
@@ -83,8 +82,6 @@ Popup {
     modal: true
     dim: false
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    Accessible.role: Accessible.Pane
-    Accessible.name: qsTr("Now Playing") + ", " + root.shownTitle + ", " + root.shownArtist
     Component.onCompleted: {
         root.sync();
         root.open();
@@ -93,7 +90,6 @@ Popup {
     onTitleTextChanged: {
         if (root.opened && !root.reduceMotion)
             artCrossfade.restart();
-
     }
 
     SequentialAnimation {
@@ -114,7 +110,6 @@ Popup {
             duration: root.reduceMotion ? 0 : Theme.artCrossfadeMs / 2
             easing.type: Easing.OutCubic
         }
-
     }
 
     enter: Transition {
@@ -125,7 +120,6 @@ Popup {
             duration: root.motionMs
             easing.type: Easing.OutCubic
         }
-
     }
 
     exit: Transition {
@@ -136,7 +130,6 @@ Popup {
             duration: root.motionMs
             easing.type: Easing.OutCubic
         }
-
     }
 
     background: Item {
@@ -161,7 +154,6 @@ Popup {
                 radius: width / 2
                 color: Theme.hover
             }
-
         }
 
         MultiEffect {
@@ -189,7 +181,6 @@ Popup {
             opacity: 0.12
             Accessible.ignored: true
         }
-
     }
 
     contentItem: Item {
@@ -199,6 +190,9 @@ Popup {
             width: parent.width
             height: parent.height
             y: root.opened ? 0 : Theme.spaceMd
+            // Popup is not an Item, so the accessible pane lives here.
+            Accessible.role: Accessible.Pane
+            Accessible.name: qsTr("Now Playing") + ", " + root.shownTitle + ", " + root.shownArtist
 
             Button {
                 id: closeButton
@@ -269,9 +263,7 @@ Popup {
                                 font.weight: Font.DemiBold
                                 color: Theme.muted
                             }
-
                         }
-
                     }
 
                     Column {
@@ -300,7 +292,6 @@ Popup {
                             font.pixelSize: Theme.fontBody
                             color: Theme.muted
                         }
-
                     }
 
                     Item {
@@ -361,7 +352,6 @@ Popup {
                                     radius: Theme.radiusXs
                                     color: Theme.accentSecondary
                                 }
-
                             }
 
                             handle: Rectangle {
@@ -376,9 +366,7 @@ Popup {
                                 border.color: Theme.focus
                                 border.width: seekSlider.activeFocus ? 2 : 0
                             }
-
                         }
-
                     }
 
                     Row {
@@ -447,9 +435,7 @@ Popup {
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                 }
-
                             }
-
                         }
 
                         Button {
@@ -469,7 +455,6 @@ Popup {
                                 root.sync();
                             }
                         }
-
                     }
 
                     Row {
@@ -517,7 +502,6 @@ Popup {
                                     radius: Theme.radiusXs
                                     color: Theme.accentSecondary
                                 }
-
                             }
 
                             handle: Rectangle {
@@ -532,7 +516,6 @@ Popup {
                                 border.color: Theme.focus
                                 border.width: volumeSlider.activeFocus ? 2 : 0
                             }
-
                         }
 
                         Button {
@@ -543,7 +526,6 @@ Popup {
                             Accessible.name: qsTr("Open Up Next queue")
                             onClicked: root.queueToggleRequested()
                         }
-
                     }
 
                     Text {
@@ -558,9 +540,7 @@ Popup {
                         color: Theme.error
                         horizontalAlignment: Text.AlignHCenter
                     }
-
                 }
-
             }
 
             Behavior on y {
@@ -568,11 +548,7 @@ Popup {
                     duration: root.motionMs
                     easing.type: Easing.OutCubic
                 }
-
             }
-
         }
-
     }
-
 }

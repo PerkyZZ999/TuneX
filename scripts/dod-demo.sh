@@ -32,7 +32,7 @@ step() {
 step "rust gate (fmt, clippy, tests)" rust-tc quick
 step "cmake configure" cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 step "cmake build" cmake --build build
-step "qmllint" qmllint crates/tunex-app/qml/TuneX/App.qml crates/tunex-app/qml/TuneX/Theme.qml crates/tunex-app/qml/TuneX/HomeView.qml crates/tunex-app/qml/TuneX/SectionStub.qml crates/tunex-app/qml/TuneX/NavItem.qml
+step "qml lint + format (Qt 6)" scripts/qml-lint.sh
 
 mpris_smoke() {
     local service="org.mpris.MediaPlayer2.tunex"

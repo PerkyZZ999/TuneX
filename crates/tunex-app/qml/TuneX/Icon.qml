@@ -261,5 +261,4 @@ Item {
             ctx.stroke();
         }
     }
-
 }

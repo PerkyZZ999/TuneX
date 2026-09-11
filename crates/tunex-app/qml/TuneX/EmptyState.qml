@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic
 
 // EmptyState (S2 W-016): explicit, actionable empty surface for library
 // views. Never a blank screen: always a title plus guidance. An action
@@ -17,7 +16,7 @@ Column {
     property bool primaryAction: true
     property bool centerInParent: true
 
-    signal actionRequested()
+    signal actionRequested
 
     anchors.centerIn: root.centerInParent ? parent : undefined
     width: Math.min(parent.width - (root.centerInParent ? Theme.spaceXl * 2 : 0), 420)
@@ -55,5 +54,4 @@ Column {
         text: root.actionLabel
         onClicked: root.actionRequested()
     }
-
 }

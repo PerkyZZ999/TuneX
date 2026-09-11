@@ -40,7 +40,6 @@ Item {
         const added = root.queue.enqueuePlaylist(root.playlistId);
         if (added > 0)
             root.queue.playAt(0);
-
     }
 
     function openCreate() {
@@ -52,7 +51,6 @@ Item {
     onVisibleChanged: {
         if (root.visible)
             root.refreshAll();
-
     }
     Component.onCompleted: playlists.refresh()
 
@@ -67,19 +65,17 @@ Item {
         anchors.centerIn: Overlay.overlay
         modal: true
         queue: root.queue
-        onNameAccepted: (name) => {
+        onNameAccepted: name => {
             if (root.playlistId >= 0 && root.renaming) {
                 playlists.renamePlaylist(root.playlistId, name);
                 root.errorLine = playlists.errorText();
                 if (root.errorLine === "")
                     root.playlistName = name;
-
             } else {
                 const id = playlists.createPlaylist(name);
                 root.errorLine = playlists.errorText();
                 if (id >= 0)
                     root.selectPlaylist(id, name);
-
             }
         }
     }
@@ -116,7 +112,6 @@ Item {
             cornerRadius: Theme.radiusLg
             transparencyOff: root.queue.reduceTransparency()
         }
-
     }
 
     Connections {
@@ -160,8 +155,7 @@ Item {
             onTriggered: root.queue.enqueueTrack(entryMenu.rowTrackId)
         }
 
-        MenuSeparator {
-        }
+        MenuSeparator {}
 
         MenuItem {
             text: qsTr("Move up")
@@ -193,7 +187,6 @@ Item {
             transparencyOff: root.queue.reduceTransparency()
             disableBlur: true
         }
-
     }
 
     Row {
@@ -231,13 +224,11 @@ Item {
                     const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
                     if (at < playlistsView.count)
                         root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
-
                 }
                 Keys.onEnterPressed: {
                     const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
                     if (at < playlistsView.count)
                         root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
-
                 }
 
                 highlight: Rectangle {
@@ -293,13 +284,9 @@ Item {
                             font.pixelSize: Theme.fontCaption
                             color: Theme.muted
                         }
-
                     }
-
                 }
-
             }
-
         }
 
         // Detail pane: header actions plus the entry list.
@@ -366,9 +353,7 @@ Item {
                         text: qsTr("Delete")
                         onClicked: deleteDialog.open()
                     }
-
                 }
-
             }
 
             Text {
@@ -427,13 +412,11 @@ Item {
                         const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
                         if (at < entriesView.count && entries.isPlayableAt(at))
                             root.queue.playTrackNow(entries.trackIdAt(at));
-
                     }
                     Keys.onEnterPressed: {
                         const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
                         if (at < entriesView.count && entries.isPlayableAt(at))
                             root.queue.playTrackNow(entries.trackIdAt(at));
-
                     }
                     Keys.onDeletePressed: {
                         if (entriesView.currentIndex >= 0 && entriesView.currentIndex < entriesView.count) {
@@ -442,7 +425,7 @@ Item {
                             root.errorLine = entries.errorText();
                         }
                     }
-                    Keys.onUpPressed: (event) => {
+                    Keys.onUpPressed: event => {
                         if (event.modifiers & Qt.AltModifier) {
                             const from = entriesView.currentIndex;
                             if (from > 0) {
@@ -452,7 +435,7 @@ Item {
                             event.accepted = true;
                         }
                     }
-                    Keys.onDownPressed: (event) => {
+                    Keys.onDownPressed: event => {
                         if (event.modifiers & Qt.AltModifier) {
                             const from = entriesView.currentIndex;
                             if (from >= 0 && from + 1 < entriesView.count) {
@@ -481,7 +464,6 @@ Item {
                             entriesView.forceActiveFocus();
                             if (!dangling && entries.isPlayableAt(rowIndex))
                                 root.queue.playTrackNow(trackId);
-
                         }
                         onMenuRequested: (trackId, rowIndex, dangling) => {
                             entriesView.currentIndex = rowIndex;
@@ -491,13 +473,8 @@ Item {
                             entryMenu.popup();
                         }
                     }
-
                 }
-
             }
-
         }
-
     }
-
 }

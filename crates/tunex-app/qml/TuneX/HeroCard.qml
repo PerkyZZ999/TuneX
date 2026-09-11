@@ -29,8 +29,8 @@ Item {
         return qsTr("Play Something");
     }
 
-    signal playRequested()
-    signal addFolderRequested()
+    signal playRequested
+    signal addFolderRequested
 
     implicitHeight: 320
     height: 320
@@ -76,9 +76,7 @@ Item {
                     position: 1
                     color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0)
                 }
-
             }
-
         }
 
         Column {
@@ -108,7 +106,6 @@ Item {
                 font.letterSpacing: 1.6
                 color: Theme.accent
             }
-
         }
 
         Column {
@@ -166,9 +163,6 @@ Item {
                 font.pixelSize: Theme.fontCaption
                 color: Theme.muted
             }
-
         }
-
     }
-
 }

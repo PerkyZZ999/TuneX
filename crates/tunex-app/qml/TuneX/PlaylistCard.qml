@@ -58,7 +58,6 @@ Item {
                 color: Theme.hover
                 opacity: hoverArea.containsMouse ? 0.45 : 0
             }
-
         }
 
         Text {
@@ -81,7 +80,5 @@ Item {
             font.pixelSize: Theme.fontCaption
             color: Theme.muted
         }
-
     }
-
 }

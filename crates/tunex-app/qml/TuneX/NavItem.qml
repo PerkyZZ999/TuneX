@@ -11,7 +11,7 @@ Item {
     property bool selected: false
     property bool compact: false
 
-    signal activated()
+    signal activated
 
     width: parent.width
     height: Theme.targetMin
@@ -87,5 +87,4 @@ Item {
         border.color: Theme.focus
         visible: root.activeFocus
     }
-
 }

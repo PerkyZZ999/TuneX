@@ -22,10 +22,10 @@ Item {
     property int explicitWidth: 0
     // First letters of the first two words, uppercase.
     readonly property string monogram: {
-        const words = root.title.split(/\s+/).filter(function(word) {
+        const words = root.title.split(/\s+/).filter(function (word) {
             return word.length > 0;
         });
-        const letters = words.slice(0, 2).map(function(word) {
+        const letters = words.slice(0, 2).map(function (word) {
             return word[0].toUpperCase();
         });
         return letters.join("");
@@ -88,7 +88,6 @@ Item {
                 color: Theme.hover
                 opacity: hoverArea.containsMouse ? 0.45 : 0
             }
-
         }
 
         Text {
@@ -111,7 +110,5 @@ Item {
             font.pixelSize: Theme.fontCaption
             color: Theme.muted
         }
-
     }
-
 }

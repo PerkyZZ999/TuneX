@@ -45,12 +45,10 @@ Dialog {
             border.color: nameField.activeFocus ? Theme.focus : Theme.border
             border.width: nameField.activeFocus ? 2 : 1
         }
-
     }
 
     background: GlassBackdrop {
         cornerRadius: Theme.radiusLg
         transparencyOff: root.queue.reduceTransparency()
     }
-
 }

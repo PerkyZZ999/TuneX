@@ -13,10 +13,10 @@ Item {
     property int albumCount: 0
     property int trackCount: 0
     readonly property string monogram: {
-        const words = root.artistName.split(/\s+/).filter(function(word) {
+        const words = root.artistName.split(/\s+/).filter(function (word) {
             return word.length > 0;
         });
-        const letters = words.slice(0, 2).map(function(word) {
+        const letters = words.slice(0, 2).map(function (word) {
             return word[0].toUpperCase();
         });
         return letters.join("");
@@ -53,7 +53,6 @@ Item {
                 color: Theme.muted
                 Accessible.ignored: true
             }
-
         }
 
         Text {
@@ -78,7 +77,5 @@ Item {
             font.pixelSize: Theme.fontCaption
             color: Theme.muted
         }
-
     }
-
 }

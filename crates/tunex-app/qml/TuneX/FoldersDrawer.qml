@@ -75,7 +75,6 @@ Drawer {
                 text: qsTr("Close")
                 onClicked: root.close()
             }
-
         }
 
         Text {
@@ -86,7 +85,7 @@ Drawer {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBodySm
             color: Theme.muted
-            Accessible.role: Accessible.StatusIndicator
+            Accessible.role: Accessible.StaticText
             Accessible.name: root.statusLine
         }
 
@@ -138,9 +137,7 @@ Drawer {
                         root.sync();
                     }
                 }
-
             }
-
         }
 
         Row {
@@ -159,13 +156,10 @@ Drawer {
                     root.sync();
                 }
             }
-
         }
-
     }
 
     background: GlassBackdrop {
         transparencyOff: root.queue.reduceTransparency()
     }
-
 }

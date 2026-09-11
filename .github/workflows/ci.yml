@@ -48,12 +48,10 @@ jobs:
           cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
           cmake --build build
 
+      # Qt 6 qmllint in module context + qmlformat verify (needs the
+      # plugin.qmltypes the build above generated).
       - name: QML lint and format check
-        run: |
-          qmllint crates/tunex-app/qml/TuneX/*.qml
-          for file in crates/tunex-app/qml/TuneX/*.qml; do
-            diff "$(qmlformat "$file")" "$file"
-          done
+        run: scripts/qml-lint.sh
 
       - name: PKGBUILD static checks
         working-directory: packaging/aur

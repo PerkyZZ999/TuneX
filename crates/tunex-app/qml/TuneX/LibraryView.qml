@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX 1.0
 
 // LibraryView (S2 W-016): browse the indexed library — Songs list, Albums
@@ -24,7 +23,7 @@ Item {
     // Fluid artwork columns shared by both grids (160–220px cards).
     readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
 
-    signal foldersRequested()
+    signal foldersRequested
 
     function drillIntoAlbum(id, title) {
         root.albumId = id;
@@ -55,7 +54,6 @@ Item {
         // the tab leaves (results resubmit; the target tab shows them).
         if (root.tab !== "songs" && root.drilled)
             root.leaveDrillKeepTab();
-
     }
     anchors.fill: parent
     Component.onCompleted: {
@@ -101,16 +99,20 @@ Item {
                 spacing: Theme.spaceXs
 
                 Repeater {
-                    model: [{
-                        "key": "songs",
-                        "label": qsTr("Songs")
-                    }, {
-                        "key": "albums",
-                        "label": qsTr("Albums")
-                    }, {
-                        "key": "artists",
-                        "label": qsTr("Artists")
-                    }]
+                    model: [
+                        {
+                            "key": "songs",
+                            "label": qsTr("Songs")
+                        },
+                        {
+                            "key": "albums",
+                            "label": qsTr("Albums")
+                        },
+                        {
+                            "key": "artists",
+                            "label": qsTr("Artists")
+                        }
+                    ]
 
                     Chip {
                         required property var modelData
@@ -119,9 +121,7 @@ Item {
                         selected: root.tab === modelData.key
                         onActivated: root.tab = modelData.key
                     }
-
                 }
-
             }
 
             PrimaryButton {
@@ -133,7 +133,6 @@ Item {
                 text: qsTr("Music folders")
                 onClicked: root.foldersRequested()
             }
-
         }
 
         // Drill header: album title, queue actions, plus the way back.
@@ -189,7 +188,6 @@ Item {
                 font.weight: Font.DemiBold
                 color: Theme.foreground
             }
-
         }
 
         Item {
@@ -223,13 +221,11 @@ Item {
                     const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                     if (at < songsView.count && songs.isPlayableAt(at))
                         root.queue.playTrackNow(songs.trackIdAt(at));
-
                 }
                 Keys.onEnterPressed: {
                     const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                     if (at < songsView.count && songs.isPlayableAt(at))
                         root.queue.playTrackNow(songs.trackIdAt(at));
-
                 }
 
                 highlight: Rectangle {
@@ -249,9 +245,8 @@ Item {
                         songsView.forceActiveFocus();
                         if (!dangling && songs.isPlayableAt(index))
                             root.queue.playTrackNow(trackId);
-
                     }
-                    onMenuRequested: (trackId) => {
+                    onMenuRequested: trackId => {
                         songsView.currentIndex = index;
                         trackMenu.trackId = trackId;
                         trackMenu.popup();
@@ -269,7 +264,6 @@ Item {
                     font.pixelSize: Theme.fontCaption
                     color: Theme.muted
                 }
-
             }
 
             // Albums tab: fluid artwork grid over the album query.
@@ -302,12 +296,11 @@ Item {
                     year: model.year
                     trackCount: model.trackCount
                     cardIndex: index
-                    onActivated: (id) => {
+                    onActivated: id => {
                         albumsView.currentIndex = cardIndex;
                         root.drillIntoAlbum(id, title);
                     }
                 }
-
             }
 
             // Artists tab: fluid monogram grid over the artist query.
@@ -340,11 +333,7 @@ Item {
                     albumCount: model.albumCount
                     trackCount: model.trackCount
                 }
-
             }
-
         }
-
     }
-
 }

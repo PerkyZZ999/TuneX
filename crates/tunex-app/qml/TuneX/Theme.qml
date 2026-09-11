@@ -1,5 +1,5 @@
-import QtQuick
 pragma Singleton
+import QtQuick
 
 // Centralized design tokens (docs/DESIGN.md "TuneX Frosted Obsidian").
 // Every color, radius, spacing, and type value in the UI must come from here;
