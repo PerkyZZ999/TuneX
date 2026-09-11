@@ -1,16 +1,22 @@
+---
+description: Rust crate boundaries, style, tests, and rust-tc gates for TuneX
+globs: "**/*.rs, **/Cargo.toml, **/Cargo.lock, rust-toolchain.toml"
+alwaysApply: false
+---
+
 # Rust rules — TuneX
 
-> Cursor applies this as `.cursor/rules/rust.mdc` (globs: `**/*.rs`, `**/Cargo.toml`). Keep both files in sync.
+Applies when Rust sources or Cargo manifests are in context.
 
 ## Mandatory skills
 
-Load **before** writing, reviewing, or refactoring any Rust (`.rs`, `Cargo.toml`):
+Read and follow **before** writing, reviewing, or refactoring any Rust (`.rs`, `Cargo.toml`):
 
 - `ms-rust` — implementation, refactoring, review, API design per Microsoft Pragmatic Rust Guidelines.
 - `rust-best-practices` — idiomatic ownership/borrowing, `Result` error handling, tests/docs.
 - `rust-reference` — language semantics, lifetimes, traits, macros, unsafe corner cases.
 
-Load **only** when profiling data or Milestone 6 demands it:
+Read **only** when profiling data or Milestone 6 demands it:
 
 - `rust-optimise` — hot-path allocation/iterator/async/data-structure optimization. Never pre-M6 on intuition (perf policy: functional first, D-012).
 

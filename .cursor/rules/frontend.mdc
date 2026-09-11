@@ -1,10 +1,16 @@
+---
+description: TuneX frontend quality gates, mockup law, and QML translations of web design skills
+globs: "**/*.qml, docs/DESIGN.md, docs/DESIGN_BRIEF.md, docs/INFORMATION_ARCHITECTURE.md, docs/mockup.png"
+alwaysApply: false
+---
+
 # Frontend rules — TuneX
 
-> Cursor applies this as `.cursor/rules/frontend.mdc` (globs: `**/*.qml` + design docs). Keep both files in sync.
+Applies when UI files or design docs are in context.
 
 ## Mandatory skill trio
 
-Load **all three** before any UI work, and follow them plus their references:
+Read **all three** before any UI work, and follow them plus their references:
 
 - `craft-beautiful-frontend` — design system discipline, quality gates, cognitive psychology (Hick/Miller/Jakob/Fitts).
 - `iconography-frontend-ui` — icon decisions, sizing, states, ARIA/WCAG non-text contrast.

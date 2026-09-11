@@ -1,11 +1,16 @@
+---
+description: KWin-MCP GUI testing for TuneX — isolated sessions, DoD rehearsal, screenshots, MPRIS visual proof
+alwaysApply: false
+---
+
 # GUI testing rules — TuneX
 
-> Cursor applies this as `.cursor/rules/testing-gui.mdc` (Apply Intelligently). Keep both files in sync.
+Apply when verifying the running desktop app: slice DoD, QML/layout changes, glass/grids/dialogs/empty states, MPRIS/media keys, Wayland/X11 passes.
 
 ## Tooling
 
 - **Kwin-MCP is the designated GUI automation path.** Read the `kwin-mcp` skill before any desktop-app testing and follow its session workflow and schema guardrails exactly.
-- Use the `user-kwinmcp` MCP tools (session, screenshot, accessibility tree, mouse/keyboard/touch). Do not substitute other computer-use backends for TuneX GUI verification.
+- Use the `user-kwinmcp` MCP tools (`session_start`, screenshot, accessibility tree, mouse/keyboard/touch). Do not substitute other computer-use backends for TuneX GUI verification.
 
 ## Session discipline
 

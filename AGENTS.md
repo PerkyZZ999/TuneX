@@ -24,7 +24,7 @@ Strict boundary: **QML = presentation only, Rust = logic.** QML never touches FS
 
 Doc map: `docs/SPEC.md` (source spec) · `docs/project/` (`STATE`, `BRIEF`, `REQUIREMENTS`, `DECISIONS`, `ARCHITECTURE`, `ROADMAP`, `WORK_ITEMS`, `VALIDATION`, `DISCOVERY`) · `docs/DESIGN_BRIEF.md` · `docs/INFORMATION_ARCHITECTURE.md` · `docs/DESIGN.md` (normative visual tokens) · `docs/mockup.png` (canonical layout reference).
 
-Coding rules live in `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`) and are auto-loaded as instructions. The sections below restate the binding parts; rule files hold the detailed load-triggers.
+Coding rules live in `.cursor/rules/` as Cursor project rules (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc`, `testing-gui.mdc`). File-scoped rules attach via globs; GUI testing applies when Agent judges it relevant. Prose copies in `docs/rules/` stay for humans. The sections below restate the binding parts; rule files hold the detailed load-triggers.
 
 ## Operating Rules (binding)
 
@@ -86,7 +86,7 @@ cargo clippy --all-targets -- -D warnings
 
 ## GUI Testing (binding for visual/DoD verification)
 
-- **Kwin-MCP is the GUI automation path** (there is no separate built-in Computer Use tool here). Load the `kwin-mcp` skill and follow `docs/rules/testing-gui.md`: isolated `session_start` by default, fixture libraries with `isolate_home`, semantic inspection before acting, keyboard-first flows + `playerctl` cross-checks, screenshot evidence into `docs/project/VALIDATION.md`, always `session_stop`.
+- **Kwin-MCP is the GUI automation path.** Read the `kwin-mcp` skill and follow `.cursor/rules/testing-gui.mdc`: isolated `session_start` by default, fixture libraries with `isolate_home`, semantic inspection before acting, keyboard-first flows + `playerctl` cross-checks, screenshot evidence into `docs/project/VALIDATION.md`, always `session_stop`. Do not substitute other computer-use backends.
 - GUI runs prove integration (slices' DoD, glass/grids/dialogs/empty states, MPRIS/keys, M5 X11 pass). Algorithms stay in `cargo test` / `qmltestrunner`.
 
 ## Frontend Rules (binding for any UI work)
@@ -113,7 +113,7 @@ cargo clippy --all-targets -- -D warnings
 ## Language Skill Triggers (binding)
 
 - Any Rust work (`.rs`, `Cargo.toml`): load `ms-rust` + `rust-best-practices` + `rust-reference` first. Load `rust-optimise` only for M6/profile-backed optimization — never on intuition.
-- Any QML/CMake work: load per `docs/rules/qt-qml.md` — always `qt-qml` for `.qml` edits and `qt-project` for CMake/targets; add `qt6-qml-development` (exact name) for Qt6 APIs/bridge patterns, `qt-ui-design` for screen implementation, `qt-qml-review` before committing QML, `qt-qml-test`/`qt-qml-test-run` for QML tests, `qt-qml-docs` for component docs, `qt-qml-profiler` for M6/perf hunts. Never `qt-cpp-review`/`qt-cpp-docs` for app code (no C++ — `cxx-qt`/Rust only).
+- Any QML/CMake work: load per `.cursor/rules/qt-qml.mdc` — always `qt-qml` for `.qml` edits and `qt-project` for CMake/targets; add `qt6-qml-development` (exact name) for Qt6 APIs/bridge patterns, `qt-ui-design` for screen implementation, `qt-qml-review` before committing QML, `qt-qml-test`/`qt-qml-test-run` for QML tests, `qt-qml-docs` for component docs, `qt-qml-profiler` for M6/perf hunts. Never `qt-cpp-review`/`qt-cpp-docs` for app code (no C++ — `cxx-qt`/Rust only).
 
 ## Build and Deployment
 

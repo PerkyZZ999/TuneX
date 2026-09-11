@@ -1,8 +1,14 @@
+---
+description: Qt Quick/QML, cxx-qt bridge, and CMake module rules for TuneX
+globs: "**/*.qml, **/CMakeLists.txt, **/*.cmake, crates/tunex-app/build.rs"
+alwaysApply: false
+---
+
 # Qt / QML rules — TuneX
 
-> Cursor applies this as `.cursor/rules/qt-qml.mdc` (globs: `**/*.qml`, CMake, `crates/tunex-app/build.rs`). Keep both files in sync.
+Applies when QML, the cxx-qt QML module (`crates/tunex-app/build.rs`), or CMake files are in context.
 
-> Name note: the skill is `qt6-qml-development` (not `qt-qml-development`). Use the exact names below.
+Skill names are exact. Read the matching skill file before the task; do not guess aliases.
 
 ## Load triggers (load only what the task needs)
 
@@ -27,6 +33,7 @@ Do **not** load `qt-cpp-review` / `qt-cpp-docs` for app code: TuneX has no C++ a
 - Component names match `docs/DESIGN_BRIEF.md` inventory (`TrackRow`, `AlbumCard`, `MiniPlayer`, …).
 - Visual contract per view: `docs/mockup.png` layout + `docs/DESIGN_BRIEF.md` adaptation map; `docs/DESIGN.md` wins any tie on out-of-scope patterns.
 - Progressive disclosure per `docs/INFORMATION_ARCHITECTURE.md` map; empty/loading/error/success states on every async surface.
+- QML module URI `TuneX` is defined once in `crates/tunex-app/build.rs` — never redeclare via `qt_add_qml_module`.
 
 ## Checks (binding, see `AGENTS.md`)
 

@@ -18,7 +18,7 @@
 - Latest passed gate: `rust-tc sonar` for the W-037 S5 gate (QG OK, 81.0% new coverage)
 - Latest validation entry: 2026-09-10 S5 gate W-037 slice accepted (see VALIDATION.md)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
-- Coding rules: `opencode.json` → `docs/rules/` (`rust.md`, `qt-qml.md`, `frontend.md`, `testing-gui.md`); GUI testing via Kwin-MCP
+- Coding rules: `.cursor/rules/` (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc`, `testing-gui.mdc`); prose copies in `docs/rules/`; GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
 - Build: CMake 4.4 + Corrosion v0.6.1 + Qt 6.11.2 configure/build green; PKGBUILD final (install rules + full plugin deps + `!lto`, local `makepkg -f` green, namcap clean; url `github.com/PerkyZZ999/TuneX`)
 - S5 (W-032–W-037 done): live-engine MPRIS matrix, desktop notifications, `scripts/netoff-rehearsal.sh` ALL GREEN, Wayland/X11/HiDPI/dialogs KWin-proven; QG OK

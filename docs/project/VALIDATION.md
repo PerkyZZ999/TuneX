@@ -322,6 +322,13 @@
 - **Waiver:** none on code; follow-ups: (1) true X11-Plasma visual pass needs a rooted/real X11 session (unavailable here); (2) dialog Open… accept-click is not drivable via EIS `clicked()` in this harness — folder-add completion verified via seeded config instead (same `addFolder`→scan→rows path the dialog feeds).
 - **Follow-up:** W-037 S5 gate.
 
+### 2026-09-10 — Cursor project rules (from docs/rules)
+- **Phase:** 6 (Implement, harness)
+- **Result:** pass
+- **Evidence:** Recreated `docs/rules/{rust,qt-qml,frontend,testing-gui}.md` as Cursor project rules in `.cursor/rules/*.mdc` per https://cursor.com/docs/rules. Types: Apply to Specific Files (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc` via globs) and Apply Intelligently (`testing-gui.mdc` via description). `AGENTS.md` + `STATE.md` now point at `.cursor/rules/`; prose copies in `docs/rules/` kept in sync. `opencode.json` left in place as a non-Cursor leftover.
+- **Waiver:** none
+- **Follow-up:** none (S6 W-038 still next)
+
 ### 2026-09-10 — S5 gate W-037: slice accepted
 - **Phase:** 6 (Implement slice gate, S5)
 - **Result:** pass, no loop-back
