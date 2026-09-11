@@ -76,6 +76,18 @@ Item {
         id: albums
     }
 
+    // Covers land one row at a time; stops itself when none are pending.
+    Timer {
+        id: homeArtPump
+
+        interval: 120
+        repeat: true
+        onTriggered: {
+            if (!albums.pollArt())
+                homeArtPump.stop();
+        }
+    }
+
     LibraryTrackModel {
         id: songs
     }
@@ -203,7 +215,12 @@ Item {
                         artist: model.artist
                         year: model.year
                         trackCount: model.trackCount
+                        artUrl: model.artUrl
                         explicitWidth: root.railCell
+                        Component.onCompleted: {
+                            albums.requestArt(index);
+                            homeArtPump.start();
+                        }
                         onActivated: id => {
                             root.queue.clearQueue();
                             root.queue.enqueueAlbum(id);

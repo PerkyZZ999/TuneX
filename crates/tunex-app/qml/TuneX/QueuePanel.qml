@@ -29,6 +29,8 @@ Rectangle {
     property int positionMs: 0
     property int durationMs: 0
     property bool muted: false
+    // Cached cover of the playing track, empty until it resolves.
+    property url artUrl
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
     readonly property string monogram: {
@@ -74,6 +76,7 @@ Rectangle {
         root.errorLine = root.queue.errorText();
         root.titleText = root.queue.currentTitle();
         root.artistText = root.queue.currentArtist();
+        root.artUrl = root.queue.currentArtUrl();
         root.positionMs = root.queue.positionMs();
         root.durationMs = root.queue.durationMs();
         root.muted = root.queue.isMuted();
@@ -190,25 +193,17 @@ Rectangle {
             Accessible.name: qsTr("Open Now Playing")
             onClicked: root.expandRequested()
 
-            Rectangle {
+            Artwork {
                 id: artWell
 
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: root.embedded ? parent.height : Theme.artThumb
                 height: width
+                source: root.artUrl
+                monogram: root.hasCurrent ? root.monogram : qsTr("TuneX")
+                monogramSize: root.embedded ? Theme.fontHeadline : Theme.fontTitle
                 radius: Theme.radiusMd
-                color: Theme.surfaceRaised
                 Accessible.ignored: true
-
-                Text {
-                    anchors.centerIn: parent
-                    text: root.hasCurrent ? root.monogram : qsTr("TuneX")
-                    textFormat: Text.PlainText
-                    font.family: Theme.fontFamily
-                    font.pixelSize: root.embedded ? Theme.fontHeadline : Theme.fontTitle
-                    font.weight: Font.DemiBold
-                    color: Theme.muted
-                }
             }
         }
 

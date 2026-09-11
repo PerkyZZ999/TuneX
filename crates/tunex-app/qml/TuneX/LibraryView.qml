@@ -70,6 +70,19 @@ Item {
         id: albums
     }
 
+    // Covers land one row at a time; this pump publishes them and stops
+    // itself as soon as the resolver runs dry.
+    Timer {
+        id: artPump
+
+        interval: 120
+        repeat: true
+        onTriggered: {
+            if (!albums.pollArt())
+                artPump.stop();
+        }
+    }
+
     LibraryTrackModel {
         id: songs
     }
@@ -295,10 +308,16 @@ Item {
                     artist: model.artist
                     year: model.year
                     trackCount: model.trackCount
+                    artUrl: model.artUrl
                     cardIndex: index
                     onActivated: id => {
                         albumsView.currentIndex = cardIndex;
                         root.drillIntoAlbum(id, title);
+                    }
+                    // Ask as the card appears; answered rows cost nothing.
+                    Component.onCompleted: {
+                        albums.requestArt(index);
+                        artPump.start();
                     }
                 }
             }

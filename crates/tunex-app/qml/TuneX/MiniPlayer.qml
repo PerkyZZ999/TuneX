@@ -19,6 +19,8 @@ Rectangle {
     property bool muted: false
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
+    // Cached cover of the playing track, empty until it resolves.
+    property url artUrl
     readonly property string monogram: {
         const words = root.shownTitle.split(/\s+/).filter(function (word) {
             return word.length > 0;
@@ -46,6 +48,7 @@ Rectangle {
     function sync() {
         root.transportState = root.queue.playbackState();
         root.titleText = root.queue.currentTitle();
+        root.artUrl = root.queue.currentArtUrl();
         root.artistText = root.queue.currentArtist();
         root.positionMs = root.queue.positionMs();
         root.durationMs = root.queue.durationMs();
@@ -80,7 +83,7 @@ Rectangle {
         onClicked: root.expandRequested()
     }
 
-    Rectangle {
+    Artwork {
         id: art
 
         anchors.left: parent.left
@@ -88,19 +91,11 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         width: Theme.artThumb
         height: Theme.artThumb
+        source: root.artUrl
+        monogram: root.monogram
         radius: Theme.radiusMd
-        color: Theme.surfaceRaised
+        monogramSize: Theme.fontTitle
         Accessible.ignored: true
-
-        Text {
-            anchors.centerIn: parent
-            text: root.monogram
-            textFormat: Text.PlainText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontTitle
-            font.weight: Font.DemiBold
-            color: Theme.muted
-        }
     }
 
     Column {

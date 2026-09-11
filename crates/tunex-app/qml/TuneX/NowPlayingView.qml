@@ -29,6 +29,8 @@ Popup {
     readonly property int motionMs: Appearance.duration(Theme.overlayMs)
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
+    // Cached cover of the playing track, empty until it resolves.
+    property url artUrl
     readonly property string monogram: {
         const words = root.shownTitle.split(/\s+/).filter(function (word) {
             return word.length > 0;
@@ -69,6 +71,7 @@ Popup {
         root.errorLine = root.queue.errorText();
         root.titleText = root.queue.currentTitle();
         root.artistText = root.queue.currentArtist();
+        root.artUrl = root.queue.currentArtUrl();
         root.positionMs = root.queue.positionMs();
         root.durationMs = root.queue.durationMs();
         root.muted = root.queue.isMuted();
@@ -160,12 +163,30 @@ Popup {
                 color: Theme.surfaceRaised
             }
 
-            // Placeholder atmosphere until artwork lands: a soft blue
+            // The track's own cover is the atmosphere (SPEC §21: artwork
+            // leads). It is cropped to fill and blurred below, so its detail
+            // never competes with the content on top. An empty or broken
+            // source simply draws nothing and the bloom below stands in.
+            Image {
+                id: backdropArt
+
+                anchors.fill: parent
+                source: root.artUrl
+                sourceSize.width: Math.max(1, Math.round(parent.width / 2))
+                sourceSize.height: Math.max(1, Math.round(parent.height / 2))
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+                Accessible.ignored: true
+            }
+
+            // Fallback atmosphere when a track has no cover: a soft blue
             // bloom behind the crest (the `selected` tone reads through the
             // tint; `hover` was indistinguishable from the base).
             Rectangle {
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: -Theme.spaceXxl
+                visible: backdropArt.status !== Image.Ready
                 width: Theme.nowPlayingArt * 2
                 height: width
                 radius: width / 2
@@ -261,29 +282,24 @@ Popup {
 
                         // Missing art is the one circular shape in V1: the
                         // monogram crest (DESIGN.md Shapes).
-                        Rectangle {
+                        Artwork {
                             id: art
 
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: Theme.nowPlayingArt
                             height: Theme.nowPlayingArt
-                            radius: width / 2
-                            color: Theme.surfaceRaised
+                            source: root.artUrl
+                            monogram: root.hasCurrent ? root.monogram : ""
+                            monogramSize: Theme.fontDisplay
+                            radius: Theme.radiusMd
+                            // Artwork is square at the card radius; the one
+                            // circular shape in V1 is the monogram crest that
+                            // stands in for missing art (DESIGN.md Shapes).
+                            circular: !art.showingArt
                             Accessible.ignored: true
 
-                            Text {
-                                visible: root.hasCurrent
-                                anchors.centerIn: parent
-                                text: root.monogram
-                                textFormat: Text.PlainText
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontDisplay
-                                font.weight: Font.DemiBold
-                                color: Theme.muted
-                            }
-
                             Icon {
-                                visible: !root.hasCurrent
+                                visible: !root.hasCurrent && !art.showingArt
                                 anchors.centerIn: parent
                                 name: "music"
                                 iconSize: 48

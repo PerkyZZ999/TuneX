@@ -47,6 +47,9 @@ pub struct MprisTrack {
     pub album: Option<String>,
     /// Known length in microseconds.
     pub length_us: Option<i64>,
+    /// Cached cover as a `file://` URL, when one has resolved (S6 W-040).
+    /// Absent means the client shows its own placeholder — never a guess.
+    pub art_url: Option<String>,
 }
 
 /// Capability flags shared with the D-Bus thread (one bool per MPRIS
@@ -335,6 +338,9 @@ pub fn metadata_for(track: Option<&MprisTrack>) -> Metadata {
     }
     if let Some(length_us) = track.length_us {
         builder = builder.length(Time::from_micros(length_us));
+    }
+    if let Some(art_url) = &track.art_url {
+        builder = builder.art_url(art_url.clone());
     }
     builder.build()
 }
@@ -750,6 +756,7 @@ mod tests {
             artist: Some("Quests".to_owned()),
             album: Some("Night Tapes".to_owned()),
             length_us: Some(5_000_000),
+            art_url: Some("file:///cache/art/abc/512.jpg".to_owned()),
         }
     }
 
@@ -793,6 +800,29 @@ mod tests {
         );
         assert_eq!(metadata.length(), Some(Time::from_micros(5_000_000)));
         assert_eq!(metadata.album(), Some("Night Tapes"));
+    }
+
+    #[test]
+    fn metadata_carries_the_cached_cover() {
+        // Clients read the cover from the same cache the UI draws from.
+        let metadata = metadata_for(Some(&sample_track()));
+        assert_eq!(
+            metadata.art_url().as_deref(),
+            Some("file:///cache/art/abc/512.jpg")
+        );
+    }
+
+    #[test]
+    fn metadata_omits_the_cover_until_one_resolves() {
+        let track = MprisTrack {
+            art_url: None,
+            ..sample_track()
+        };
+        assert_eq!(
+            metadata_for(Some(&track)).art_url(),
+            None,
+            "no cover is honest emptiness, never a guess"
+        );
     }
 
     #[test]

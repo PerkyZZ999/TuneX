@@ -3,8 +3,11 @@
 //! S2 W-016 browse model: rows load from the library index on `refresh`
 //! (bounded, indexed queries — no scan, no decode, no watcher on this path).
 //! A missing index file is not an error: the model stays empty and QML shows
-//! the empty-library state. Artwork arrives with the W-017 background worker;
-//! until then every card renders its monogram placeholder.
+//! the empty-library state. Artwork is lazy (S6 W-040): a row carries the
+//! track its cover comes from, the view asks for it as the card scrolls into
+//! sight, and [`ArtCore`](crate::art::ArtCore) answers from a worker thread —
+//! until then (and forever, for albums without art) the card renders its
+//! monogram placeholder.
 //!
 //! All row logic lives on the plain [`AlbumListModelRust`] struct (fully
 //! unit-tested); the `impl` below only pairs Qt model notifications around
@@ -14,8 +17,13 @@ use super::models::qobject;
 
 use core::pin::Pin;
 use cxx_qt::CxxQtType;
-use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
+use cxx_qt_lib::{
+    QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant, QVector,
+};
 
+use std::path::{Path, PathBuf};
+
+use crate::art::ArtCore;
 use crate::search::SearchCore;
 
 /// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
@@ -30,36 +38,43 @@ impl std::fmt::Debug for qobject::AlbumRoles {
             repr if repr == qobject::AlbumRoles::Artist.repr => "Artist",
             repr if repr == qobject::AlbumRoles::Year.repr => "Year",
             repr if repr == qobject::AlbumRoles::TrackCount.repr => "TrackCount",
+            repr if repr == qobject::AlbumRoles::ArtUrl.repr => "ArtUrl",
             _ => "Unknown",
         };
         write!(f, "AlbumRoles::{name}")
     }
 }
 
-/// Album row store: drill-down id plus display fields.
+/// One album as the grid shows it, plus the track its cover comes from.
+#[derive(Clone, Debug, Default)]
+struct AlbumRow {
+    album_id: i32,
+    title: QString,
+    artist: QString,
+    year: i32,
+    track_count: i32,
+    /// Track to read artwork from; empty for an album with no indexed
+    /// tracks, which simply never asks.
+    art_source: PathBuf,
+}
+
+/// Album row store: display rows plus the lazy artwork resolver.
 #[derive(Debug, Default)]
 pub struct AlbumListModelRust {
-    albums: Vec<(i32, QString, QString, i32, i32)>,
+    albums: Vec<AlbumRow>,
+    art: ArtCore,
     search: SearchCore,
 }
 
 /// One settled search result set as display rows.
-type AlbumSearchRows = Vec<(i32, QString, QString, i32, i32)>;
+type AlbumSearchRows = Vec<AlbumRow>;
 
 impl AlbumListModelRust {
     /// Push one row; returns its index (saturates instead of wrapping on
     /// absurd lengths — a view count, never an allocation index).
-    fn push_row(
-        &mut self,
-        album_id: i32,
-        title: QString,
-        artist: QString,
-        year: i32,
-        track_count: i32,
-    ) -> i32 {
+    fn push_row(&mut self, album: AlbumRow) -> i32 {
         let row = i32::try_from(self.albums.len()).unwrap_or(i32::MAX);
-        self.albums
-            .push((album_id, title, artist, year, track_count));
+        self.albums.push(album);
         row
     }
 
@@ -76,17 +91,65 @@ impl AlbumListModelRust {
     /// Data for one row/role; invalid variant when out of range or the role
     /// is unknown.
     fn row_data(&self, row: usize, role: qobject::AlbumRoles) -> QVariant {
-        if let Some((album_id, title, artist, year, track_count)) = self.albums.get(row) {
+        if let Some(album) = self.albums.get(row) {
             return match role {
-                qobject::AlbumRoles::AlbumId => QVariant::from(album_id),
-                qobject::AlbumRoles::Title => QVariant::from(title),
-                qobject::AlbumRoles::Artist => QVariant::from(artist),
-                qobject::AlbumRoles::Year => QVariant::from(year),
-                qobject::AlbumRoles::TrackCount => QVariant::from(track_count),
+                qobject::AlbumRoles::AlbumId => QVariant::from(&album.album_id),
+                qobject::AlbumRoles::Title => QVariant::from(&album.title),
+                qobject::AlbumRoles::Artist => QVariant::from(&album.artist),
+                qobject::AlbumRoles::Year => QVariant::from(&album.year),
+                qobject::AlbumRoles::TrackCount => QVariant::from(&album.track_count),
+                qobject::AlbumRoles::ArtUrl => QVariant::from(&self.art_url(row)),
                 _ => QVariant::default(),
             };
         }
         QVariant::default()
+    }
+
+    /// Cached cover for a row as a QML-loadable URL, empty while unresolved
+    /// or when the album has none (the card keeps its placeholder).
+    fn art_url(&self, row: usize) -> QString {
+        let Some(album) = self.albums.get(row) else {
+            return QString::default();
+        };
+        let key = i64::from(album.album_id);
+        self.art
+            .art(key)
+            .map(|art| file_url(&art.thumb256))
+            .unwrap_or_default()
+    }
+
+    /// Ask for one row's cover; cheap to call on every card that appears.
+    fn request_art(&mut self, row: usize) {
+        let Some(album) = self.albums.get(row) else {
+            return;
+        };
+        if album.art_source.as_os_str().is_empty() {
+            return;
+        }
+        let key = i64::from(album.album_id);
+        let source = album.art_source.clone();
+        self.art.request(key, &source);
+    }
+
+    /// Drain resolved covers, returning the rows that now have one to show.
+    fn poll_art(&mut self) -> Vec<usize> {
+        let settled = self.art.poll();
+        if settled.is_empty() {
+            return Vec::new();
+        }
+        settled
+            .iter()
+            .filter_map(|album_id| {
+                self.albums
+                    .iter()
+                    .position(|album| i64::from(album.album_id) == *album_id)
+            })
+            .collect()
+    }
+
+    /// Whether any cover lookup is still in flight.
+    fn art_pending(&self) -> bool {
+        self.art.pending()
     }
 
     /// Submit raw query text to the debounced search worker.
@@ -115,21 +178,32 @@ impl AlbumListModelRust {
 }
 
 /// Map one album group hit to its display row (shared by browse + search).
-fn display_album(row: &tunex_library::AlbumRow) -> (i32, QString, QString, i32, i32) {
-    (
-        i32::try_from(row.id).unwrap_or(i32::MAX),
-        QString::from(&row.title),
-        QString::from(row.artist.as_deref().unwrap_or("Unknown Artist")),
-        row.year
+fn display_album(row: &tunex_library::AlbumRow) -> AlbumRow {
+    AlbumRow {
+        album_id: i32::try_from(row.id).unwrap_or(i32::MAX),
+        title: QString::from(&row.title),
+        artist: QString::from(row.artist.as_deref().unwrap_or("Unknown Artist")),
+        year: row
+            .year
             .and_then(|year| i32::try_from(year).ok())
             .unwrap_or(0),
-        i32::try_from(row.track_count).unwrap_or(i32::MAX),
-    )
+        track_count: i32::try_from(row.track_count).unwrap_or(i32::MAX),
+        art_source: row
+            .art_source
+            .as_deref()
+            .map(PathBuf::from)
+            .unwrap_or_default(),
+    }
+}
+
+/// Cache path as the `file://` URL QML's `Image.source` expects.
+fn file_url(path: &Path) -> QString {
+    QString::from(&format!("file://{}", path.display()))
 }
 
 /// Load album rows from the index at `path` (empty when absent/unreadable —
 /// the empty-library state, never an error surface).
-fn load_albums(path: &std::path::Path) -> Vec<(i32, QString, QString, i32, i32)> {
+fn load_albums(path: &std::path::Path) -> Vec<AlbumRow> {
     if !path.is_file() {
         return Vec::new();
     }
@@ -158,8 +232,8 @@ impl qobject::AlbumListModel {
             self.as_mut().begin_reset_model_albums();
             let mut rust = self.as_mut().rust_mut();
             rust.drop_rows();
-            for (album_id, title, artist, year, track_count) in rows {
-                rust.push_row(album_id, title, artist, year, track_count);
+            for album in rows {
+                rust.push_row(album);
             }
             self.as_mut().end_reset_model_albums();
         }
@@ -193,12 +267,36 @@ impl qobject::AlbumListModel {
             self.as_mut().begin_reset_model_albums();
             let mut rust = self.as_mut().rust_mut();
             rust.drop_rows();
-            for (album_id, title, artist, year, track_count) in rows {
-                rust.push_row(album_id, title, artist, year, track_count);
+            for album in rows {
+                rust.push_row(album);
             }
             self.as_mut().end_reset_model_albums();
         };
         true
+    }
+
+    /// Ask for one row's cover. Views call this as a card appears; rows
+    /// already answered or in flight cost nothing.
+    pub fn request_art(mut self: Pin<&mut Self>, row: i32) {
+        let row = usize::try_from(row).unwrap_or(usize::MAX);
+        self.as_mut().rust_mut().request_art(row);
+    }
+
+    /// Publish covers that have landed and report whether more are coming.
+    ///
+    /// Each cover replaces one placeholder, so the rows that changed are
+    /// announced with `dataChanged` — a reset would rebuild the whole grid
+    /// (and drop its scroll position) for one role on one row.
+    #[must_use]
+    pub fn poll_art(mut self: Pin<&mut Self>) -> bool {
+        let settled = self.as_mut().rust_mut().poll_art();
+        let roles = QVector::<i32>::from(&[qobject::AlbumRoles::ArtUrl.repr][..]);
+        for row in settled {
+            let row = i32::try_from(row).unwrap_or(i32::MAX);
+            let index = self.as_ref().index_albums(row, 0, &QModelIndex::default());
+            self.as_mut().data_changed_albums(&index, &index, &roles);
+        }
+        self.rust().art_pending()
     }
 
     /// Whether a submitted query is still waiting on the worker.
@@ -237,6 +335,7 @@ impl qobject::AlbumListModel {
             QByteArray::from("albumId"),
         );
         roles.insert(qobject::AlbumRoles::Title.repr, QByteArray::from("title"));
+        roles.insert(qobject::AlbumRoles::ArtUrl.repr, QByteArray::from("artUrl"));
         roles.insert(qobject::AlbumRoles::Artist.repr, QByteArray::from("artist"));
         roles.insert(qobject::AlbumRoles::Year.repr, QByteArray::from("year"));
         roles.insert(
@@ -249,11 +348,12 @@ impl qobject::AlbumListModel {
 
 #[cfg(test)]
 mod tests {
-    use super::AlbumListModelRust;
     use super::qobject::AlbumRoles;
+    use super::{AlbumListModelRust, AlbumRow};
     use crate::bridge::test_support::seeded_index;
     use crate::search::SearchCore;
     use cxx_qt_lib::{QString, QVariant};
+    use std::path::PathBuf;
     use std::time::{Duration, Instant};
 
     /// Poll until one result set settles (tests end idle so the joined
@@ -269,30 +369,46 @@ mod tests {
         }
     }
 
+    /// Display row with a named album and an artwork source path.
+    fn album(album_id: i32, title: &str, artist: &str, year: i32, source: &str) -> AlbumRow {
+        AlbumRow {
+            album_id,
+            title: QString::from(title),
+            artist: QString::from(artist),
+            year,
+            track_count: 3,
+            art_source: PathBuf::from(source),
+        }
+    }
+
     fn model_with_two_albums() -> AlbumListModelRust {
         let mut model = AlbumListModelRust::default();
-        model.push_row(
-            7,
-            QString::from("Night Tapes"),
-            QString::from("Nova Rae"),
-            2024,
-            14,
-        );
-        model.push_row(9, QString::from("Only"), QString::from("Solo Act"), 0, 3);
+        model.push_row(album(7, "Night Tapes", "Nova Rae", 2024, "/music/a1.flac"));
+        model.push_row(album(9, "Only", "Solo Act", 0, "/music/b1.flac"));
         model
     }
 
     #[test]
     fn push_row_returns_sequential_indices() {
         let mut model = AlbumListModelRust::default();
-        assert_eq!(
-            model.push_row(1, QString::from("A"), QString::from("B"), 2000, 1),
-            0
-        );
-        assert_eq!(
-            model.push_row(2, QString::from("C"), QString::from("D"), 2001, 1),
-            1
-        );
+        assert_eq!(model.push_row(album(1, "A", "B", 2000, "/music/a.flac")), 0);
+        assert_eq!(model.push_row(album(2, "C", "D", 2001, "/music/c.flac")), 1);
+    }
+
+    #[test]
+    fn art_url_is_empty_until_a_cover_resolves() {
+        // The card shows its monogram placeholder while the resolver works,
+        // and keeps it for albums that never had a cover.
+        let model = model_with_two_albums();
+        assert_eq!(model.art_url(0), QString::default());
+    }
+
+    #[test]
+    fn an_album_without_indexed_tracks_never_asks_for_art() {
+        let mut model = AlbumListModelRust::default();
+        model.push_row(album(1, "Empty", "Nobody", 0, ""));
+        model.request_art(0);
+        assert!(!model.art_pending(), "no source, no request");
     }
 
     #[test]
@@ -357,8 +473,8 @@ mod tests {
         assert!(model.is_searching());
         let rows = settle_search(&mut model);
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].1, QString::from("Night Tapes"));
-        assert_eq!(rows[0].4, 2, "group row carries its track count");
+        assert_eq!(rows[0].title, QString::from("Night Tapes"));
+        assert_eq!(rows[0].track_count, 2, "group row carries its track count");
         assert!(!model.is_searching());
         assert!(
             model.poll_search_rows().is_none(),

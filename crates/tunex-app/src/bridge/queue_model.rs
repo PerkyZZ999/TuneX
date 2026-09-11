@@ -21,6 +21,7 @@ use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 use tokio::sync::mpsc;
 
+use crate::art::ArtCore;
 use crate::mpris::{
     MprisCommand, MprisSnapshot, MprisTrack, TRACK_PATH_PREFIX, publish as publish_mpris,
     take_inbox, unmap_loop,
@@ -108,6 +109,9 @@ fn single_extra(shorter: &[QueueRow], longer: &[QueueRow]) -> Option<usize> {
 #[derive(Debug)]
 pub struct QueueModelRust {
     rows: Vec<QueueRow>,
+    /// Lazy cover lookups for the playing track (S6 W-040): the mini-player,
+    /// Now Playing and MPRIS all read the answer.
+    art: ArtCore,
     /// The rows the view has been told about, so a change can be announced
     /// as what it is (see [`row_change`]).
     published: Vec<QueueRow>,
@@ -131,6 +135,7 @@ impl Default for QueueModelRust {
     fn default() -> Self {
         Self {
             rows: Vec::new(),
+            art: ArtCore::default(),
             published: Vec::new(),
             controller: None,
             index_path: tunex_core::library_db_path(),
@@ -280,9 +285,10 @@ impl QueueModelRust {
             self.sync_rows();
         }
         self.maybe_persist_session(false);
+        let art_landed = self.sync_current_art();
         self.sync_mpris();
         self.maybe_notify_track();
-        !unchanged
+        !unchanged || art_landed
     }
 
     /// Toast on track advances and nothing else. Restores seed
@@ -602,6 +608,45 @@ impl QueueModelRust {
             .unwrap_or_default()
     }
 
+    /// Cached cover of the playing track, as a path into the art cache.
+    ///
+    /// The 512px thumbnail is the biggest the cache keeps, and Now Playing
+    /// draws artwork at 320px or more.
+    fn current_art_path(&self) -> Option<&std::path::Path> {
+        let track_id = self.current_item()?.track_id?;
+        Some(self.art.art(track_id)?.thumb512.as_path())
+    }
+
+    /// Cached cover of the playing track as a QML-loadable URL, empty while
+    /// unresolved and for tracks without one.
+    fn current_art_url(&self) -> QString {
+        self.current_art_path()
+            .map(|path| QString::from(&format!("file://{}", path.display())))
+            .unwrap_or_default()
+    }
+
+    /// Currently playing queue entry, straight from the controller.
+    fn current_item(&self) -> Option<tunex_player::QueueItem> {
+        self.controller
+            .as_ref()
+            .and_then(PlaybackController::current_item)
+    }
+
+    /// Ask for the playing track's cover and take whatever has landed.
+    ///
+    /// Called from the poll, so a track change resolves its art within one
+    /// tick without any view having to ask.
+    fn sync_current_art(&mut self) -> bool {
+        let Some(item) = self.current_item() else {
+            return false;
+        };
+        let (Some(track_id), Some(path)) = (item.track_id, uri_to_path(&item.uri)) else {
+            return false;
+        };
+        self.art.request(track_id, &path);
+        !self.art.poll().is_empty()
+    }
+
     /// Output volume as 0–100 (100 when the engine is not up yet).
     fn volume_pct(&self) -> i32 {
         self.controller.as_ref().map_or(100, |controller| {
@@ -671,6 +716,10 @@ impl QueueModelRust {
         let len = controller.queue_len();
         let position_us = controller.position().map_or(0, duration_to_us);
         let length_us = controller.duration().map(duration_to_us);
+        // Clients read the cover from the same cache the UI draws.
+        let art_url = self
+            .current_art_path()
+            .map(|path| format!("file://{}", path.display()));
         let track = controller.current_item().map(|item| {
             let suffix = item.track_id.map_or_else(
                 || format!("q{}", cursor.unwrap_or(0)),
@@ -683,6 +732,7 @@ impl QueueModelRust {
                 artist: item.artist,
                 album: item.album,
                 length_us,
+                art_url,
             }
         });
         let state = controller.state();
@@ -1252,6 +1302,12 @@ impl qobject::QueueModel {
     /// Known duration in milliseconds (engine, else current row, else 0).
     pub fn duration_ms(&self) -> i32 {
         self.rust().duration_ms()
+    }
+
+    /// Cached cover of the playing track as a `file://` URL, empty while
+    /// unresolved and for tracks that have none.
+    pub fn current_art_url(&self) -> QString {
+        self.rust().current_art_url()
     }
 
     /// Title of the playing row (empty when idle).

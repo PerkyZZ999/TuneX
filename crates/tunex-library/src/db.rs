@@ -511,13 +511,19 @@ pub struct AlbumRow {
     pub year: Option<i64>,
     /// Indexed tracks on this album.
     pub track_count: i64,
+    /// A track on this album to read artwork from (`None` for an album with
+    /// no indexed tracks). Any track resolves the same folder art, and
+    /// embedded covers on an album agree in practice — the grid needs one
+    /// source, not all of them.
+    pub art_source: Option<String>,
 }
 
 /// Shared album-list projection: attributed artist plus track counts.
 /// Callers append their own `WHERE` before [`ALBUM_LIST_TAIL`].
 const ALBUM_LIST_SELECT: &str = "SELECT albums.id AS id, albums.title AS title,
                     artists.name AS artist, albums.year AS year,
-                    COUNT(tracks.id) AS track_count
+                    COUNT(tracks.id) AS track_count,
+                    MIN(tracks.path) AS art_source
              FROM albums
              LEFT JOIN artists ON artists.id = albums.artist_id
              LEFT JOIN tracks ON tracks.album_id = albums.id";
@@ -574,6 +580,7 @@ pub fn list_albums(db: &Connection) -> Result<Vec<AlbumRow>> {
                 artist: row.get("artist")?,
                 year: row.get("year")?,
                 track_count: row.get("track_count")?,
+                art_source: row.get("art_source")?,
             })
         })
         .map_err(|err| db_error(&err))?;
@@ -878,6 +885,7 @@ pub(crate) fn albums_for_tracks(
                 artist: row.get("artist")?,
                 year: row.get("year")?,
                 track_count: row.get("track_count")?,
+                art_source: row.get("art_source")?,
             })
         })
         .map_err(|err| db_error(&err))?;
@@ -1115,6 +1123,11 @@ mod tests {
             .expect("album present");
         assert_eq!(tapes.artist.as_deref(), Some("Nova Rae"));
         assert_eq!(tapes.track_count, 2);
+        assert_eq!(
+            tapes.art_source.as_deref(),
+            Some("/music/a1.flac"),
+            "the album carries a track to read artwork from"
+        );
 
         let songs = list_tracks_in_album(&db, tapes.id).expect("album tracks list");
         assert_eq!(songs.len(), 2);

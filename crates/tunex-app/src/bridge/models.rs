@@ -18,6 +18,19 @@
     clippy::unnecessary_box_returns,
     reason = "generated FFI constructor shim"
 )]
+// Same exception, other direction: the macro generates the connection type
+// behind every `#[qsignal]`, and it carries no `Debug`.
+#![expect(
+    missing_debug_implementations,
+    reason = "generated signal connection type"
+)]
+// Inherited Qt getters (`index`) are declared here and generated as plain
+// functions; `#[must_use]` is not among the attributes cxx-qt accepts on
+// them, and this file is bridge declarations only.
+#![expect(
+    clippy::must_use_candidate,
+    reason = "generated inherited-method wrappers"
+)]
 
 // Row stores live beside their loaders/tests; the bridge aliases below
 // resolve through these imports (cxx-qt requires two-segment `super::T`
@@ -60,6 +73,10 @@ pub mod qobject {
         include!("cxx-qt-lib/qvariant.h");
         /// `QVariant` for role data.
         type QVariant = cxx_qt_lib::QVariant;
+
+        include!("cxx-qt-lib/qvector.h");
+        /// `QVector<int>`: the changed-roles list carried by `dataChanged`.
+        type QVector_i32 = cxx_qt_lib::QVector<i32>;
     }
 
     /// Roles exposed to QML delegates as `name` / `albumCount` / `trackCount`.
@@ -87,6 +104,9 @@ pub mod qobject {
         Year,
         /// Indexed track count.
         TrackCount,
+        /// Cached cover as a `file://` URL, empty until the lazy resolver
+        /// answers and for albums with no artwork (placeholder case).
+        ArtUrl,
     }
 
     /// Roles exposed to QML delegates (`trackId`, `title`, `artist`, `album`,
@@ -158,6 +178,38 @@ pub mod qobject {
         #[cxx_name = "endResetModel"]
         unsafe fn end_reset_model_albums(self: Pin<&mut AlbumListModel>);
 
+    }
+
+    // Safe-to-call inherited members live in their own `unsafe extern`
+    // block: cxx-qt requires that shape, and mixing them with the
+    // begin/end pairs above would claim those are safe too.
+    unsafe extern "RustQt" {
+        /// Inherited `index`: the model index for one album row, needed to
+        /// address a row when its artwork lands.
+        #[inherit]
+        #[cxx_name = "index"]
+        fn index_albums(
+            self: &AlbumListModel,
+            row: i32,
+            column: i32,
+            parent: &QModelIndex,
+        ) -> QModelIndex;
+
+        /// Inherited `dataChanged`: one row's artwork replaced its
+        /// placeholder. A reset would rebuild the whole grid (and lose the
+        /// scroll position) for what is one role on one row.
+        #[qsignal]
+        #[inherit]
+        #[cxx_name = "dataChanged"]
+        fn data_changed_albums(
+            self: Pin<&mut AlbumListModel>,
+            top_left: &QModelIndex,
+            bottom_right: &QModelIndex,
+            roles: &QVector_i32,
+        );
+    }
+
+    extern "RustQt" {
         /// # Safety
         ///
         /// Inherited `beginResetModel` for `LibraryTrackModel`.
@@ -242,6 +294,18 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "pollSearch"]
         fn poll_search(self: Pin<&mut AlbumListModel>) -> bool;
+
+        /// Ask for one row's cover (lazy artwork, S6 W-040).
+        /// Exposed to QML as `requestArt`.
+        #[qinvokable]
+        #[cxx_name = "requestArt"]
+        fn request_art(self: Pin<&mut AlbumListModel>, row: i32);
+
+        /// Publish covers that landed; returns true while more are coming,
+        /// so the caller's pump can stop on false. Exposed as `pollArt`.
+        #[qinvokable]
+        #[cxx_name = "pollArt"]
+        fn poll_art(self: Pin<&mut AlbumListModel>) -> bool;
 
         /// Whether a submitted query is still waiting on the worker.
         #[qinvokable]
@@ -523,6 +587,13 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "durationMs"]
         fn duration_ms(self: &QueueModel) -> i32;
+
+        /// Cached cover of the playing track as a `file://` URL, empty
+        /// while it resolves and for tracks without one.
+        /// Exposed to QML as `currentArtUrl`.
+        #[qinvokable]
+        #[cxx_name = "currentArtUrl"]
+        fn current_art_url(self: &QueueModel) -> QString;
 
         /// Title of the playing row (empty when idle).
         /// Exposed to QML as `currentTitle`.

@@ -37,7 +37,7 @@
 - **Description:** Embedded > cover.jpg > folder.jpg > front.jpg; XDG cache 64/256/512 + orig, blake3 key, ~2GB LRU, decode caps, lazy/background, placeholder fallback.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] Grid shows art without UI-thread decode; restart reuses cache; oversized/broken art → placeholder, no crash
+  - [x] Grid shows art without UI-thread decode; restart reuses cache; oversized/broken art → placeholder, no crash (W-040)
 - **Validation method:** manual + test
 
 ### R-006 — Persistence + migrations

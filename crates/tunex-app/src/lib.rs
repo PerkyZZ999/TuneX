@@ -11,6 +11,9 @@
 //! implementations. A binary that references nothing from here silently drops
 //! the whole Qt world at link time (`--gc-sections`).
 
+/// Lazy artwork resolution off the UI thread (rows ask, a worker answers).
+pub mod art;
+
 pub mod bridge;
 
 /// Library orchestration (folders, scan worker, watcher batches).

@@ -1,10 +1,10 @@
 import QtQuick
 import TuneX 1.0
 
-// AlbumCard (S2 W-016): artwork-first card, 12px radius, two-line meta.
-// Artwork arrives with the W-017 background worker; until then the card
-// renders its generated monogram placeholder (unknown art stays a
-// placeholder, never a guess).
+// AlbumCard (S2 W-016, artwork in S6 W-040): artwork-first card, 12px
+// radius, two-line meta. The cover is resolved lazily — the card asks for it
+// as it appears and `Artwork` fades it in over the generated monogram, which
+// stays for albums that have none (unknown art is never a guess).
 Item {
     id: root
 
@@ -16,6 +16,8 @@ Item {
     property string artist: ""
     property int year: 0
     property int trackCount: 0
+    // Cached cover, empty until the lazy resolver answers (or forever).
+    property url artUrl
     // Bound at instantiation (`cardIndex: index`): lets activation sync the
     // view's currentIndex so the highlight follows the drilled album.
     property int cardIndex: -1
@@ -57,19 +59,15 @@ Item {
             width: parent.width
             height: parent.width
             radius: Theme.radiusMd
-            color: root.activeFocus ? Theme.selected : Theme.surfaceRaised
+            color: root.activeFocus ? Theme.selected : "transparent"
             border.color: root.activeFocus ? Theme.focus : "transparent"
             border.width: root.activeFocus ? 2 : 0
 
-            Text {
-                anchors.centerIn: parent
-                text: root.monogram
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontHeadline
-                font.weight: Font.DemiBold
-                color: Theme.muted
-                Accessible.ignored: true
+            Artwork {
+                anchors.fill: parent
+                source: root.artUrl
+                monogram: root.monogram
+                radius: Theme.radiusMd
             }
 
             MouseArea {

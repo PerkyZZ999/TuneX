@@ -33,6 +33,7 @@ fn main() {
                 "qml/TuneX/Chip.qml",
                 "qml/TuneX/LibraryView.qml",
                 "qml/TuneX/TrackRow.qml",
+                "qml/TuneX/Artwork.qml",
                 "qml/TuneX/AlbumCard.qml",
                 "qml/TuneX/ArtistCard.qml",
                 "qml/TuneX/PlaylistCard.qml",

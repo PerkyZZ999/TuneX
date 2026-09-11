@@ -30,6 +30,7 @@ tunex-player.workspace = true
 
 [dev-dependencies]
 gstreamer.workspace = true
+image.workspace = true
 tokio.workspace = true
 tunex-player.workspace = true
 
