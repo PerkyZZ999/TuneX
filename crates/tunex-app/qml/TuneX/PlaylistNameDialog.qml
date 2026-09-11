@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import TuneX 1.0
 
 // PlaylistNameDialog (S3 W-024): name entry for playlist create/rename.
 // Blank and duplicate names fail in the model with surfaced text (the
@@ -8,6 +9,7 @@ Dialog {
     id: root
 
     property string initialName: ""
+    required property QueueModel queue
 
     signal nameAccepted(string name)
 
@@ -44,6 +46,11 @@ Dialog {
             border.width: nameField.activeFocus ? 2 : 1
         }
 
+    }
+
+    background: GlassBackdrop {
+        cornerRadius: Theme.radiusLg
+        transparencyOff: root.queue.reduceTransparency()
     }
 
 }

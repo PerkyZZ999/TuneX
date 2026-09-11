@@ -19,8 +19,10 @@ Window {
     readonly property bool canGoBack: historyAt > 0
     readonly property bool canGoForward: historyAt < history.length - 1
     readonly property bool wideShell: root.width >= Theme.shellWide
+    readonly property bool compactRail: root.width < Theme.shellCompact
+    readonly property int railSize: root.compactRail ? Theme.railNarrow : Theme.railWidth
     readonly property bool showMiniPlayer: !root.wideShell && root.playerActive
-    readonly property bool showDockedQueue: root.wideShell && root.playerActive
+    readonly property bool showDockedQueue: root.wideShell
     readonly property int volumeStep: 5
     readonly property bool editingText: {
         const item = root.activeFocusItem;
@@ -103,6 +105,11 @@ Window {
         if (nowPlayingLoader.item)
             nowPlayingLoader.item.sync();
 
+        library.poll();
+        if (library.takeFinished()) {
+            homeView.refresh();
+            libraryView.refresh();
+        }
     }
 
     minimumWidth: Theme.windowMinWidth
@@ -112,6 +119,11 @@ Window {
     visible: true
     title: qsTr("TuneX")
     color: Theme.background
+    Component.onCompleted: {
+        Glass.canvas = canvas;
+        library.startup();
+        playlistModel.refresh();
+    }
     onWidthChanged: {
         if (root.wideShell && queueDrawer.opened)
             queueDrawer.close();
@@ -213,6 +225,10 @@ Window {
         id: playlistModel
     }
 
+    LibraryManager {
+        id: library
+    }
+
     Timer {
         interval: 300
         running: true
@@ -243,9 +259,22 @@ Window {
             onExpandRequested: root.openNowPlaying()
         }
 
+        background: GlassBackdrop {
+            transparencyOff: queueModel.reduceTransparency()
+        }
+
+    }
+
+    FoldersDrawer {
+        id: foldersDrawer
+
+        manager: library
+        queue: queueModel
     }
 
     Column {
+        id: canvas
+
         anchors.fill: parent
 
         Row {
@@ -253,43 +282,182 @@ Window {
             height: parent.height - miniPlayer.height
 
             Rectangle {
-                width: Theme.railWidth
+                width: root.railSize
                 height: parent.height
                 color: Theme.surface
 
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.right: parent.right
+                    width: 1
+                    color: Theme.border
+                    Accessible.ignored: true
+                }
+
                 Column {
                     anchors.fill: parent
-                    anchors.margins: Theme.spaceMd
+                    anchors.margins: Theme.spaceSm
                     spacing: Theme.spaceXs
+
+                    Item {
+                        width: parent.width
+                        height: 48
+
+                        Rectangle {
+                            id: mark
+
+                            width: 28
+                            height: 28
+                            radius: Theme.radiusSm
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: root.compactRail ? (parent.width - width) / 2 : Theme.spaceXs
+                            color: Theme.primary
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "X"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontTitle
+                                font.weight: Font.Bold
+                                color: Theme.primaryText
+                            }
+
+                        }
+
+                        Text {
+                            visible: !root.compactRail
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: mark.right
+                            anchors.leftMargin: Theme.spaceSm
+                            text: qsTr("TuneX")
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontTitle
+                            font.weight: Font.DemiBold
+                            color: Theme.foreground
+                        }
+
+                    }
 
                     NavItem {
                         label: qsTr("Home")
+                        iconName: "home"
+                        compact: root.compactRail
                         selected: root.section === "home"
                         onActivated: root.navigate("home")
                     }
 
                     NavItem {
                         label: qsTr("Search")
+                        iconName: "search"
+                        compact: root.compactRail
                         selected: root.section === "search"
                         onActivated: root.navigate("search")
                     }
 
-                    NavItem {
-                        label: qsTr("Your Library")
-                        selected: root.section === "library"
-                        onActivated: root.navigate("library")
+                    Text {
+                        visible: !root.compactRail
+                        width: parent.width
+                        leftPadding: Theme.spaceMd
+                        topPadding: Theme.spaceSm
+                        text: qsTr("YOUR LIBRARY")
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontCaption
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 0.8
+                        color: Theme.muted
                     }
 
                     NavItem {
-                        label: qsTr("Playlists")
-                        selected: root.section === "playlists"
-                        onActivated: root.navigate("playlists")
+                        label: qsTr("Artists")
+                        iconName: "users"
+                        compact: root.compactRail
+                        selected: root.section === "library" && libraryView.tab === "artists"
+                        onActivated: {
+                            libraryView.tab = "artists";
+                            root.navigate("library");
+                        }
                     }
 
                     NavItem {
-                        label: qsTr("Settings")
-                        selected: root.section === "settings"
-                        onActivated: root.navigate("settings")
+                        label: qsTr("Albums")
+                        iconName: "disc"
+                        compact: root.compactRail
+                        selected: root.section === "library" && libraryView.tab === "albums"
+                        onActivated: {
+                            libraryView.tab = "albums";
+                            root.navigate("library");
+                        }
+                    }
+
+                    NavItem {
+                        label: qsTr("Songs")
+                        iconName: "list"
+                        compact: root.compactRail
+                        selected: root.section === "library" && libraryView.tab === "songs"
+                        onActivated: {
+                            libraryView.tab = "songs";
+                            root.navigate("library");
+                        }
+                    }
+
+                    NavItem {
+                        label: qsTr("Folders")
+                        iconName: "folder"
+                        compact: root.compactRail
+                        selected: false
+                        onActivated: foldersDrawer.open()
+                    }
+
+                    Text {
+                        visible: !root.compactRail
+                        width: parent.width
+                        leftPadding: Theme.spaceMd
+                        topPadding: Theme.spaceSm
+                        text: qsTr("PLAYLISTS")
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontCaption
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 0.8
+                        color: Theme.muted
+                    }
+
+                    NavItem {
+                        label: qsTr("Create playlist")
+                        iconName: "plus"
+                        compact: root.compactRail
+                        selected: false
+                        onActivated: {
+                            root.navigate("playlists");
+                            playlistsView.openCreate();
+                        }
+                    }
+
+                    ListView {
+                        width: parent.width
+                        height: Math.min(contentHeight, parent.height * 0.28)
+                        clip: true
+                        model: playlistModel
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        delegate: NavItem {
+                            width: ListView.view.width
+                            label: model.name
+                            iconName: "list"
+                            compact: root.compactRail
+                            selected: root.section === "playlists" && playlistsView.playlistId === model.playlistId
+                            onActivated: {
+                                root.navigate("playlists");
+                                playlistsView.selectPlaylist(model.playlistId, model.name);
+                            }
+                        }
+
+                    }
+
+                    Item {
+                        width: 1
+                        height: Theme.spaceSm
                     }
 
                 }
@@ -297,7 +465,7 @@ Window {
             }
 
             Column {
-                width: parent.width - Theme.railWidth
+                width: parent.width - root.railSize
                 height: parent.height
 
                 Item {
@@ -312,27 +480,20 @@ Window {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.spaceMd
-                        spacing: Theme.spaceSm
+                        spacing: Theme.spaceXs
 
-                        Button {
-                            text: qsTr("Back")
+                        IconButton {
+                            iconName: "chevron-left"
+                            accessibleName: qsTr("Back")
                             enabled: root.canGoBack
-                            onClicked: root.goBack()
+                            onActivated: root.goBack()
                         }
 
-                        Button {
-                            text: qsTr("Forward")
+                        IconButton {
+                            iconName: "chevron-right"
+                            accessibleName: qsTr("Forward")
                             enabled: root.canGoForward
-                            onClicked: root.goForward()
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: root.sectionTitle(root.section)
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontTitle
-                            font.weight: Font.DemiBold
-                            color: Theme.foreground
+                            onActivated: root.goForward()
                         }
 
                     }
@@ -340,78 +501,105 @@ Window {
                     // Global pill search field (S3 W-020): text persists for the
                     // session; typing navigates to the results view, Esc is
                     // scope-aware (clear text, then leave search), Down/Enter
-                    // move focus into the results.
-                    TextField {
-                        id: searchField
+                    // move focus into the results. Magnifier + centered pill
+                    // match docs/mockup.png / DESIGN.md search-field.
+                    Item {
+                        id: searchWrap
 
-                        anchors.left: navRow.right
-                        anchors.leftMargin: Theme.spaceMd
-                        anchors.right: queueButton.visible ? queueButton.left : parent.right
-                        anchors.rightMargin: Theme.spaceMd
+                        width: Math.min(520, Math.max(240, topBar.width - navRow.width - settingsButton.width - queueButton.width - Theme.spaceXl * 3))
+                        height: Theme.targetMin
+                        anchors.horizontalCenter: parent.horizontalCenter
                         anchors.verticalCenter: parent.verticalCenter
-                        height: 44
-                        placeholderText: qsTr("Search your library")
-                        Accessible.name: qsTr("Search your library")
-                        color: Theme.foreground
-                        placeholderTextColor: Theme.muted
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBody
-                        leftPadding: Theme.spaceMd
-                        rightPadding: Theme.spaceMd
-                        onTextChanged: {
-                            if (searchField.text !== "" && root.section !== "search")
-                                root.navigate("search");
 
-                        }
-                        Keys.onEscapePressed: {
-                            // Scope-aware unwind: drill first (query preserved),
-                            // then clear text, then leave search.
-                            if (searchField.text !== "") {
-                                if (root.section === "search" && searchView.drilled)
-                                    searchView.leaveDrill();
-                                else
-                                    searchField.text = "";
-                            } else if (root.section === "search") {
-                                root.goBack();
+                        TextField {
+                            id: searchField
+
+                            anchors.fill: parent
+                            placeholderText: qsTr("Search for songs, artists, albums…")
+                            Accessible.name: qsTr("Search your library")
+                            color: Theme.foreground
+                            placeholderTextColor: Theme.muted
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                            leftPadding: Theme.spaceXl + Theme.spaceSm
+                            rightPadding: Theme.spaceMd
+                            onTextChanged: {
+                                if (searchField.text !== "" && root.section !== "search")
+                                    root.navigate("search");
+
                             }
-                        }
-                        Keys.onDownPressed: {
-                            if (root.section === "search")
-                                searchView.focusResults();
+                            Keys.onEscapePressed: {
+                                // Scope-aware unwind: drill first (query preserved),
+                                // then clear text, then leave search.
+                                if (searchField.text !== "") {
+                                    if (root.section === "search" && searchView.drilled)
+                                        searchView.leaveDrill();
+                                    else
+                                        searchField.text = "";
+                                } else if (root.section === "search") {
+                                    root.goBack();
+                                }
+                            }
+                            Keys.onDownPressed: {
+                                if (root.section === "search")
+                                    searchView.focusResults();
+
+                            }
+                            Keys.onReturnPressed: {
+                                if (root.section === "search")
+                                    searchView.focusResults();
+
+                            }
+                            Keys.onEnterPressed: {
+                                if (root.section === "search")
+                                    searchView.focusResults();
+
+                            }
+
+                            background: Rectangle {
+                                radius: Theme.radiusPill
+                                color: Theme.chrome
+                                border.color: searchField.activeFocus ? Theme.focus : Theme.border
+                                border.width: searchField.activeFocus ? 2 : 1
+                            }
 
                         }
-                        Keys.onReturnPressed: {
-                            if (root.section === "search")
-                                searchView.focusResults();
 
-                        }
-                        Keys.onEnterPressed: {
-                            if (root.section === "search")
-                                searchView.focusResults();
-
-                        }
-
-                        background: Rectangle {
-                            radius: Theme.radiusPill
-                            color: Theme.surfaceRaised
-                            border.color: searchField.activeFocus ? Theme.focus : Theme.border
-                            border.width: searchField.activeFocus ? 2 : 1
+                        Icon {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.spaceMd
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "search"
+                            iconSize: 20
+                            stroke: Theme.muted
                         }
 
                     }
 
-                    // Up Next toggle until the persistent player owns it
-                    // (MiniPlayer bar or the docked panel after first play).
-                    Button {
+                    IconButton {
                         id: queueButton
 
-                        visible: !root.playerActive
+                        visible: !root.wideShell
+                        width: visible ? Theme.targetMin : 0
+                        anchors.right: settingsButton.left
+                        anchors.rightMargin: Theme.spaceXs
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "queue"
+                        accessibleName: qsTr("Up Next")
+                        checked: queueDrawer.opened
+                        onActivated: root.toggleQueue()
+                    }
+
+                    IconButton {
+                        id: settingsButton
+
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.spaceMd
                         anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("Up Next")
-                        Accessible.name: qsTr("Open Up Next queue")
-                        onClicked: root.toggleQueue()
+                        iconName: "settings"
+                        accessibleName: qsTr("Settings")
+                        checked: root.section === "settings"
+                        onActivated: root.navigate("settings")
                     }
 
                 }
@@ -425,7 +613,23 @@ Window {
                         height: parent.height
 
                         HomeView {
+                            id: homeView
+
                             visible: root.section === "home"
+                            queue: queueModel
+                            playlists: playlistModel
+                            library: library
+                            canContinue: root.playerActive
+                            onBrowseRequested: (tab) => {
+                                libraryView.tab = tab;
+                                root.navigate("library");
+                            }
+                            onFoldersRequested: foldersDrawer.open()
+                            onPlaylistsRequested: root.navigate("playlists")
+                            onPlaylistOpened: (id, name) => {
+                                root.navigate("playlists");
+                                playlistsView.selectPlaylist(id, name);
+                            }
                         }
 
                         SearchView {
@@ -443,12 +647,18 @@ Window {
                         }
 
                         LibraryView {
+                            id: libraryView
+
                             visible: root.section === "library"
                             queue: queueModel
                             playlists: playlistModel
+                            library: library
+                            onFoldersRequested: foldersDrawer.open()
                         }
 
                         PlaylistsView {
+                            id: playlistsView
+
                             visible: root.section === "playlists"
                             queue: queueModel
                             playlists: playlistModel
@@ -457,7 +667,7 @@ Window {
                         SectionStub {
                             visible: root.section === "settings"
                             title: qsTr("Settings")
-                            note: qsTr("Keyboard (R-014): Space play/pause · media next/previous · volume up/down/mute · / or Ctrl+K search · Esc closes Now Playing, then search, then back · Alt+Left/Right history. Library folders live under Your Library. Playback and appearance persist in config.")
+                            note: qsTr("Keyboard (R-014): Space play/pause · media next/previous · volume up/down/mute · / or Ctrl+K search · Esc closes Now Playing, then search, then back · Alt+Left/Right history. Music folders live in the Folders rail item. Playback and appearance persist in config.")
                         }
 
                     }

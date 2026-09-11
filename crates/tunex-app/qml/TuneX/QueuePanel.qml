@@ -96,6 +96,15 @@ Rectangle {
 
     }
 
+    Rectangle {
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        width: 1
+        color: Theme.border
+        Accessible.ignored: true
+    }
+
     Timer {
         interval: 300
         running: root.tracking
@@ -138,6 +147,12 @@ Rectangle {
             onTriggered: root.queue.removeAt(rowMenu.rowIndex)
         }
 
+        background: GlassBackdrop {
+            cornerRadius: Theme.radiusLg
+            transparencyOff: root.queue.reduceTransparency()
+            disableBlur: true
+        }
+
     }
 
     Column {
@@ -148,36 +163,21 @@ Rectangle {
         Row {
             id: headerRow
 
+            visible: !root.embedded
             width: parent.width
+            height: visible ? Theme.targetMin : 0
             clip: true
-            spacing: Theme.spaceSm
 
-            Text {
-                width: parent.width - clearButton.width - closeButton.width - Theme.spaceSm * 2
-                anchors.verticalCenter: parent.verticalCenter
-                elide: Text.ElideRight
-                text: queueList.count > 0 ? qsTr("Up Next (%1)").arg(queueList.count) : qsTr("Up Next")
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.DemiBold
-                color: Theme.foreground
+            Item {
+                width: parent.width - closeButton.width
+                height: 1
             }
 
-            Button {
-                id: clearButton
-
-                text: qsTr("Clear")
-                enabled: queueList.count > 0
-                Accessible.name: qsTr("Clear the queue (keeps playing)")
-                onClicked: root.queue.clearQueue()
-            }
-
-            Button {
+            PrimaryButton {
                 id: closeButton
 
                 visible: !root.embedded
-                width: visible ? implicitWidth : 0
+                primary: false
                 text: qsTr("Close")
                 onClicked: root.closeRequested()
             }
@@ -187,68 +187,72 @@ Rectangle {
         MouseArea {
             id: nowPlayingHit
 
-            visible: root.hasCurrent
+            visible: root.hasCurrent || root.embedded
             width: parent.width
-            height: visible ? Theme.artThumb : 0
+            height: {
+                if (!visible)
+                    return 0;
+
+                if (root.embedded)
+                    return Math.min(parent.width, 248);
+
+                return Theme.artThumb;
+            }
             cursorShape: Qt.PointingHandCursor
             Accessible.role: Accessible.Button
             Accessible.name: qsTr("Open Now Playing")
             onClicked: root.expandRequested()
 
-            Row {
-                id: nowPlayingRow
+            Rectangle {
+                id: artWell
 
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: root.embedded ? parent.height : Theme.artThumb
+                height: width
+                radius: Theme.radiusMd
+                color: Theme.surfaceRaised
+                Accessible.ignored: true
+
+                Text {
+                    anchors.centerIn: parent
+                    text: root.hasCurrent ? root.monogram : qsTr("TuneX")
+                    textFormat: Text.PlainText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: root.embedded ? Theme.fontHeadline : Theme.fontTitle
+                    font.weight: Font.DemiBold
+                    color: Theme.muted
+                }
+
+            }
+
+        }
+
+        Column {
+            visible: root.embedded
+            width: parent.width
+            spacing: Theme.spaceXs
+
+            Text {
                 width: parent.width
-                height: parent.height
-                spacing: Theme.spaceSm
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: root.hasCurrent ? root.shownTitle : qsTr("Nothing playing")
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontTitle
+                font.weight: Font.DemiBold
+                color: Theme.foreground
+            }
 
-                Rectangle {
-                    width: Theme.artThumb
-                    height: Theme.artThumb
-                    radius: Theme.radiusMd
-                    color: Theme.surfaceRaised
-                    Accessible.ignored: true
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: root.monogram
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontTitle
-                        font.weight: Font.DemiBold
-                        color: Theme.muted
-                    }
-
-                }
-
-                Column {
-                    width: parent.width - Theme.artThumb - Theme.spaceSm
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 0
-
-                    Text {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: root.shownTitle
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBody
-                        font.weight: Font.DemiBold
-                        color: Theme.foreground
-                    }
-
-                    Text {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: root.shownArtist
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBodySm
-                        color: Theme.muted
-                    }
-
-                }
-
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: root.hasCurrent ? root.shownArtist : qsTr("Play something from your library")
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBodySm
+                color: Theme.muted
             }
 
         }
@@ -314,16 +318,13 @@ Rectangle {
             width: parent.width
             spacing: Theme.spaceXs
 
-            Button {
+            IconButton {
                 id: muteButton
 
-                width: Theme.targetMin
-                height: Theme.targetMin
-                checkable: true
+                iconName: "volume"
+                accessibleName: root.muted ? qsTr("Unmute") : qsTr("Mute")
                 checked: root.muted
-                text: qsTr("Mute")
-                Accessible.name: root.muted ? qsTr("Unmute") : qsTr("Mute")
-                onClicked: {
+                onActivated: {
                     root.queue.setMuted(!root.muted);
                     root.muted = !root.muted;
                 }
@@ -375,61 +376,129 @@ Rectangle {
 
         }
 
-        // Panel transport: previous, play/pause with text state, next.
         Row {
             id: transportRow
 
             width: parent.width
-            spacing: Theme.spaceSm
+            spacing: Theme.spaceXs
 
-            Button {
-                text: qsTr("Previous")
-                enabled: queueList.count > 0
-                onClicked: root.queue.previousTrack(root.queue.positionMs())
-            }
-
-            Button {
-                text: root.transportState === 2 ? qsTr("Pause") : qsTr("Play")
-                enabled: queueList.count > 0 || root.transportState === 2 || root.transportState === 3
-                onClicked: {
-                    root.queue.playPause();
-                    // Optimistic flip: the real state arrives via the poll
-                    // timers, so assume the toggle landed (polls confirm).
-                    root.transportState = root.transportState === 2 ? 3 : 2;
-                }
-            }
-
-            Button {
-                text: qsTr("Next")
-                enabled: queueList.count > 0
-                onClicked: root.queue.nextTrack()
-            }
-
-        }
-
-        // Shuffle/repeat toggles: text state, never color-only.
-        Row {
-            id: togglesRow
-
-            width: parent.width
-            spacing: Theme.spaceSm
-
-            Button {
-                text: root.shuffleOn ? qsTr("Shuffle: On") : qsTr("Shuffle: Off")
-                checkable: true
+            IconButton {
+                iconName: "shuffle"
+                accessibleName: root.shuffleOn ? qsTr("Shuffle: On") : qsTr("Shuffle: Off")
                 checked: root.shuffleOn
-                onClicked: {
+                onActivated: {
                     root.queue.toggleShuffle();
                     root.sync();
                 }
             }
 
-            Button {
-                text: root.repeatLabel
-                onClicked: {
+            Item {
+                width: Math.max(0, (parent.width - Theme.targetMin * 4 - Theme.playPrimary - Theme.spaceXs * 4) / 2)
+                height: 1
+            }
+
+            IconButton {
+                iconName: "skip-back"
+                accessibleName: qsTr("Previous")
+                enabled: queueList.count > 0
+                onActivated: root.queue.previousTrack(root.queue.positionMs())
+            }
+
+            Item {
+                width: Theme.playPrimary
+                height: Theme.playPrimary
+                Accessible.role: Accessible.Button
+                Accessible.name: root.transportState === 2 ? qsTr("Pause") : qsTr("Play")
+                enabled: queueList.count > 0 || root.transportState === 2 || root.transportState === 3
+                Keys.onSpacePressed: playHit.clicked(null)
+                activeFocusOnTab: true
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: Theme.primary
+                    border.width: parent.activeFocus ? 2 : 0
+                    border.color: Theme.focus
+                }
+
+                Icon {
+                    anchors.centerIn: parent
+                    name: root.transportState === 2 ? "pause" : "play"
+                    iconSize: 24
+                    stroke: Theme.primaryText
+                }
+
+                MouseArea {
+                    id: playHit
+
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.queue.playPause();
+                        root.transportState = root.transportState === 2 ? 3 : 2;
+                    }
+                }
+
+            }
+
+            IconButton {
+                iconName: "skip-forward"
+                accessibleName: qsTr("Next")
+                enabled: queueList.count > 0
+                onActivated: root.queue.nextTrack()
+            }
+
+            Item {
+                width: Math.max(0, (parent.width - Theme.targetMin * 4 - Theme.playPrimary - Theme.spaceXs * 4) / 2)
+                height: 1
+            }
+
+            IconButton {
+                iconName: "repeat"
+                accessibleName: root.repeatLabel
+                checked: root.queue.repeatMode() !== 0
+                onActivated: {
                     root.queue.cycleRepeat();
                     root.sync();
                 }
+            }
+
+        }
+
+        Item {
+            id: togglesRow
+
+            width: parent.width
+            height: 0
+        }
+
+        Row {
+            id: upNextHeader
+
+            width: parent.width
+            height: Theme.targetMin
+            spacing: Theme.spaceSm
+
+            Text {
+                width: parent.width - clearButton.width - Theme.spaceSm
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideRight
+                text: queueList.count > 0 ? qsTr("Up Next (%1)").arg(queueList.count) : qsTr("Up Next")
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontTitle
+                font.weight: Font.DemiBold
+                color: Theme.foreground
+            }
+
+            PrimaryButton {
+                id: clearButton
+
+                primary: false
+                text: qsTr("Clear")
+                enabled: queueList.count > 0
+                Accessible.name: qsTr("Clear the queue (keeps playing)")
+                onClicked: root.queue.clearQueue()
             }
 
         }
@@ -453,14 +522,25 @@ Rectangle {
             id: content
 
             width: parent.width
-            height: parent.height - headerRow.height - nowPlayingRow.height - progressItem.height - volumeRow.height - transportRow.height - togglesRow.height - errorText.height - Theme.spaceMd * 7
+            height: parent.height - headerRow.height - nowPlayingHit.height - progressItem.height - volumeRow.height - transportRow.height - togglesRow.height - upNextHeader.height - errorText.height - Theme.spaceMd * 8
 
             EmptyState {
-                visible: queueList.count === 0
+                visible: queueList.count === 0 && !root.embedded
                 title: qsTr("Up Next is empty")
                 note: qsTr("Play any song, album, or artist and it will queue up here.")
                 actionLabel: qsTr("Browse library")
                 onActionRequested: root.browseRequested()
+            }
+
+            Text {
+                visible: queueList.count === 0 && root.embedded
+                width: parent.width
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                text: qsTr("Nothing queued yet.")
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBody
+                color: Theme.muted
             }
 
             ListView {

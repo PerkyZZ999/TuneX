@@ -31,7 +31,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2+S3+S4+S5 done; S6 active (W-038–W-042 seeded).
+- Repo reality: S1+S2+S3+S4+S5 done; visual-contract refactor landed; S6 active from a clean W-038 (W-038–W-042 seeded, not started).
 
 ## Open loops
 - None
@@ -40,7 +40,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-038: Glass hierarchy audit + restraint pass per SPEC §21 (S6).
+- W-038: Glass hierarchy audit + restraint pass per SPEC §21 (S6), starting from the mockup-aligned shell (visual-contract refactor).
 
 ## Phase checklist
 - [x] 0 Intake

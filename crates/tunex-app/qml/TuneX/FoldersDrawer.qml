@@ -11,6 +11,7 @@ Drawer {
     id: root
 
     required property LibraryManager manager
+    required property QueueModel queue
     // Local mirror of manager state (functions carry no notifiers).
     property bool scanning: false
     property string statusLine: ""
@@ -161,6 +162,10 @@ Drawer {
 
         }
 
+    }
+
+    background: GlassBackdrop {
+        transparencyOff: root.queue.reduceTransparency()
     }
 
 }

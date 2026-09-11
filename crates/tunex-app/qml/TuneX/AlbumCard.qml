@@ -18,6 +18,8 @@ Item {
     // Bound at instantiation (`cardIndex: index`): lets activation sync the
     // view's currentIndex so the highlight follows the drilled album.
     property int cardIndex: -1
+    // Set when the card is not a GridView delegate (home rails).
+    property int explicitWidth: 0
     // First letters of the first two words, uppercase.
     readonly property string monogram: {
         const words = root.title.split(/\s+/).filter(function(word) {
@@ -35,8 +37,8 @@ Item {
 
     signal activated(int id)
 
-    width: GridView.view.cellWidth
-    height: GridView.view.cellHeight
+    width: root.explicitWidth > 0 ? root.explicitWidth : GridView.view.cellWidth
+    height: root.explicitWidth > 0 ? root.explicitWidth + 64 : GridView.view.cellHeight
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: root.title + ", " + root.artist

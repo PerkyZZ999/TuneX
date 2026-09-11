@@ -183,14 +183,12 @@ Item {
                 Repeater {
                     model: ["songs", "albums", "artists"]
 
-                    Button {
+                    Chip {
                         required property string modelData
 
-                        text: root.tabLabel(modelData)
-                        checkable: true
-                        checked: root.tab === modelData
-                        Accessible.name: root.tabLabel(modelData)
-                        onClicked: root.tab = modelData
+                        label: root.tabLabel(modelData)
+                        selected: root.tab === modelData
+                        onActivated: root.tab = modelData
                     }
 
                 }
@@ -225,14 +223,15 @@ Item {
             clip: true
             spacing: Theme.spaceSm
 
-            Button {
+            PrimaryButton {
                 id: drillBack
 
+                primary: false
                 text: qsTr("Back to results")
                 onClicked: root.leaveDrill()
             }
 
-            Button {
+            PrimaryButton {
                 id: playAlbumButton
 
                 text: qsTr("Play album")
@@ -244,9 +243,10 @@ Item {
                 }
             }
 
-            Button {
+            PrimaryButton {
                 id: queueAlbumButton
 
+                primary: false
                 text: qsTr("Queue album")
                 Accessible.name: qsTr("Add this album to Up Next")
                 onClicked: root.queue.enqueueAlbum(root.albumId)

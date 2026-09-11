@@ -13,6 +13,7 @@ Item {
 
     required property QueueModel queue
     required property PlaylistModel playlists
+    required property LibraryManager library
     // Album drill-down: -1 means the full songs tab.
     property int albumId: -1
     property string albumTitle: ""
@@ -22,6 +23,8 @@ Item {
     readonly property bool libraryEmpty: songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
     // Fluid artwork columns shared by both grids (160–220px cards).
     readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
+
+    signal foldersRequested()
 
     function drillIntoAlbum(id, title) {
         root.albumId = id;
@@ -41,6 +44,12 @@ Item {
         songs.refresh();
     }
 
+    function refresh() {
+        artists.refresh();
+        albums.refresh();
+        songs.refresh();
+    }
+
     onTabChanged: {
         // A drill hides its Back button off the songs tab: unwind it when
         // the tab leaves (results resubmit; the target tab shows them).
@@ -50,7 +59,6 @@ Item {
     }
     anchors.fill: parent
     Component.onCompleted: {
-        library.startup();
         artists.refresh();
         albums.refresh();
         songs.refresh();
@@ -66,33 +74,6 @@ Item {
 
     LibraryTrackModel {
         id: songs
-    }
-
-    // Folder + scan orchestration (W-017): startup loads folders and scans;
-    // the timer below polls progress and refreshes views per finished run.
-    // Workers never touch QObjects — all Qt updates happen on this thread.
-    LibraryManager {
-        id: library
-    }
-
-    Timer {
-        interval: 300
-        running: true
-        repeat: true
-        onTriggered: {
-            library.poll();
-            if (library.takeFinished()) {
-                artists.refresh();
-                albums.refresh();
-                songs.refresh();
-            }
-        }
-    }
-
-    FoldersDrawer {
-        id: folders
-
-        manager: library
     }
 
     TrackMenu {
@@ -131,27 +112,26 @@ Item {
                         "label": qsTr("Artists")
                     }]
 
-                    Button {
+                    Chip {
                         required property var modelData
 
-                        text: modelData.label
-                        checkable: true
-                        checked: root.tab === modelData.key
-                        Accessible.name: modelData.label
-                        onClicked: root.tab = modelData.key
+                        label: modelData.label
+                        selected: root.tab === modelData.key
+                        onActivated: root.tab = modelData.key
                     }
 
                 }
 
             }
 
-            Button {
+            PrimaryButton {
                 id: foldersButton
 
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
+                primary: false
                 text: qsTr("Music folders")
-                onClicked: folders.open()
+                onClicked: root.foldersRequested()
             }
 
         }
@@ -169,14 +149,15 @@ Item {
             clip: true
             spacing: Theme.spaceSm
 
-            Button {
+            PrimaryButton {
                 id: drillBack
 
+                primary: false
                 text: qsTr("Back to albums")
                 onClicked: root.leaveDrill()
             }
 
-            Button {
+            PrimaryButton {
                 id: playAlbumButton
 
                 text: qsTr("Play album")
@@ -188,9 +169,10 @@ Item {
                 }
             }
 
-            Button {
+            PrimaryButton {
                 id: queueAlbumButton
 
+                primary: false
                 text: qsTr("Queue album")
                 Accessible.name: qsTr("Add this album to Up Next")
                 onClicked: root.queue.enqueueAlbum(root.albumId)
@@ -221,7 +203,7 @@ Item {
                 title: qsTr("No music yet")
                 note: qsTr("Add a music folder and your artists, albums, and songs will appear here.")
                 actionLabel: qsTr("Add music folder")
-                onActionRequested: folders.open()
+                onActionRequested: root.foldersRequested()
             }
 
             // Songs tab: virtualized list over the capped songs query.

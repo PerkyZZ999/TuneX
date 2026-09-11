@@ -66,6 +66,7 @@ Item {
         parent: Overlay.overlay
         anchors.centerIn: Overlay.overlay
         modal: true
+        queue: root.queue
         onNameAccepted: (name) => {
             if (root.playlistId >= 0 && root.renaming) {
                 playlists.renamePlaylist(root.playlistId, name);
@@ -109,6 +110,11 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
             color: Theme.foreground
+        }
+
+        background: GlassBackdrop {
+            cornerRadius: Theme.radiusLg
+            transparencyOff: root.queue.reduceTransparency()
         }
 
     }
@@ -182,6 +188,12 @@ Item {
             }
         }
 
+        background: GlassBackdrop {
+            cornerRadius: Theme.radiusLg
+            transparencyOff: root.queue.reduceTransparency()
+            disableBlur: true
+        }
+
     }
 
     Row {
@@ -195,7 +207,7 @@ Item {
             height: parent.height
             spacing: Theme.spaceMd
 
-            Button {
+            PrimaryButton {
                 id: newButton
 
                 width: parent.width
@@ -319,7 +331,7 @@ Item {
                 Row {
                     spacing: Theme.spaceSm
 
-                    Button {
+                    PrimaryButton {
                         id: playAllButton
 
                         text: qsTr("Play all")
@@ -327,17 +339,19 @@ Item {
                         onClicked: root.playAll()
                     }
 
-                    Button {
+                    PrimaryButton {
                         id: queueAllButton
 
+                        primary: false
                         text: qsTr("Queue all")
                         enabled: entriesView.count > 0
                         onClicked: root.queue.enqueuePlaylist(root.playlistId)
                     }
 
-                    Button {
+                    PrimaryButton {
                         id: renameButton
 
+                        primary: false
                         text: qsTr("Rename")
                         onClicked: {
                             root.renaming = true;
@@ -345,9 +359,10 @@ Item {
                         }
                     }
 
-                    Button {
+                    PrimaryButton {
                         id: deleteButton
 
+                        primary: false
                         text: qsTr("Delete")
                         onClicked: deleteDialog.open()
                     }

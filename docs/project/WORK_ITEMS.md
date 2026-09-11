@@ -5,6 +5,8 @@
 ## Current slice
 S6 — Visual polish + perf pass (M6). Goal: glass hierarchy per SPEC §21 with restraint, transitions/micro-interactions in budget, artwork backgrounds, then profile (QML profiler + tracing) and record numbers vs the aspirational M6 targets — measure, not gate. Seeded below; S5 acceptance archived in VALIDATION.md.
 
+**Pre-S6 visual contract (2026-09-10):** the shell was refactored to follow `docs/mockup.png` + `DESIGN_BRIEF.md` adaptation (real models only) *before* S6 polish. W-038–W-042 start from that shell; do not treat the prior glass WIP as a completed W-038.
+
 ## Queue (S6)
 - [ ] W-038 — Glass hierarchy audit + restraint pass per SPEC §21 (R-018 final part)
 - [ ] W-039 — Transitions/micro-interactions within motion budgets + reduce-motion honored everywhere (R-018 final part)

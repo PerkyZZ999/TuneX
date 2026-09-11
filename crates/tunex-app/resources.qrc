@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/qt/qml/TuneX">
+        <file alias="hero-night.png">../../assets/hero-night.png</file>
+    </qresource>
+</RCC>

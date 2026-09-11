@@ -60,6 +60,18 @@ Menu {
             }
         }
 
+        background: GlassBackdrop {
+            cornerRadius: Theme.radiusLg
+            transparencyOff: root.queue.reduceTransparency()
+            disableBlur: true
+        }
+
+    }
+
+    background: GlassBackdrop {
+        cornerRadius: Theme.radiusLg
+        transparencyOff: root.queue.reduceTransparency()
+        disableBlur: true
     }
 
 }

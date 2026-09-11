@@ -16,18 +16,26 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=qml/TuneX");
     println!("cargo:rerun-if-changed=src/bridge");
+    println!("cargo:rerun-if-changed=resources.qrc");
+    println!("cargo:rerun-if-changed=../../assets/hero-night.png");
     CxxQtBuilder::new_qml_module(
         QmlModule::new("TuneX")
             .version(1, 0)
             .qml_files([
                 "qml/TuneX/App.qml",
                 "qml/TuneX/HomeView.qml",
+                "qml/TuneX/HeroCard.qml",
                 "qml/TuneX/SectionStub.qml",
                 "qml/TuneX/NavItem.qml",
+                "qml/TuneX/Icon.qml",
+                "qml/TuneX/IconButton.qml",
+                "qml/TuneX/PrimaryButton.qml",
+                "qml/TuneX/Chip.qml",
                 "qml/TuneX/LibraryView.qml",
                 "qml/TuneX/TrackRow.qml",
                 "qml/TuneX/AlbumCard.qml",
                 "qml/TuneX/ArtistCard.qml",
+                "qml/TuneX/PlaylistCard.qml",
                 "qml/TuneX/EmptyState.qml",
                 "qml/TuneX/FoldersDrawer.qml",
                 "qml/TuneX/SearchView.qml",
@@ -38,8 +46,11 @@ fn main() {
                 "qml/TuneX/PlaylistsView.qml",
                 "qml/TuneX/PlaylistNameDialog.qml",
             ])
-            .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true)),
+            .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true))
+            .qml_file(QmlFile::from("qml/TuneX/Glass.qml").singleton(true))
+            .qml_file(QmlFile::from("qml/TuneX/GlassBackdrop.qml")),
     )
     .files(["src/bridge/models.rs"])
+    .qrc("resources.qrc")
     .build();
 }

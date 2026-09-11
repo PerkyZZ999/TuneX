@@ -18,6 +18,7 @@ QtObject {
     readonly property color border: "#232C42"
     // Actions and signals.
     readonly property color primary: "#2F62E8"
+    readonly property color primaryHover: "#3567E6"
     // DESIGN.md token on-primary (`onX` names are reserved in QML).
     readonly property color primaryText: "#FFFFFF"
     readonly property color accent: "#5B8CFF"
@@ -45,7 +46,7 @@ QtObject {
     readonly property int fontDisplay: 34
     readonly property int fontHeadline: 24
     readonly property int fontTitle: 18
-    readonly property int fontBody: 15
+    readonly property int fontBody: 16
     readonly property int fontBodySm: 13
     readonly property int fontLabel: 14
     readonly property int fontLabelSm: 13
@@ -54,9 +55,11 @@ QtObject {
     readonly property int windowMinWidth: 960
     readonly property int windowMinHeight: 640
     readonly property int railWidth: 240
+    readonly property int railNarrow: 64
     readonly property int panelWidth: 320
     // DESIGN.md: three-column shell at ≥1280; 76px opaque mini-player below.
     readonly property int shellWide: 1280
+    readonly property int shellCompact: 1024
     readonly property int miniPlayerHeight: 76
     readonly property int progressTrack: 4
     readonly property int targetMin: 44
@@ -69,4 +72,9 @@ QtObject {
     readonly property int artCrossfadeMs: 180
     readonly property int thumbSize: 12
     readonly property real overlayTint: 0.68
+    // Subtle glass for drawers, dialogs, and context menus (DESIGN.md
+    // Elevation & Depth: 12–20px blur, 60–75% dark tint). Strong glass stays
+    // exclusive to Now Playing; rows, rail, cards, mini-player stay opaque.
+    readonly property int glassBlur: 16
+    readonly property real glassTint: 0.7
 }

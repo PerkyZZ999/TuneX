@@ -14,11 +14,13 @@ Column {
     property string note: ""
     // Optional action (W-017 folders entry); hidden when unlabeled.
     property string actionLabel: ""
+    property bool primaryAction: true
+    property bool centerInParent: true
 
     signal actionRequested()
 
-    anchors.centerIn: parent
-    width: Math.min(parent.width - Theme.spaceXl * 2, 420)
+    anchors.centerIn: root.centerInParent ? parent : undefined
+    width: Math.min(parent.width - (root.centerInParent ? Theme.spaceXl * 2 : 0), 420)
     spacing: Theme.spaceSm
 
     Text {
@@ -46,9 +48,10 @@ Column {
         color: Theme.muted
     }
 
-    Button {
+    PrimaryButton {
         visible: root.actionLabel !== ""
         anchors.horizontalCenter: parent.horizontalCenter
+        primary: root.primaryAction
         text: root.actionLabel
         onClicked: root.actionRequested()
     }
