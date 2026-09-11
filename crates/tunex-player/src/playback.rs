@@ -629,6 +629,34 @@ mod tests {
         (dir, items)
     }
 
+    /// Shared codec fixture (`tests/fixtures/`, W-006) as a queue item.
+    fn fixture_item(name: &str) -> QueueItem {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(name);
+        let path = std::fs::canonicalize(&path).expect("fixture exists");
+        let uri = crate::path_to_uri(&path).expect("fixture path converts");
+        QueueItem::new(&uri, name)
+    }
+
+    /// Run `session` on its own thread and fail — instead of hanging the
+    /// suite — when it does not finish in time. A wedged pipeline blocks the
+    /// polling thread forever, so the deadline must live outside it. A
+    /// session that fails on its own re-raises its original panic.
+    fn within_deadline(timeout: Duration, what: &str, session: impl FnOnce() + Send + 'static) {
+        let (done, finished) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            session();
+            let _ = done.send(());
+        });
+        if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = finished.recv_timeout(timeout) {
+            panic!("{what} did not finish within {timeout:?}: playback wedged the polling thread");
+        }
+        if let Err(failure) = worker.join() {
+            std::panic::resume_unwind(failure);
+        }
+    }
+
     /// Poll until `condition` holds or the deadline passes, collecting every
     /// drained event on the way.
     fn poll_until(
@@ -826,6 +854,88 @@ mod tests {
             "gapless handoff without intermediate stop"
         );
         std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn repeat_all_single_track_loops_without_wedging_poll() {
+        // Every lap reloads the track after about-to-finish has drained its
+        // input: the window where setting the URI before stopping deadlocked
+        // decodebin3 inside `poll` (S6: the UI froze at the end of a
+        // repeat-all track). Ogg Opus like real libraries; a free-running
+        // sink makes laps take milliseconds, and a hundred of them wedged the
+        // old order in every measured run.
+        within_deadline(Duration::from_secs(30), "a hundred repeat-all laps", || {
+            let mut controller = test_controller(false);
+            controller.enqueue(fixture_item("sine.opus"));
+            controller.set_repeat(RepeatMode::All);
+            controller.play().expect("playback starts");
+            let mut laps = 0_u32;
+            let deadline = std::time::Instant::now() + Duration::from_secs(25);
+            while laps < 100 {
+                for event in controller.poll() {
+                    match event {
+                        PlayerEvent::EndOfTrack => laps += 1,
+                        PlayerEvent::PlaybackError(message) => {
+                            panic!("healthy track errored: {message}");
+                        }
+                        PlayerEvent::StateChanged(_) | PlayerEvent::DurationChanged(_) => {}
+                    }
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "repeat-all stopped looping after {laps} lap(s)"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert_eq!(controller.current_index(), Some(0), "cursor stays put");
+        });
+    }
+
+    #[test]
+    fn next_track_during_gapless_preload_never_wedges() {
+        // about-to-finish fires once the tail of the track fits the decoder
+        // queue (~1.6 s before the end for these fixtures) and the provider
+        // hands the next URI over right then; `uridecodebin3` swaps its input
+        // across a few milliseconds later, on the new item's own streaming
+        // thread. Seeking into the tail buys one handoff per lap, and
+        // skipping the instant it lands aims the reload straight at that
+        // swap — the overlap that deadlocks GStreamer 1.28, which wedged
+        // `poll` in most measured runs without the teardown gate.
+        const SKIPS: u32 = 24;
+
+        within_deadline(Duration::from_secs(60), "skips into fresh preloads", || {
+            let mut controller = test_controller(true);
+            controller.enqueue(fixture_item("sine.opus"));
+            controller.enqueue(fixture_item("sine.ogg"));
+            controller.set_repeat(RepeatMode::All);
+            controller.play().expect("playback starts");
+            let mut preloaded = 0_u32;
+            for _ in 0..SKIPS {
+                poll_until(&mut controller, Duration::from_secs(10), |controller| {
+                    controller.state() == PlaybackState::Playing
+                });
+                // The provider moves the cursor as it hands the URI over, so
+                // the cursor leaving the playing track marks the handoff.
+                let playing = controller.current_index();
+                controller
+                    .seek(Duration::from_millis(4300))
+                    .expect("seek into the tail");
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                while controller.current_index() == playing {
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "tail seek never triggered the preload"
+                    );
+                    let _ = controller.poll();
+                }
+                preloaded += 1;
+                controller.next_track().expect("skip works");
+            }
+            assert_eq!(preloaded, SKIPS, "every skip landed on a fresh preload");
+            poll_until(&mut controller, Duration::from_secs(10), |controller| {
+                controller.state() == PlaybackState::Playing
+            });
+        });
     }
 
     #[test]

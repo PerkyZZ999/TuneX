@@ -8,11 +8,11 @@
 use std::{
     path::Path,
     sync::{
-        Arc, Mutex,
+        Arc, Condvar, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use gstreamer::{self as gst, glib::object::ObjectExt as _, prelude::*};
@@ -25,6 +25,12 @@ use crate::path_to_uri;
 const EVENT_BUFFER: usize = 64;
 /// Bus poll slice: responsive shutdown without busy-looping.
 const BUS_POLL: gst::ClockTime = gst::ClockTime::from_nseconds(100_000_000);
+/// Cap on how long a teardown waits for an in-flight gapless handoff to swap
+/// over (see [`PlayerEngine::begin_teardown`]). The swap normally lands within
+/// milliseconds of the preload; the cap keeps a handoff that never swaps — a
+/// next file that fails to open, a seek that un-drains the current one — from
+/// holding the caller for longer than a skip may reasonably take.
+const HANDOFF_SETTLE: Duration = Duration::from_millis(500);
 
 /// Lookahead for gapless preload: returns the URI to preload, if any.
 ///
@@ -32,6 +38,54 @@ const BUS_POLL: gst::ClockTime = gst::ClockTime::from_nseconds(100_000_000);
 /// implementations must be fast and non-blocking (a queue peek, never I/O).
 /// [`Queue::peek_next_uri`](super::Queue::peek_next_uri) is the canonical one.
 pub type NextUriProvider = std::sync::Arc<dyn Fn() -> Option<String> + Send + Sync>;
+
+/// Where the gapless handoff stands, and whether a teardown is holding it.
+///
+/// The two questions are one state: a teardown must know whether a swap is
+/// still in flight (it has to wait for it), and the preload hook must know
+/// whether a teardown is running (it must hand over nothing). See
+/// [`PlayerEngine::begin_teardown`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Handoff {
+    /// Nothing handed over; the next `about-to-finish` may hand a URI.
+    Idle,
+    /// A URI was handed over and `uridecodebin3` has not swapped to it yet.
+    InFlight,
+    /// A teardown is running: no handoffs until it finishes.
+    Blocked,
+    /// A teardown is waiting out the swap it found in flight.
+    BlockedInFlight,
+}
+
+impl Handoff {
+    /// Whether a handed-over URI is still waiting to be swapped in.
+    const fn in_flight(self) -> bool {
+        matches!(self, Self::InFlight | Self::BlockedInFlight)
+    }
+
+    /// Whether a teardown currently forbids new handoffs.
+    const fn blocked(self) -> bool {
+        matches!(self, Self::Blocked | Self::BlockedInFlight)
+    }
+
+    /// The state a teardown moves into, remembering a swap already in flight.
+    const fn blocking(self) -> Self {
+        if self.in_flight() {
+            Self::BlockedInFlight
+        } else {
+            Self::Blocked
+        }
+    }
+
+    /// The state after the pipeline reports the swap finished.
+    const fn swapped(self) -> Self {
+        match self {
+            Self::InFlight => Self::Idle,
+            Self::BlockedInFlight => Self::Blocked,
+            other => other,
+        }
+    }
+}
 
 /// Mutable engine state shared with the bus thread.
 struct Inner {
@@ -51,6 +105,9 @@ struct Inner {
     /// The control method only *posts* the seek event — it never waits for
     /// the streaming thread, so an EOS-wedged pipeline cannot hang the caller.
     seek_pending: bool,
+    /// Gapless handoff state, shared between the preload hook, the swap
+    /// report ([`connect_source_removed`]), and teardown.
+    handoff: Handoff,
 }
 
 impl std::fmt::Debug for Inner {
@@ -63,6 +120,7 @@ impl std::fmt::Debug for Inner {
             .field("queued_uri", &self.queued_uri)
             .field("pause_requested", &self.pause_requested)
             .field("seek_pending", &self.seek_pending)
+            .field("handoff", &self.handoff)
             .finish()
     }
 }
@@ -76,10 +134,14 @@ impl std::fmt::Debug for Inner {
 pub struct PlayerEngine {
     playbin: gst::Element,
     inner: Arc<Mutex<Inner>>,
+    /// Signalled when a gapless swap finishes, so a teardown can wait one out
+    /// instead of polling for it.
+    handoff_settled: Arc<Condvar>,
     events: mpsc::Sender<PlayerEvent>,
     shutdown: Arc<AtomicBool>,
     bus_thread: Option<JoinHandle<()>>,
     about_to_finish: Option<gst::glib::SignalHandlerId>,
+    source_removed: Option<gst::glib::SignalHandlerId>,
 }
 
 impl PlayerEngine {
@@ -101,6 +163,9 @@ impl PlayerEngine {
         let Some(bus) = playbin.bus() else {
             return Err(Error::Player("playbin3 exposes no bus".to_owned()));
         };
+        let Some(bin) = playbin.downcast_ref::<gst::Bin>() else {
+            return Err(Error::Player("playbin3 is not a bin".to_owned()));
+        };
 
         let inner = Arc::new(Mutex::new(Inner {
             state: PlaybackState::Stopped,
@@ -110,9 +175,12 @@ impl PlayerEngine {
             queued_uri: None,
             pause_requested: false,
             seek_pending: false,
+            handoff: Handoff::Idle,
         }));
+        let handoff_settled = Arc::new(Condvar::new());
         let shutdown = Arc::new(AtomicBool::new(false));
         let about_to_finish = connect_about_to_finish(&playbin, &inner);
+        let source_removed = connect_source_removed(bin, &inner, &handoff_settled);
         let bus_thread = {
             let playbin = playbin.clone();
             let inner = Arc::clone(&inner);
@@ -127,10 +195,12 @@ impl PlayerEngine {
         Ok(Self {
             playbin,
             inner,
+            handoff_settled,
             events,
             shutdown,
             bus_thread: Some(bus_thread),
             about_to_finish: Some(about_to_finish),
+            source_removed: Some(source_removed),
         })
     }
 
@@ -151,17 +221,27 @@ impl PlayerEngine {
         self.load_uri(&uri)
     }
 
-    /// Load a track from a URI. The pipeline prerolls; playback starts on
-    /// [`play`](Self::play).
+    /// Load a track from a URI, replacing whatever is loaded (including a
+    /// pending gapless preload). Playback starts on [`play`](Self::play).
+    ///
+    /// The pipeline settles in READY *before* the URI changes. On a running
+    /// `playbin3` a new URI means "gapless next item", and once the current
+    /// input is drained (always true after `about-to-finish`) it starts
+    /// prerolling that item at once; tearing the fresh chain down again
+    /// deadlocks decodebin3 and, with it, the caller (S6: repeat-all froze
+    /// the UI thread at the end of the track).
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Player`] when the pipeline refuses to preroll.
+    /// Returns [`Error::Player`] when the pipeline refuses to reset.
     pub fn load_uri(&self, uri: &str) -> Result<()> {
-        self.playbin.set_property("uri", uri);
-        self.playbin
-            .set_state(gst::State::Ready)
-            .map_err(|err| Error::Player(format!("preroll failed: {err:?}")))?;
+        self.begin_teardown();
+        let reset = self.playbin.set_state(gst::State::Ready);
+        if reset.is_ok() {
+            self.playbin.set_property("uri", uri);
+        }
+        self.finish_teardown();
+        reset.map_err(|err| Error::Player(format!("reset before load failed: {err:?}")))?;
         if let Ok(mut inner) = self.inner.lock() {
             inner.has_track = true;
             inner.pause_requested = false;
@@ -211,9 +291,10 @@ impl PlayerEngine {
     ///
     /// Returns [`Error::Player`] when the pipeline refuses the transition.
     pub fn stop(&self) -> Result<()> {
-        self.playbin
-            .set_state(gst::State::Null)
-            .map_err(|err| Error::Player(format!("stop failed: {err:?}")))?;
+        self.begin_teardown();
+        let stopped = self.playbin.set_state(gst::State::Null);
+        self.finish_teardown();
+        stopped.map_err(|err| Error::Player(format!("stop failed: {err:?}")))?;
         self.set_tracked_state(PlaybackState::Stopped);
         Ok(())
     }
@@ -329,6 +410,46 @@ impl PlayerEngine {
         }
     }
 
+    /// Keep a teardown from overlapping a gapless swap, then let it proceed.
+    ///
+    /// `uridecodebin3` swaps its input over to the preloaded item on that
+    /// item's own streaming thread, and takes the element state lock in the
+    /// middle of the swap — the same lock a state change holds while it waits
+    /// for that very thread to stop. Overlap them and both sides wait forever
+    /// (`GStreamer` 1.28; observed as a frozen UI). So: block new handoffs,
+    /// then wait out one already in flight. Every call outside `Drop` needs a
+    /// matching [`finish_teardown`](Self::finish_teardown) to lift the block.
+    fn begin_teardown(&self) {
+        let Ok(mut inner) = self.inner.lock() else {
+            return;
+        };
+        inner.handoff = inner.handoff.blocking();
+        let deadline = Instant::now() + HANDOFF_SETTLE;
+        while inner.handoff.in_flight() {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                tracing::warn!(
+                    name: "player.handoff.unsettled",
+                    waited_ms = HANDOFF_SETTLE.as_millis(),
+                    "gapless handoff never swapped over; tearing down anyway"
+                );
+                return;
+            }
+            let Ok((waited, _)) = self.handoff_settled.wait_timeout(inner, remaining) else {
+                return;
+            };
+            inner = waited;
+        }
+    }
+
+    /// Lift the teardown gate. The state change purged any preloaded item, so
+    /// nothing is in flight any more and the next handoff may start.
+    fn finish_teardown(&self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.handoff = Handoff::Idle;
+        }
+    }
+
     fn set_tracked_state(&self, state: PlaybackState) {
         set_state(&self.inner, &self.events, state);
     }
@@ -336,9 +457,15 @@ impl PlayerEngine {
 
 impl Drop for PlayerEngine {
     fn drop(&mut self) {
-        // Disconnect first: tearing down the pipeline while a streaming
+        // Settle before disconnecting: a swap in flight must still be able to
+        // report itself finished, or quitting mid-handoff waits out the cap.
+        self.begin_teardown();
+        // Disconnect next: tearing down the pipeline while a streaming
         // thread can still enter the preload closure wedges shutdown.
         if let Some(handler) = self.about_to_finish.take() {
+            self.playbin.disconnect(handler);
+        }
+        if let Some(handler) = self.source_removed.take() {
             self.playbin.disconnect(handler);
         }
         // Release pipeline resources next: dropping elements above NULL
@@ -373,6 +500,10 @@ fn emit(events: &mpsc::Sender<PlayerEvent>, event: PlayerEvent) {
 /// handler only peeks a URI and sets the property — no I/O, no locks held
 /// across calls. A weak pipeline handle breaks the reference cycle (the
 /// connection itself lives as long as the pipeline).
+///
+/// Handing a URI over starts the next item's chain right away, and the swap
+/// that follows must not overlap a teardown, so the handoff is recorded (and
+/// skipped outright while one is running) under the same lock as the peek.
 fn connect_about_to_finish(
     playbin: &gst::Element,
     inner: &Arc<Mutex<Inner>>,
@@ -380,20 +511,52 @@ fn connect_about_to_finish(
     let inner = Arc::clone(inner);
     let pipeline = playbin.downgrade();
     playbin.connect("about-to-finish", false, move |_| {
-        let peeked = inner.lock().ok().and_then(|guard| {
-            guard
+        let handoff = inner.lock().ok().and_then(|mut guard| {
+            if guard.handoff.blocked() {
+                return None;
+            }
+            let uri = guard
                 .next_provider
                 .as_ref()
                 .and_then(|peek| peek())
-                .filter(|uri| Some(uri) != guard.queued_uri.as_ref())
+                .filter(|uri| Some(uri) != guard.queued_uri.as_ref())?;
+            guard.queued_uri = Some(uri.clone());
+            guard.handoff = Handoff::InFlight;
+            Some(uri)
         });
-        if let (Some(uri), Some(playbin)) = (peeked, pipeline.upgrade()) {
+        if let (Some(uri), Some(playbin)) = (handoff, pipeline.upgrade()) {
             playbin.set_property("uri", &uri);
-            if let Ok(mut guard) = inner.lock() {
-                guard.queued_uri = Some(uri);
-            }
         }
         None
+    })
+}
+
+/// Report a finished gapless swap, returning the connection.
+///
+/// `uridecodebin3` swaps its input over to the preloaded item on that item's
+/// first buffer and retires the outgoing `urisourcebin` as the last step, so
+/// that element's removal is the swap's completion marker — the one
+/// [`PlayerEngine::begin_teardown`] waits for. The handler stays trivial (one
+/// state update, one notify): it runs on a streaming thread that is holding
+/// pipeline locks.
+fn connect_source_removed(
+    playbin: &gst::Bin,
+    inner: &Arc<Mutex<Inner>>,
+    handoff_settled: &Arc<Condvar>,
+) -> gst::glib::SignalHandlerId {
+    let inner = Arc::clone(inner);
+    let handoff_settled = Arc::clone(handoff_settled);
+    playbin.connect_deep_element_removed(move |_playbin, _source, element| {
+        if element
+            .factory()
+            .is_none_or(|factory| factory.name() != "urisourcebin")
+        {
+            return;
+        }
+        if let Ok(mut guard) = inner.lock() {
+            guard.handoff = guard.handoff.swapped();
+        }
+        handoff_settled.notify_all();
     })
 }
 

@@ -8,7 +8,7 @@
 - **Current phase:** 6 — Implement (S5 done 2026-09-10, S6 active)
 - **Status:** active
 - **MVP success signal:** User installs TuneX on Arch via AUR PKGBUILD, adds music dir, scans without UI freeze, browses/searches/plays with artwork, controls via app + MPRIS, manages queue + playlists, restarts without state loss, all offline.
-- **Last updated:** 2026-09-10
+- **Last updated:** 2026-09-11
 
 ## Authority boundaries
 - Agent may decide: stack-local reversible implementation details consistent with locked decisions (crate-internal APIs, QML component names, channel types, test layout).
@@ -16,7 +16,7 @@
 
 ## Current evidence
 - Latest passed gate: `rust-tc sonar` for the W-037 S5 gate (QG OK, 81.0% new coverage)
-- Latest validation entry: 2026-09-10 S5 gate W-037 slice accepted (see VALIDATION.md)
+- Latest validation entry: 2026-09-11 end-of-track UI freeze fixed during W-038 (see VALIDATION.md)
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `.cursor/rules/` (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc`, `testing-gui.mdc`); prose copies in `docs/rules/`; GUI testing via Kwin-MCP
 - Toolchain: Rust 1.98.1 stable, `rust-tc` gate green, Sonar project `tunex`, pre-commit hook installed
