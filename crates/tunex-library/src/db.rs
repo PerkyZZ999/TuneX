@@ -243,6 +243,9 @@ pub struct TrackIdentity {
     pub path: String,
     /// Last seen filesystem identity.
     pub file_id: Option<String>,
+    /// Identity key as last indexed (`path + mtime + size`), so a rescan can
+    /// tell an untouched file from an edited one without reading its tags.
+    pub stable_key: String,
     /// Whether the row is currently flagged missing.
     pub missing: bool,
 }
@@ -712,7 +715,7 @@ pub fn list_tracks_capped(db: &Connection, limit: u32) -> Result<Vec<TrackRow>> 
 /// Returns [`Error::Database`] when the query fails.
 pub fn track_identities(db: &Connection) -> Result<Vec<TrackIdentity>> {
     let mut statement = db
-        .prepare("SELECT id, path, file_id, missing FROM tracks ORDER BY path")
+        .prepare("SELECT id, path, file_id, stable_key, missing FROM tracks ORDER BY path")
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], |row| {
@@ -720,6 +723,7 @@ pub fn track_identities(db: &Connection) -> Result<Vec<TrackIdentity>> {
                 id: row.get("id")?,
                 path: row.get("path")?,
                 file_id: row.get("file_id")?,
+                stable_key: row.get("stable_key")?,
                 missing: row.get("missing")?,
             })
         })

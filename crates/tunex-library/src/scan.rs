@@ -44,6 +44,9 @@ pub struct ScanStats {
     pub files_seen: u64,
     /// Rows inserted or refreshed.
     pub tracks_added: u64,
+    /// Of those, rows a rescan recognized as untouched and left alone
+    /// (counted in `tracks_added` as well — they are indexed tracks).
+    pub tracks_unchanged: u64,
     /// Supported files indexed without tags (unreadable metadata).
     pub metadata_failed: u64,
     /// Known rows retargeted at a new path (no duplication on rename).
@@ -355,6 +358,16 @@ pub async fn scan_folder_live(
 /// A rename only retargets when the previously indexed path is actually
 /// gone — a reused inode pointing at two live files indexes as new instead
 /// of stealing the row.
+///
+/// A file already indexed under this path whose identity key still matches
+/// returns early: the key covers mtime and size, so its tags cannot have
+/// changed, and reading them is by far the most expensive thing here. Every
+/// start rescans the roots, so on a settled library this is the common case
+/// — rescanning an unchanged 530-track library went from 97 ms to 7 ms (S6
+/// W-041). The work skipped is file I/O, so the gap widens when the page
+/// cache is cold; indexing the same library from empty costs 607 ms. Rows
+/// flagged missing still take the full path, because only the upsert clears
+/// that flag.
 fn index_file(
     db: &mut Connection,
     path: &Path,
@@ -363,6 +376,14 @@ fn index_file(
     retargeted: &mut HashSet<i64>,
     stats: &mut ScanStats,
 ) -> Result<()> {
+    if let Some(previous) = by_path.get(path.to_string_lossy().as_ref())
+        && !previous.missing
+        && previous.stable_key == stable_key(path)
+    {
+        stats.tracks_added += 1;
+        stats.tracks_unchanged += 1;
+        return Ok(());
+    }
     let (track, metadata_failed) = track_from_file(path);
     if metadata_failed {
         stats.metadata_failed += 1;
@@ -484,6 +505,41 @@ mod tests {
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].title, None, "unknown stays unknown");
         assert!(!tracks[0].missing);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn rescan_leaves_untouched_files_unread() {
+        let dir = scratch("unchanged");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::copy(corrupt_source(), dir.join("same.mp3")).expect("setup works");
+        let mut db = open_memory().expect("db opens");
+        let first = scan_folder(&mut db, &dir).expect("first scan works");
+        assert_eq!(first.tracks_unchanged, 0, "a first index reads every file");
+        let second = scan_folder(&mut db, &dir).expect("rescan works");
+        assert_eq!(second.tracks_unchanged, 1);
+        assert_eq!(
+            second.tracks_added, 1,
+            "a skipped file is still an indexed track"
+        );
+        assert_eq!(
+            second.metadata_failed, 0,
+            "the skip means the tags were never read again"
+        );
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn rescan_reindexes_a_file_whose_contents_changed() {
+        let dir = scratch("edited");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        let file = dir.join("edited.flac");
+        std::fs::write(&file, [3u8; 64]).expect("setup works");
+        let mut db = open_memory().expect("db opens");
+        scan_folder(&mut db, &dir).expect("first scan works");
+        std::fs::write(&file, [3u8; 128]).expect("setup works");
+        let stats = scan_folder(&mut db, &dir).expect("rescan works");
+        assert_eq!(stats.tracks_unchanged, 0, "a changed key forces a re-read");
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

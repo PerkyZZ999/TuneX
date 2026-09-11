@@ -394,6 +394,7 @@ fn scan_all_roots(
             let combined = ScanStats {
                 files_seen: total.files_seen + snapshot.files_seen,
                 tracks_added: total.tracks_added + snapshot.tracks_added,
+                tracks_unchanged: total.tracks_unchanged + snapshot.tracks_unchanged,
                 metadata_failed: total.metadata_failed + snapshot.metadata_failed,
                 renamed: total.renamed + snapshot.renamed,
                 missing_marked: total.missing_marked + snapshot.missing_marked,
@@ -404,6 +405,7 @@ fn scan_all_roots(
             Ok(run_stats) => {
                 total.files_seen += run_stats.files_seen;
                 total.tracks_added += run_stats.tracks_added;
+                total.tracks_unchanged += run_stats.tracks_unchanged;
                 total.metadata_failed += run_stats.metadata_failed;
                 total.renamed += run_stats.renamed;
                 total.missing_marked += run_stats.missing_marked;
