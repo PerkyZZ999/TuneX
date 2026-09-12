@@ -16,7 +16,8 @@
 
 ## Current evidence
 - Latest passed gate: `rust-tc sonar` for the W-037 S5 gate (QG OK, 81.0% new coverage)
-- Latest validation entry: 2026-09-11 W-043 QML best-practices lint plugin adopted (see VALIDATION.md)
+- Latest validation entry: 2026-09-11 W-041 profile pass — every M6 target measured and met (see VALIDATION.md)
+- M6 numbers (R-NFR-06, measured not estimated): cold start 850 ms windowed at 50k (<1.5 s) · search p95 6.8–9.2 ms at 50k (<50 ms) · scroll p50 16 ms with 0.36 ms app-side work per frame (60 fps) · transport control ≤8 ms (<50 ms) · scan 52,400 files/min (>500) · no app-side frame cost during scans
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `.cursor/rules/` (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc`, `testing-gui.mdc`); prose copies in `docs/rules/`; GUI testing via Kwin-MCP
 - QML gate: `scripts/qml-lint.sh` = Qt 6 `qmllint` + `qmlformat` + the local `QtQmlBestPractices` QQMLSA plugin's eight categories (discovered via sibling checkout / installed plugin dir / `TUNEX_QMLLINT_PLUGIN_PATH`; `off` skips)
@@ -32,7 +33,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2+S3+S4+S5 done; visual-contract refactor landed; S6 active — W-038 (glass hierarchy), W-039 (motion), W-040 (artwork) and W-043 (QML best-practices lint plugin) done, W-041–W-042 next. Three player/shell defects found during W-038 are fixed and validated: the end-of-track UI freeze, repeat-one never replaying, and the restored track missing from Up Next.
+- Repo reality: S1+S2+S3+S4+S5 done; visual-contract refactor landed; S6 active — W-038 (glass hierarchy), W-039 (motion), W-040 (artwork), W-043 (QML best-practices lint plugin) and W-041 (profile pass) done, W-042 (S6 gate) next. The profile pass justified two library optimizations (covering indexes for the grouped joins; rescans that skip unchanged files) and exposed a concurrent-migration defect, all fixed and validated. Three player/shell defects found during W-038 are fixed and validated: the end-of-track UI freeze, repeat-one never replaying, and the restored track missing from Up Next.
 
 ## Open loops
 - None
@@ -41,7 +42,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-041: finish the profile pass — scroll/frame observation and control latency in KWin, then record every number against the M6 targets (R-NFR-06, measure not gate).
+- W-042: S6 gate — release checklist + full DoD rehearsal (`rust-tc doctor` + `sonar`, `makepkg`, ROADMAP/STATE updates), then close or loop back.
 
 ## Phase checklist
 - [x] 0 Intake
