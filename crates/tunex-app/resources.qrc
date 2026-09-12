@@ -1,5 +1,8 @@
 <RCC>
     <qresource prefix="/qt/qml/TuneX">
-        <file alias="hero-night.png">../../assets/hero-night.png</file>
+        <file alias="hero-charcoal.png">../../assets/hero-charcoal.png</file>
+        <file alias="art-placeholder.png">../../assets/art-placeholder.png</file>
+        <file alias="empty-library.png">../../assets/empty-library.png</file>
+        <file alias="empty-search.png">../../assets/empty-search.png</file>
     </qresource>
 </RCC>

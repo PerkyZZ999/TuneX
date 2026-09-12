@@ -3,7 +3,7 @@ import QtQuick.Effects
 import TuneX
 
 // Home greeting hero (DESIGN_BRIEF HeroCard). Photoreal night backdrop
-// from assets/hero-night.png; chrome recedes. Time-of-day line, one
+// from assets/hero-charcoal.png; chrome recedes. Time-of-day line, one
 // primary action, TuneX wordmark on the trailing edge (mockup chrome).
 // Elevation: the hero step `0 4px 24px rgba(0,0,0,0.35)`; the photo and its
 // readability scrim are masked to the lg radius as one static layer (item
@@ -89,7 +89,7 @@ Item {
 
             Image {
                 anchors.fill: parent
-                source: "qrc:/qt/qml/TuneX/hero-night.png"
+                source: "qrc:/qt/qml/TuneX/hero-charcoal.png"
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 cache: true

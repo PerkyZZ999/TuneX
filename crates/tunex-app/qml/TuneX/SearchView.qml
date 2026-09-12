@@ -269,6 +269,7 @@ Item {
 
             EmptyState {
                 visible: root.query === ""
+                art: "qrc:/qt/qml/TuneX/empty-search.png"
                 title: qsTr("Search your library")
                 note: qsTr("Find songs, albums, and artists as you type — results appear here.")
                 actionLabel: qsTr("Focus search")
@@ -300,6 +301,7 @@ Item {
 
             EmptyState {
                 visible: root.settledEmpty
+                art: "qrc:/qt/qml/TuneX/empty-search.png"
                 title: qsTr("No matches")
                 note: qsTr("Nothing in your library matches “%1”.").arg(root.query)
                 actionLabel: qsTr("Clear search")

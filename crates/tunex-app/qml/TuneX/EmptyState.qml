@@ -16,12 +16,30 @@ Column {
     property string actionLabel: ""
     property bool primaryAction: true
     property bool centerInParent: true
+    // Optional art-glyph above the title (DESIGN.md Empty states). Left empty
+    // for the compact surfaces — the Up Next panel is 320px wide and an
+    // illustration there would crowd out the words that carry the meaning.
+    property url art
+    property int artSize: 160
 
     signal actionRequested
 
     anchors.centerIn: root.centerInParent ? parent : undefined
     width: Math.min(parent.width - (root.centerInParent ? Theme.spaceXl * 2 : 0), 420)
     spacing: Theme.spaceSm
+
+    Image {
+        visible: root.art.toString() !== ""
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: root.artSize
+        height: visible ? root.artSize : 0
+        source: root.art
+        sourceSize.width: root.artSize
+        sourceSize.height: root.artSize
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        Accessible.ignored: true
+    }
 
     Text {
         width: parent.width

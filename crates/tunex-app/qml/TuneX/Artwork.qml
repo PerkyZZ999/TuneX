@@ -30,6 +30,23 @@ Item {
         anchors.fill: parent
         radius: root.circular ? width / 2 : root.radius
         color: Theme.surfaceRaised
+        clip: true
+
+        // Placeholder texture: a near-black grain with one faint blue corner,
+        // so a cover-less card reads as a designed surface rather than a flat
+        // swatch. It stays under the monogram, which is what actually tells
+        // two art-less albums apart.
+        Image {
+            anchors.fill: parent
+            source: "qrc:/qt/qml/TuneX/art-placeholder.png"
+            sourceSize.width: Math.max(1, Math.round(root.width))
+            sourceSize.height: Math.max(1, Math.round(root.height))
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            cache: true
+            opacity: 0.75
+            Accessible.ignored: true
+        }
 
         Text {
             anchors.centerIn: parent

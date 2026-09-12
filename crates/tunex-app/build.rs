@@ -17,7 +17,10 @@ fn main() {
     println!("cargo:rerun-if-changed=qml/TuneX");
     println!("cargo:rerun-if-changed=src/bridge");
     println!("cargo:rerun-if-changed=resources.qrc");
-    println!("cargo:rerun-if-changed=../../assets/hero-night.png");
+    println!("cargo:rerun-if-changed=../../assets/hero-charcoal.png");
+    println!("cargo:rerun-if-changed=../../assets/art-placeholder.png");
+    println!("cargo:rerun-if-changed=../../assets/empty-library.png");
+    println!("cargo:rerun-if-changed=../../assets/empty-search.png");
     CxxQtBuilder::new_qml_module(
         QmlModule::new("TuneX")
             .version(1, 0)

@@ -214,6 +214,7 @@ Item {
 
             EmptyState {
                 visible: root.libraryEmpty
+                art: "qrc:/qt/qml/TuneX/empty-library.png"
                 title: qsTr("No music yet")
                 note: qsTr("Add a music folder and your artists, albums, and songs will appear here.")
                 actionLabel: qsTr("Add music folder")
