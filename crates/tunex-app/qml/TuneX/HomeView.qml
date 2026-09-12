@@ -14,7 +14,17 @@ Item {
     // The rail counts even while hidden; a delegate-less counter view would
     // not (QQmlDelegateModel reports 0 rows without a delegate).
     readonly property bool libraryEmpty: albumRail.count === 0
-    readonly property int railCell: 180
+    // Rails fill their row with whole cards rather than cutting the last one
+    // in half at the panel edge: pick the count that lands nearest the target
+    // card size, then divide the row between them.
+    readonly property int contentWidth: root.width - Theme.spaceLg * 2
+    readonly property int railColumns: Math.max(2, Math.round(root.contentWidth / 196))
+    readonly property int railCell: Math.floor((root.contentWidth - Theme.spaceMd * (root.railColumns - 1)) / root.railColumns)
+    // Playlist rail: wide tiles, about four across like the mockup's second
+    // rail, and never so narrow that a name has no room.
+    readonly property int playlistCellHeight: 76
+    readonly property int playlistColumns: Math.max(2, Math.min(4, Math.floor(root.contentWidth / 220)))
+    readonly property int playlistCell: Math.floor((root.contentWidth - Theme.spaceMd * (root.playlistColumns - 1)) / root.playlistColumns)
 
     signal browseRequested(string tab)
     signal foldersRequested
@@ -117,6 +127,7 @@ Item {
                 statusLine: root.greetingStatus()
                 onPlayRequested: root.playSomething()
                 onAddFolderRequested: root.foldersRequested()
+                onBrowseRequested: root.browseRequested("albums")
             }
 
             Row {
@@ -178,21 +189,12 @@ Item {
                         color: Theme.foreground
                     }
 
-                    Text {
+                    TextLink {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.right: parent.right
                         text: qsTr("See all")
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontLabel
-                        color: Theme.accent
-                        Accessible.role: Accessible.Button
-                        Accessible.name: qsTr("See all albums")
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.browseRequested("albums")
-                        }
+                        accessibleName: qsTr("See all albums")
+                        onActivated: root.browseRequested("albums")
                     }
                 }
 
@@ -247,22 +249,13 @@ Item {
                         color: Theme.foreground
                     }
 
-                    Text {
+                    TextLink {
                         visible: playlistsRail.count > 0
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.right: parent.right
                         text: qsTr("See all")
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontLabel
-                        color: Theme.accent
-                        Accessible.role: Accessible.Button
-                        Accessible.name: qsTr("See all playlists")
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.playlistsRequested()
-                        }
+                        accessibleName: qsTr("See all playlists")
+                        onActivated: root.playlistsRequested()
                     }
                 }
 
@@ -281,7 +274,7 @@ Item {
 
                     visible: count > 0
                     width: parent.width
-                    height: visible ? root.railCell + 64 : 0
+                    height: visible ? root.playlistCellHeight : 0
                     orientation: ListView.Horizontal
                     clip: true
                     spacing: Theme.spaceMd
@@ -294,7 +287,9 @@ Item {
                         playlistId: model.playlistId
                         title: model.name
                         trackCount: model.trackCount
-                        explicitWidth: root.railCell
+                        horizontal: true
+                        horizontalHeight: root.playlistCellHeight
+                        explicitWidth: root.playlistCell
                         onActivated: (id, name) => {
                             return root.playlistOpened(id, name);
                         }

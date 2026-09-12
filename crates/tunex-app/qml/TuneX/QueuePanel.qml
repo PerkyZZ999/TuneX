@@ -212,9 +212,11 @@ Rectangle {
             width: parent.width
             spacing: Theme.spaceXs
 
+            // Left-aligned under the artwork, as the mockup sets them: the
+            // title reads as a heading for the panel rather than a caption
+            // centred under a picture.
             Text {
                 width: parent.width
-                horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
                 text: root.hasCurrent ? root.shownTitle : qsTr("Nothing playing")
                 textFormat: Text.PlainText
@@ -226,7 +228,6 @@ Rectangle {
 
             Text {
                 width: parent.width
-                horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
                 text: root.hasCurrent ? root.shownArtist : qsTr("Play something from your library")
                 textFormat: Text.PlainText

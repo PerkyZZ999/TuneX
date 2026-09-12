@@ -47,6 +47,8 @@ fn main() {
                 "qml/TuneX/PlaylistsView.qml",
                 "qml/TuneX/PlaylistNameDialog.qml",
                 "qml/TuneX/PlayButton.qml",
+                "qml/TuneX/PlayBadge.qml",
+                "qml/TuneX/TextLink.qml",
                 "qml/TuneX/ProgressSlider.qml",
                 "qml/TuneX/GlassMenu.qml",
                 "qml/TuneX/GlassMenuItem.qml",

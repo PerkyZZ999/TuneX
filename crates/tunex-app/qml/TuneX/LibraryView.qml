@@ -24,6 +24,9 @@ Item {
     readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
 
     signal foldersRequested
+    // An artist card was activated: V1 has no artist detail view, so the
+    // shell plays that artist's tracks.
+    signal artistRequested(string name)
 
     // Display name for one tab key (the tab strip models keys, not labels).
     function tabLabel(key) {
@@ -351,6 +354,7 @@ Item {
                     artistName: model.name
                     albumCount: model.albumCount
                     trackCount: model.trackCount
+                    onActivated: name => root.artistRequested(name)
                 }
             }
         }

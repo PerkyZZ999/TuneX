@@ -36,6 +36,7 @@ Item {
 
     signal playRequested
     signal addFolderRequested
+    signal browseRequested
 
     implicitHeight: 320
     height: 320
@@ -55,6 +56,18 @@ Item {
         radius: Theme.radiusLg
         visible: false
         layer.enabled: true
+    }
+
+    // Hairline edge over the photo, as the mockup draws the hero: the card
+    // reads as a contained surface rather than a bleed of the background
+    // image. Sits above the artwork so the mask never clips it away.
+    Rectangle {
+        anchors.fill: card
+        radius: Theme.radiusLg
+        color: "transparent"
+        border.color: Theme.border
+        border.width: 1
+        z: 1
     }
 
     Rectangle {
@@ -177,15 +190,31 @@ Item {
                 color: Theme.muted
             }
 
-            PrimaryButton {
-                glyph: root.libraryEmpty ? "folder" : "play"
-                text: root.actionLabel
-                Accessible.name: root.actionLabel
-                onClicked: {
-                    if (root.libraryEmpty)
-                        root.addFolderRequested();
-                    else
-                        root.playRequested();
+            // Two actions, as the mockup pairs them — but only one is
+            // primary. With no library yet there is exactly one thing to do,
+            // so the secondary stays out of an empty state's way.
+            Row {
+                spacing: Theme.spaceSm
+
+                PrimaryButton {
+                    glyph: root.libraryEmpty ? "folder" : "play"
+                    text: root.actionLabel
+                    Accessible.name: root.actionLabel
+                    onClicked: {
+                        if (root.libraryEmpty)
+                            root.addFolderRequested();
+                        else
+                            root.playRequested();
+                    }
+                }
+
+                PrimaryButton {
+                    visible: !root.libraryEmpty
+                    primary: false
+                    glyph: "disc"
+                    text: qsTr("Browse library")
+                    Accessible.name: qsTr("Browse library")
+                    onClicked: root.browseRequested()
                 }
             }
 

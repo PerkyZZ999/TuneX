@@ -17,6 +17,11 @@ Item {
     property bool checked: false
     property bool checkable: false
     property bool circle: true
+    // Carry a surface at rest instead of only on hover. The mockup draws the
+    // top-bar history buttons as standing circles; buttons that live on top
+    // of content (transport, row actions, close) stay transparent so they do
+    // not litter the view with chrome.
+    property bool resting: false
     property int size: Theme.targetMin
     property int glyphSize: 20
     property color glyphColor: {
@@ -61,7 +66,7 @@ Item {
             if (area.containsMouse || root.activeFocus)
                 return Theme.hover;
 
-            return "transparent";
+            return root.resting ? Theme.surface : "transparent";
         }
         border.width: root.activeFocus ? 2 : 0
         border.color: Theme.focus

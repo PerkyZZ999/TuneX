@@ -50,70 +50,86 @@ Item {
     Keys.onEnterPressed: root.activated(root.albumId)
     Keys.onSpacePressed: root.activated(root.albumId)
 
-    Column {
+    // The card itself: a surface step over the canvas with a hairline border,
+    // as the mockup draws it. Hierarchy here is tonal, never a shadow —
+    // cards carry no elevation (DESIGN.md Elevation & Depth).
+    Rectangle {
         anchors.fill: parent
-        anchors.margins: Theme.spaceSm
-        spacing: Theme.spaceXs
+        anchors.margins: Theme.spaceXs
+        radius: Theme.radiusMd
+        color: root.activeFocus ? Theme.selected : Theme.surface
+        border.color: root.activeFocus ? Theme.focus : Theme.border
+        border.width: root.activeFocus ? 2 : 1
 
-        Rectangle {
-            width: parent.width
-            height: parent.width
-            radius: Theme.radiusMd
-            color: root.activeFocus ? Theme.selected : "transparent"
-            border.color: root.activeFocus ? Theme.focus : "transparent"
-            border.width: root.activeFocus ? 2 : 0
+        MouseArea {
+            id: hoverArea
 
-            Artwork {
-                anchors.fill: parent
-                source: root.artUrl
-                monogram: root.monogram
-                radius: Theme.radiusMd
-            }
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.activated(root.albumId)
+        }
 
-            MouseArea {
-                id: hoverArea
+        Column {
+            anchors.fill: parent
+            anchors.margins: Theme.spaceSm
+            spacing: Theme.spaceSm
 
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.activated(root.albumId)
-            }
+            Item {
+                width: parent.width
+                height: parent.width
 
-            // Hover veil: opacity on a flat rect only (no subtree blend),
-            // binding-driven so focus styling is never destroyed.
-            Rectangle {
-                anchors.fill: parent
-                radius: Theme.radiusMd
-                color: Theme.hover
-                opacity: hoverArea.containsMouse ? 0.45 : 0
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Appearance.duration(Theme.motionHover)
-                        easing.type: Easing.OutCubic
+                Artwork {
+                    anchors.fill: parent
+                    source: root.artUrl
+                    monogram: root.monogram
+                    radius: Theme.radiusSm
+                }
+
+                // Hover affordance per DESIGN.md: the art brightens slightly
+                // and a play button appears — the card never lifts or shifts.
+                Rectangle {
+                    anchors.fill: parent
+                    radius: Theme.radiusSm
+                    color: Theme.foreground
+                    opacity: hoverArea.containsMouse ? 0.04 : 0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Appearance.duration(Theme.motionHover)
+                            easing.type: Easing.OutCubic
+                        }
                     }
                 }
+
+                PlayBadge {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: Theme.spaceSm
+                    shown: hoverArea.containsMouse || root.activeFocus
+                }
             }
-        }
 
-        Text {
-            width: parent.width
-            elide: Text.ElideRight
-            text: root.title
-            textFormat: Text.PlainText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
-            font.weight: Font.DemiBold
-            color: Theme.foreground
-        }
+            Text {
+                width: parent.width
+                elide: Text.ElideRight
+                text: root.title
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBody
+                font.weight: Font.DemiBold
+                color: Theme.foreground
+            }
 
-        Text {
-            width: parent.width
-            elide: Text.ElideRight
-            text: root.metaLine
-            textFormat: Text.PlainText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
-            color: Theme.muted
+            Text {
+                width: parent.width
+                elide: Text.ElideRight
+                text: root.metaLine
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBodySm
+                color: Theme.muted
+            }
         }
     }
 }

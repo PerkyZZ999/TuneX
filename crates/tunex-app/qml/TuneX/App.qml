@@ -543,6 +543,7 @@ Window {
                             IconButton {
                                 iconName: "chevron-left"
                                 accessibleName: qsTr("Back")
+                                resting: true
                                 enabled: root.canGoBack
                                 onActivated: root.goBack()
                             }
@@ -550,6 +551,7 @@ Window {
                             IconButton {
                                 iconName: "chevron-right"
                                 accessibleName: qsTr("Forward")
+                                resting: true
                                 enabled: root.canGoForward
                                 onActivated: root.goForward()
                             }
@@ -702,6 +704,11 @@ Window {
                                 playlists: playlistModel
                                 library: library
                                 onFoldersRequested: foldersDrawer.open()
+                                onArtistRequested: name => {
+                                    queueModel.clearQueue();
+                                    queueModel.enqueueArtist(name);
+                                    queueModel.playAt(0);
+                                }
                             }
 
                             PlaylistsView {
