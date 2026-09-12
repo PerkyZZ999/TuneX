@@ -153,6 +153,116 @@ fn decode_capped(bytes: &[u8]) -> Option<(DynamicImage, ImageFormat)> {
     Some((image, format))
 }
 
+/// How far two channel values may differ and still count as the same colour.
+/// JPEG ringing means a "solid white" bar is never exactly 255 everywhere.
+const BAR_TOLERANCE: u8 = 12;
+/// A bar thinner than this percent of the edge is noise, not padding.
+const MIN_BAR_PERCENT: u32 = 2;
+/// Never keep less than this percent of an edge: an image that is mostly one
+/// colour is a design, not a padded picture.
+const MIN_KEPT_PERCENT: u32 = 50;
+
+/// Trim uniform letterbox or pillarbox padding, or return the image untouched.
+///
+/// Cover art ripped from video sources is routinely a 16:9 frame pasted onto
+/// a square canvas, so the padding is *in the file* and every surface that
+/// draws it 1:1 shows slabs of flat colour. `PreserveAspectCrop` cannot help:
+/// the image really is square.
+///
+/// The rule is deliberately narrow, because this alters how someone's artwork
+/// is displayed and a real cover may be framed on purpose:
+///
+/// - bars must sit on exactly one axis, both sides — a genuine letterbox or
+///   pillarbox, never a border on all four edges,
+/// - both bars must be the same flat colour within [`BAR_TOLERANCE`],
+/// - each bar must be at least [`MIN_BAR_PERCENT`] of that edge, and
+/// - at least [`MIN_KEPT_PERCENT`] of the edge must survive.
+///
+/// Anything that fails a clause is returned unchanged. Squares, gradients,
+/// and covers with a painted border are all left alone.
+fn trim_uniform_bars(image: &DynamicImage) -> Option<DynamicImage> {
+    let rgb = image.to_rgb8();
+    let (width, height) = rgb.dimensions();
+    if width < 8 || height < 8 {
+        return None;
+    }
+    let uniform_row =
+        |y: u32, colour: [u8; 3]| (0..width).all(|x| near(rgb.get_pixel(x, y).0, colour));
+    let uniform_col =
+        |x: u32, colour: [u8; 3]| (0..height).all(|y| near(rgb.get_pixel(x, y).0, colour));
+
+    // Horizontal bars (letterbox): the top and bottom edges must agree.
+    let top_colour = rgb.get_pixel(0, 0).0;
+    let bottom_colour = rgb.get_pixel(0, height - 1).0;
+    let horizontal = if near(top_colour, bottom_colour)
+        && uniform_row(0, top_colour)
+        && uniform_row(height - 1, top_colour)
+    {
+        let top = (0..height)
+            .take_while(|y| uniform_row(*y, top_colour))
+            .count();
+        let bottom = (0..height)
+            .rev()
+            .take_while(|y| uniform_row(*y, top_colour))
+            .count();
+        bar_span(top, bottom, height)
+    } else {
+        None
+    };
+
+    // Vertical bars (pillarbox): the left and right edges must agree.
+    let left_colour = rgb.get_pixel(0, 0).0;
+    let right_colour = rgb.get_pixel(width - 1, 0).0;
+    let vertical = if near(left_colour, right_colour)
+        && uniform_col(0, left_colour)
+        && uniform_col(width - 1, left_colour)
+    {
+        let left = (0..width)
+            .take_while(|x| uniform_col(*x, left_colour))
+            .count();
+        let right = (0..width)
+            .rev()
+            .take_while(|x| uniform_col(*x, left_colour))
+            .count();
+        bar_span(left, right, width)
+    } else {
+        None
+    };
+
+    // Exactly one axis: bars on both is a frame around the whole picture, and
+    // cropping a frame is a judgement call this has no business making.
+    match (horizontal, vertical) {
+        (Some((top, keep)), None) => Some(image.crop_imm(0, top, width, keep)),
+        (None, Some((left, keep))) => Some(image.crop_imm(left, 0, keep, height)),
+        _ => None,
+    }
+}
+
+/// Whether two colours are the same within [`BAR_TOLERANCE`].
+fn near(a: [u8; 3], b: [u8; 3]) -> bool {
+    a.iter()
+        .zip(b.iter())
+        .all(|(left, right)| left.abs_diff(*right) <= BAR_TOLERANCE)
+}
+
+/// Validate a leading/trailing bar pair against the size rules, returning the
+/// offset and length to keep.
+fn bar_span(leading: usize, trailing: usize, edge: u32) -> Option<(u32, u32)> {
+    let leading = u32::try_from(leading).ok()?;
+    let trailing = u32::try_from(trailing).ok()?;
+    // Integer percentages throughout: these are pixel counts, and a float
+    // round-trip here buys nothing but precision lints.
+    let minimum = (edge * MIN_BAR_PERCENT).div_ceil(100);
+    if leading < minimum || trailing < minimum {
+        return None;
+    }
+    let keep = edge.checked_sub(leading)?.checked_sub(trailing)?;
+    if keep * 100 < edge * MIN_KEPT_PERCENT {
+        return None;
+    }
+    Some((leading, keep))
+}
+
 /// Thumbnail long edge capped at `size`, JPEG-encoded at quality 85.
 fn encode_thumb(image: &DynamicImage, size: u32) -> Option<Vec<u8>> {
     let thumb = image.thumbnail(size, size);
@@ -367,12 +477,15 @@ pub fn store_artwork_with_budget(
         path: paths.orig.clone(),
         source,
     })?;
+    // Thumbnails draw the picture; `orig` keeps the file exactly as shipped,
+    // so trimming padding here never destroys the original bytes.
+    let drawn = trim_uniform_bars(&image).unwrap_or(image);
     for (size, thumb) in [
         (THUMB_SIZES[0], &paths.thumb64),
         (THUMB_SIZES[1], &paths.thumb256),
         (THUMB_SIZES[2], &paths.thumb512),
     ] {
-        let Some(encoded) = encode_thumb(&image, size) else {
+        let Some(encoded) = encode_thumb(&drawn, size) else {
             continue;
         };
         std::fs::write(thumb, encoded).map_err(|source| Error::Io {
@@ -468,6 +581,110 @@ mod tests {
             )
             .expect("test encodes");
         encoded
+    }
+
+    /// A `content` band centred in a `pad`-coloured canvas of the given size.
+    fn padded_image(
+        width: u32,
+        height: u32,
+        band_top: u32,
+        band_height: u32,
+        pad: [u8; 3],
+        content: [u8; 3],
+    ) -> DynamicImage {
+        let mut image = image::RgbImage::from_pixel(width, height, image::Rgb(pad));
+        for y in band_top..band_top + band_height {
+            for x in 0..width {
+                // Vary the content so it is never mistaken for a flat bar.
+                let shade = u8::try_from((x + y) % 64).unwrap_or(0);
+                image.put_pixel(
+                    x,
+                    y,
+                    image::Rgb([content[0].saturating_add(shade), content[1], content[2]]),
+                );
+            }
+        }
+        DynamicImage::ImageRgb8(image)
+    }
+
+    #[test]
+    fn letterboxed_art_loses_its_bars() {
+        // The shape this exists for: a 16:9 frame pasted onto a square.
+        let image = padded_image(512, 512, 112, 288, [255, 255, 255], [20, 40, 90]);
+        let trimmed = trim_uniform_bars(&image).expect("padding is trimmed");
+        assert_eq!(trimmed.width(), 512);
+        assert_eq!(trimmed.height(), 288);
+    }
+
+    #[test]
+    fn pillarboxed_art_loses_its_bars() {
+        // The same idea rotated onto the other axis.
+        let mut raw = image::RgbImage::from_pixel(512, 512, image::Rgb([8, 8, 8]));
+        for x in 96..416 {
+            for y in 0..512 {
+                let shade = u8::try_from((x + y) % 64).unwrap_or(0);
+                raw.put_pixel(x, y, image::Rgb([20u8.saturating_add(shade), 40, 90]));
+            }
+        }
+        let trimmed = trim_uniform_bars(&DynamicImage::ImageRgb8(raw)).expect("padding is trimmed");
+        assert_eq!(trimmed.width(), 320);
+        assert_eq!(trimmed.height(), 512);
+    }
+
+    #[test]
+    fn a_framed_cover_keeps_its_border() {
+        // Bars on all four edges are a design, not padding: leave it alone.
+        let mut raw = image::RgbImage::from_pixel(400, 400, image::Rgb([250, 250, 250]));
+        for y in 60..340 {
+            for x in 60..340 {
+                let shade = u8::try_from((x + y) % 64).unwrap_or(0);
+                raw.put_pixel(x, y, image::Rgb([10u8.saturating_add(shade), 30, 70]));
+            }
+        }
+        assert!(trim_uniform_bars(&DynamicImage::ImageRgb8(raw)).is_none());
+    }
+
+    #[test]
+    fn a_normal_cover_is_never_trimmed() {
+        let image = padded_image(400, 400, 0, 400, [0, 0, 0], [90, 30, 30]);
+        assert!(trim_uniform_bars(&image).is_none());
+    }
+
+    #[test]
+    fn a_hairline_edge_is_not_treated_as_padding() {
+        // One flat row top and bottom is compression noise, not a letterbox.
+        let image = padded_image(400, 400, 1, 398, [255, 255, 255], [20, 40, 90]);
+        assert!(trim_uniform_bars(&image).is_none());
+    }
+
+    #[test]
+    fn a_mostly_blank_image_is_left_alone() {
+        // Keeping 10% of the height would be a sliver, not a crop.
+        let image = padded_image(400, 400, 180, 40, [255, 255, 255], [20, 40, 90]);
+        assert!(trim_uniform_bars(&image).is_none());
+    }
+
+    #[test]
+    fn cached_thumbnails_use_the_trimmed_picture() {
+        let cache = scratch("trim");
+        let mut encoded = Vec::new();
+        let image = padded_image(512, 512, 112, 288, [255, 255, 255], [20, 40, 90]);
+        image
+            .write_to(&mut Cursor::new(&mut encoded), ImageFormat::Png)
+            .expect("test encodes");
+        let art = store_artwork(&cache, &encoded)
+            .expect("store works")
+            .expect("valid art caches");
+        let thumb = image::open(&art.thumb512).expect("thumb decodes");
+        assert!(
+            thumb.height() < thumb.width(),
+            "the square padding is gone from what the UI draws"
+        );
+        // The original bytes are kept exactly as they shipped.
+        let original = image::open(&art.orig).expect("orig decodes");
+        assert_eq!(original.width(), 512);
+        assert_eq!(original.height(), 512);
+        std::fs::remove_dir_all(&cache).expect("cleanup works");
     }
 
     #[test]

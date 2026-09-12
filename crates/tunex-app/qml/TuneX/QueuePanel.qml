@@ -95,7 +95,18 @@ Rectangle {
         }
     }
 
-    color: root.embedded ? Theme.surface : "transparent"
+    // Docked: translucent chrome over the shell's ambient wash (solid again
+    // when transparency is reduced). In the compact drawer it stays fully
+    // transparent so the drawer's own glass is the only surface.
+    color: {
+        if (!root.embedded)
+            return "transparent";
+
+        if (Appearance.reduceTransparency)
+            return Theme.surface;
+
+        return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, Theme.chromeTint);
+    }
     onTrackingChanged: {
         if (root.tracking)
             root.sync();

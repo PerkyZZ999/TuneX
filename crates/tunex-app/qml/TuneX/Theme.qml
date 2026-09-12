@@ -4,29 +4,33 @@ import QtQuick
 // Centralized design tokens (docs/DESIGN.md "TuneX Frosted Obsidian").
 // Every color, radius, spacing, and type value in the UI must come from here;
 // never hardcode visual constants in components.
+//
+// The neutrals are charcoal, not navy: every base tone is hue-free so the one
+// royal blue reads as the brand instead of competing with a blue room. Ratios
+// beside each token are measured against the canvas.
 QtObject {
     // Canvas and surfaces.
-    readonly property color background: "#0A0D14"
-    readonly property color surface: "#121724"
-    readonly property color surfaceRaised: "#1A2133"
-    readonly property color chrome: "#141B2E"
-    readonly property color hover: "#1B2338"
-    readonly property color selected: "#1E2A4A"
+    readonly property color background: "#0B0B0E"
+    readonly property color surface: "#141419"
+    readonly property color surfaceRaised: "#1D1D23"
+    readonly property color chrome: "#0F0F13"
+    readonly property color hover: "#232329"
+    readonly property color selected: "#2A2A33"
     // Text and dividers.
-    readonly property color foreground: "#F2F5FA"
-    readonly property color muted: "#9AA5BA"
-    readonly property color border: "#232C42"
-    // Actions and signals.
-    readonly property color primary: "#2F62E8"
-    readonly property color primaryHover: "#3567E6"
+    readonly property color foreground: "#F4F4F7"   // 17.9:1
+    readonly property color muted: "#A3A3AE"        // 7.9:1
+    readonly property color border: "#32323B"
+    // Actions and signals — the royal blue family, and nothing else.
+    readonly property color primary: "#2B5CE6"      // white on it 5.6:1
+    readonly property color primaryHover: "#3766EE" // white on it 4.9:1
     // DESIGN.md token on-primary (`onX` names are reserved in QML).
     readonly property color primaryText: "#FFFFFF"
-    readonly property color accent: "#5B8CFF"
-    readonly property color accentSecondary: "#6FD3FF"
-    readonly property color success: "#52D273"
-    readonly property color warning: "#F5B544"
-    readonly property color error: "#FF8585"
-    readonly property color focus: "#8FB4FF"
+    readonly property color accent: "#6E9BFF"       // 7.3:1
+    readonly property color accentSecondary: "#4C86FF" // 5.8:1, progress fill
+    readonly property color success: "#4ED07A"      // 10.0:1
+    readonly property color warning: "#F5B544"      // 10.8:1
+    readonly property color error: "#FF8585"        // 8.4:1
+    readonly property color focus: "#9BBBFF"        // 10.2:1
     // Shape scale.
     readonly property int radiusXs: 4
     readonly property int radiusSm: 8
@@ -84,6 +88,19 @@ QtObject {
     // exclusive to Now Playing; rows, rail, cards, mini-player stay opaque.
     readonly property int glassBlur: 64
     readonly property real glassTint: 0.7
+    // Shell chrome translucency. The rail, top bar and docked player are
+    // always on screen, so they are tinted-translucent rather than blurred:
+    // a live backdrop blur under permanently visible chrome would cost a
+    // blur pass every frame for a effect nobody can point at. What they let
+    // through is the ambient wash below, which is the part the eye reads as
+    // glass.
+    readonly property real chromeTint: 0.76
+    // Ambient wash: the playing track's own artwork, blurred to abstraction
+    // and held this far down so it colours the room without ever competing
+    // with content (DESIGN.md: artwork leads, chrome recedes). It repaints on
+    // track change, not per frame.
+    readonly property real ambientOpacity: 0.14
+    readonly property int ambientBlur: 64
     // Elevation (DESIGN.md: one restrained shadow scale, black). Blur values
     // are the CSS radius × 1.2, the documented RectangularShadow match.
     // Overlay: dialogs/drawers/menus `0 8px 32px rgba(0,0,0,0.45)`.

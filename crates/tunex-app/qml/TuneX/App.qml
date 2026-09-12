@@ -24,6 +24,9 @@ Window {
     readonly property bool showMiniPlayer: !root.wideShell && root.playerActive
     readonly property bool showDockedQueue: root.wideShell
     readonly property int volumeStep: 5
+    // Cover of the playing track, mirrored here so the ambient wash and the
+    // chrome that sits over it share one source.
+    property url ambientArt
     // The rail's playlist entries are list delegates, and a delegate scope
     // resolves `root` but not the other ids in this file, so both the open
     // playlist and the call that opens one travel through the root item.
@@ -103,6 +106,7 @@ Window {
 
     function syncPlayer() {
         queueModel.poll();
+        root.ambientArt = queueModel.currentArtUrl();
         const state = queueModel.playbackState();
         const cursor = queueModel.currentIndex();
         if (cursor >= 0 || state === 1 || state === 2 || state === 3)
@@ -335,6 +339,11 @@ Window {
             color: Theme.background
         }
 
+        AmbientWash {
+            anchors.fill: parent
+            source: root.ambientArt
+        }
+
         Column {
             anchors.fill: parent
 
@@ -345,7 +354,9 @@ Window {
                 Rectangle {
                     width: root.railSize
                     height: parent.height
-                    color: Theme.surface
+                    // Translucent so the ambient wash shows through; solid
+                    // again whenever the user reduces transparency.
+                    color: Appearance.reduceTransparency ? Theme.surface : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, Theme.chromeTint)
 
                     Rectangle {
                         anchors.top: parent.top
@@ -531,6 +542,23 @@ Window {
 
                         width: parent.width
                         height: 56
+
+                        // Translucent chrome over the ambient wash, with a
+                        // hairline where it meets the content below so the
+                        // bar keeps an edge even when the wash is off.
+                        Rectangle {
+                            anchors.fill: parent
+                            color: Appearance.reduceTransparency ? Theme.surface : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, Theme.chromeTint)
+
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: 1
+                                color: Theme.border
+                                Accessible.ignored: true
+                            }
+                        }
 
                         Row {
                             id: navRow

@@ -269,16 +269,30 @@ Item {
                     }
                 }
 
-                footer: Text {
-                    visible: !root.drilled && songsView.count >= 500
+                // The cap notice sits in a wrapper: a Text whose own height
+                // is bound to its implicitHeight is a binding loop, which Qt
+                // reports the moment a library is big enough to show it.
+                footer: Item {
+                    id: songsFooter
+
+                    readonly property bool shown: !root.drilled && songsView.count >= 500
+
                     width: songsView.width
-                    height: visible ? implicitHeight : 0
-                    horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("Showing the first 500 songs — search finds the rest.")
-                    textFormat: Text.PlainText
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontCaption
-                    color: Theme.muted
+                    height: songsFooter.shown ? capNotice.implicitHeight + Theme.spaceMd : 0
+
+                    Text {
+                        id: capNotice
+
+                        visible: songsFooter.shown
+                        anchors.centerIn: parent
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: qsTr("Showing the first 500 songs — search finds the rest.")
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontCaption
+                        color: Theme.muted
+                    }
                 }
             }
 

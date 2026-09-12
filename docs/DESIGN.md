@@ -1,26 +1,26 @@
 ---
 version: alpha
 name: "TuneX Frosted Obsidian"
-description: "Dark-first nocturnal design system for TuneX, a local-first Linux music player. Artwork leads, chrome recedes; one electric-blue accent; restrained glass reserved for hierarchy."
+description: "Dark-first nocturnal design system for TuneX, a local-first Linux music player. Artwork leads, chrome recedes; charcoal neutrals under one royal-blue brand; translucent chrome over an artwork-tinted room."
 colors:
-  background: "#0A0D14"
-  surface: "#121724"
-  surface-raised: "#1A2133"
-  chrome: "#141B2E"
-  hover: "#1B2338"
-  selected: "#1E2A4A"
-  foreground: "#F2F5FA"
-  muted: "#9AA5BA"
-  border: "#232C42"
-  primary: "#2F62E8"
-  primary-hover: "#3567E6"
+  background: "#0B0B0E"
+  surface: "#141419"
+  surface-raised: "#1D1D23"
+  chrome: "#0F0F13"
+  hover: "#232329"
+  selected: "#2A2A33"
+  foreground: "#F4F4F7"
+  muted: "#A3A3AE"
+  border: "#32323B"
+  primary: "#2B5CE6"
+  primary-hover: "#3766EE"
   on-primary: "#FFFFFF"
-  accent: "#5B8CFF"
-  accent-secondary: "#6FD3FF"
-  success: "#52D273"
+  accent: "#6E9BFF"
+  accent-secondary: "#4C86FF"
+  success: "#4ED07A"
   warning: "#F5B544"
   error: "#FF8585"
-  focus: "#8FB4FF"
+  focus: "#9BBBFF"
 typography:
   display-lg:
     fontFamily: Inter
@@ -226,14 +226,14 @@ Guiding principles (from the design brief — they arbitrate anything unspecifie
 
 Roles, darkest to brightest. Solid tokens below back every component; translucency/blur are described in Elevation & Depth and applied over these bases.
 
-- **Canvas `{colors.background}` (#0A0D14):** near-black with a blue night cast. Window background everywhere; content never sits on pure black.
+- **Canvas `{colors.background}` (#0B0B0E):** charcoal near-black, deliberately hue-free. Every neutral in this system is greyscale so the one royal blue reads as the brand instead of tinting the whole room; a navy-cast neutral makes an accent of the same family disappear into it. Window background everywhere; content never sits on pure black.
 - **Surfaces `{colors.surface}` / `{colors.surface-raised}`:** cards, panels, drawers, dialogs. Raised is one step up for hoverable containers and toasts. Track rows deliberately stay transparent over the canvas — opaque rows would chop long lists into visual noise.
 - **Wells `{colors.chrome}`:** recessed inputs (search field) — darker than cards so fields read as "type here".
 - **Interaction states `{colors.hover}` / `{colors.selected}`:** row hover and nav selection. Selection always pairs the surface with an accent indicator bar plus `{colors.foreground}` text — never color alone.
-- **Text `{colors.foreground}` / `{colors.muted}`:** high-contrast neutral for titles, rows, controls; desaturated cool gray strictly for metadata (artist under title, durations, captions) at 12–13px minimum. Muted-on-background is ~7:1; body claims AA with margin.
+- **Text `{colors.foreground}` / `{colors.muted}`:** high-contrast neutral for titles, rows, controls; neutral gray strictly for metadata (artist under title, durations, captions) at 12–13px minimum. Muted-on-background is 7.9:1, foreground 17.9:1; every token in this palette clears AA against the canvas.
 - **Dividers `{colors.border}`:** 1px hairlines between rail sections and list groups. Borders, not shadows, separate most surfaces.
-- **Primary `{colors.primary}` + hover `{colors.primary-hover}` with `{colors.on-primary}` white text:** the single conversion color — primary buttons ("Play Something", "Add folder"), selected chips, active progress. White on primary is ~5.2:1; on hover ~5:1.
-- **Signal accents `{colors.accent}` / `{colors.accent-secondary}`:** accent for text-level signals (eyebrow labels, links, "See all", playing-row marker, focus-adjacent highlights); cyan-secondary for progress fill and gradient end-stops over artwork. Accent is never a large-area fill and never body text.
+- **Primary `{colors.primary}` + hover `{colors.primary-hover}` with `{colors.on-primary}` white text:** royal blue, the single conversion color — primary buttons ("Play Something", "Add folder"), selected chips, active progress. White on primary is 5.6:1; on hover 4.9:1.
+- **Signal accents `{colors.accent}` / `{colors.accent-secondary}`:** accent for text-level signals (eyebrow labels, links, "See all", playing-row marker, focus-adjacent highlights); accent-secondary for progress fill and gradient end-stops over artwork. Both stay inside the royal-blue family — no cyan, no teal — so the interface reads as one brand hue against grey. Accent is never a large-area fill and never body text.
 - **Feedback `{colors.success}` / `{colors.warning}` / `{colors.error}`:** scan-complete and healthy states, scan warnings (permission-skipped files), errors and missing-file copy. Always paired with icon + words.
 - **Focus `{colors.focus}`:** 2px keyboard focus ring on all interactive elements (see Components).
 - **Theme behavior:** V1 is dark-only. No light tokens exist; do not invent light variants. Future themes add new token sets rather than reinterpreting these.
@@ -266,11 +266,13 @@ Shell grid (≥1280px): 240px nav rail · fluid content with 24px gutters · 320
 
 Depth model: **tonal layering first, translucency second, shadows last.** Most hierarchy comes from stepping surface tones over the canvas plus 1px borders. This keeps 60fps scrolling on integrated GPUs and keeps the UI legible with blur disabled.
 
-- **Glass is hierarchical, not decorative.** Strong glass: Now Playing overlay only (artwork backdrop → 24–40px backdrop blur → dark translucent tint → 1px top highlight → soft shadow → content). Subtle glass: dialogs, context menus, drawer (12–20px blur). Opaque: track rows, rail, cards, mini-player. If a mockup shows glass on a list row, the mockup is wrong.
+- **Glass is hierarchical, not decorative.** Strong glass: Now Playing overlay only (artwork backdrop → 24–40px backdrop blur → dark translucent tint → 1px top highlight → soft shadow → content). Subtle glass: dialogs, context menus, drawer (12–20px blur). Translucent chrome: the nav rail, top bar, and docked player are tinted-translucent (no blur) over the ambient wash. Opaque: track rows, cards, mini-player. If a mockup shows glass on a list row, the mockup is wrong.
+- **Translucent chrome is tint, not blur.** The rail, top bar and docked player are on screen for the whole session, so a live backdrop blur under them would cost a blur pass every frame forever. They carry `{colors.surface}` at ~76% instead, which is see-through enough to read as glass and free to draw. Blur stays with the overlays that appear, act, and leave.
+- **Ambient wash.** Translucency over a flat canvas reveals a flat canvas and reads as a lighter grey panel, so the shell paints the playing track's own artwork behind everything — blurred to abstraction, desaturated, held at ~14% and faded down the view so it colours the room without competing with the artwork actually on screen. It repaints on track change, never per frame, and with no track playing or transparency reduced it is simply absent. The room takes the record's colour; the record stays the only picture.
 - **Glass stack (normative order):** background artwork/gradient → blur → dark tint (60–75% background) → 1px border/highlight → shadow → foreground content. Never blur without the tint — raw blurred art behind text fails contrast.
 - **Shadows:** one restrained scale — dialogs/drawers `0 8px 32px rgba(0,0,0,0.45)`; hero `0 4px 24px rgba(0,0,0,0.35)`; cards none (borders do the work). No colored shadows except the primary transport button's faint blue glow (`0 0 24px rgba(91,140,255,0.35)`).
 - **Glow discipline:** glow appears exactly twice — the playing transport button and the selected-nav indicator. Everywhere else, glow is a bug.
-- **Reduced-transparency fallback:** with the blur toggle off, glass surfaces render as solid `{colors.surface}` / `{colors.surface-raised}` with the same borders. Layout and hierarchy must survive this — test every overlay both ways.
+- **Reduced-transparency fallback:** with the blur toggle off, glass surfaces, translucent chrome, and the ambient wash all render as solid `{colors.surface}` / `{colors.surface-raised}` with the same borders — the wash draws nothing at all. Layout and hierarchy must survive this — test every overlay both ways.
 
 ## Shapes
 
