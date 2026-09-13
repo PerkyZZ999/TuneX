@@ -9,6 +9,7 @@ cmake-build-*/
 # Packaging artifacts
 packaging/aur/src/
 packaging/aur/pkg/
+packaging/aur/tunex/
 packaging/aur/*.pkg.tar*
 *.pkg.tar*
 
