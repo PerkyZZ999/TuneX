@@ -4,7 +4,6 @@ import QtQuick
 // Centralized design tokens (docs/DESIGN.md "TuneX Frosted Obsidian").
 // Every color, radius, spacing, and type value in the UI must come from here;
 // never hardcode visual constants in components.
-//
 // The neutrals are charcoal, not navy: every base tone is hue-free so the one
 // royal blue reads as the brand instead of competing with a blue room. Ratios
 // beside each token are measured against the canvas.
@@ -47,14 +46,15 @@ QtObject {
     readonly property int spaceXxl: 48
     // Type scale (Inter with system fallback; px per DESIGN.md).
     readonly property string fontFamily: "Inter"
-    readonly property int fontDisplay: 34
-    readonly property int fontHeadline: 24
-    readonly property int fontTitle: 18
-    readonly property int fontBody: 16
-    readonly property int fontBodySm: 13
-    readonly property int fontLabel: 14
-    readonly property int fontLabelSm: 13
+    readonly property int fontDisplay: 32
+    readonly property int fontHeadline: 22
+    readonly property int fontTitle: 16
+    readonly property int fontBody: 14
+    readonly property int fontBodySm: 12
+    readonly property int fontLabel: 12
+    readonly property int fontLabelSm: 12
     readonly property int fontCaption: 12
+    readonly property int fontEyebrow: 12
     // Shell geometry.
     readonly property int windowMinWidth: 960
     readonly property int windowMinHeight: 640

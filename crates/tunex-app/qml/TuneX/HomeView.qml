@@ -27,14 +27,13 @@ Item {
     readonly property int playlistCell: Math.floor((root.contentWidth - Theme.spaceMd * (root.playlistColumns - 1)) / root.playlistColumns)
 
     signal browseRequested(string tab)
-    signal foldersRequested
+    signal settingsRequested(bool pickFolder)
     signal playlistsRequested
     signal playlistOpened(int playlistId, string name)
 
     function greetingStatus() {
         if (root.library.isScanning())
             return root.library.statusText();
-
         return "";
     }
 
@@ -48,12 +47,10 @@ Item {
             const id = songs.trackIdAt(i);
             if (id < 0)
                 break;
-
             root.queue.enqueueTrack(id);
         }
         if (!root.queue.isShuffle())
             root.queue.toggleShuffle();
-
         root.queue.playAt(0);
     }
 
@@ -67,9 +64,8 @@ Item {
         root.chipKey = key;
         if (key === "all")
             return;
-
         if (key === "folders") {
-            root.foldersRequested();
+            root.settingsRequested(false);
             return;
         }
         if (key === "playlists") {
@@ -126,7 +122,7 @@ Item {
                 canContinue: root.canContinue
                 statusLine: root.greetingStatus()
                 onPlayRequested: root.playSomething()
-                onAddFolderRequested: root.foldersRequested()
+                onAddFolderRequested: root.settingsRequested(true)
                 onBrowseRequested: root.browseRequested("albums")
             }
 

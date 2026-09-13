@@ -35,30 +35,24 @@ Window {
         const item = root.activeFocusItem;
         if (!item)
             return false;
-
         return item instanceof TextField || item instanceof TextInput || item instanceof TextEdit || item instanceof TextArea;
     }
 
     function sectionTitle(key) {
         if (key === "search")
             return qsTr("Search");
-
         if (key === "library")
             return qsTr("Your Library");
-
         if (key === "playlists")
             return qsTr("Playlists");
-
         if (key === "settings")
             return qsTr("Settings");
-
         return qsTr("Home");
     }
 
     function navigate(target) {
         if (target === root.history[root.historyAt])
             return;
-
         root.history = root.history.slice(0, root.historyAt + 1).concat([target]);
         root.historyAt = root.history.length - 1;
         root.section = target;
@@ -67,7 +61,6 @@ Window {
     function goBack() {
         if (!root.canGoBack)
             return;
-
         root.historyAt -= 1;
         root.section = root.history[root.historyAt];
     }
@@ -75,7 +68,6 @@ Window {
     function goForward() {
         if (!root.canGoForward)
             return;
-
         root.historyAt += 1;
         root.section = root.history[root.historyAt];
     }
@@ -104,6 +96,13 @@ Window {
         queueModel.setVolumePct(queueModel.volumePct() + delta);
     }
 
+    function openSettings(section, pickFolder) {
+        settingsView.section = section;
+        root.navigate("settings");
+        if (pickFolder)
+            settingsView.requestAddFolder();
+    }
+
     function syncPlayer() {
         queueModel.poll();
         root.ambientArt = queueModel.currentArtUrl();
@@ -111,13 +110,14 @@ Window {
         const cursor = queueModel.currentIndex();
         if (cursor >= 0 || state === 1 || state === 2 || state === 3)
             root.playerActive = true;
-
         if (miniPlayer.visible)
             miniPlayer.sync();
-
         if (nowPlayingLoader.status === Loader.Ready)
             (nowPlayingLoader.item as NowPlayingView).sync();
-
+        tray.setNowPlaying(queueModel.currentTitle(), queueModel.currentArtist(), state === 2);
+        tray.poll();
+        if (trayPopup.visible)
+            trayPopup.sync();
         library.poll();
         if (library.takeFinished()) {
             homeView.refresh();
@@ -156,12 +156,21 @@ Window {
         Appearance.reduceTransparency = queueModel.reduceTransparency();
         Appearance.reduceMotion = queueModel.reduceMotion();
         Appearance.canvas = canvas;
+        Qt.application.quitOnLastWindowClosed = false;
         library.startup();
         playlistModel.refresh();
     }
     onWidthChanged: {
         if (root.wideShell && queueDrawer.opened)
             queueDrawer.close();
+    }
+    onClosing: close => {
+        if (tray.hideOnClose()) {
+            close.accepted = false;
+            root.visible = false;
+            return;
+        }
+        Qt.quit();
     }
 
     // Global search shortcut (R-014): `/` or Ctrl+K focuses the shell field
@@ -172,11 +181,9 @@ Window {
         onActivated: {
             if (root.nowPlayingOpen)
                 return;
-
             if (!searchField.activeFocus) {
                 if (root.section !== "search")
                     root.navigate("search");
-
                 searchField.forceActiveFocus();
             }
         }
@@ -263,6 +270,10 @@ Window {
         id: library
     }
 
+    TrayController {
+        id: tray
+    }
+
     Timer {
         interval: 300
         running: true
@@ -318,12 +329,6 @@ Window {
         background: GlassBackdrop {
             restingRect: Qt.rect(root.width - queueDrawer.width, 0, queueDrawer.width, queueDrawer.height)
         }
-    }
-
-    FoldersDrawer {
-        id: foldersDrawer
-
-        manager: library
     }
 
     // The shell canvas the glass backdrops snapshot. It paints its own
@@ -472,14 +477,9 @@ Window {
                             }
                         }
 
-                        NavItem {
-                            label: qsTr("Folders")
-                            iconName: "folder"
-                            compact: root.compactRail
-                            selected: false
-                            onActivated: foldersDrawer.open()
-                        }
-
+                        // Folders (browse-by-folder) stays a rail destination.
+                        // Scanned-folder add/remove lives in Settings → Library
+                        // only — do not wire this item to a management drawer.
                         Text {
                             visible: !root.compactRail
                             width: parent.width
@@ -705,7 +705,7 @@ Window {
                                     libraryView.tab = tab;
                                     root.navigate("library");
                                 }
-                                onFoldersRequested: foldersDrawer.open()
+                                onSettingsRequested: pickFolder => root.openSettings("library", pickFolder)
                                 onPlaylistsRequested: root.navigate("playlists")
                                 onPlaylistOpened: (id, name) => root.openPlaylist(id, name)
                             }
@@ -731,7 +731,7 @@ Window {
                                 queue: queueModel
                                 playlists: playlistModel
                                 library: library
-                                onFoldersRequested: foldersDrawer.open()
+                                onSettingsRequested: pickFolder => root.openSettings("library", pickFolder)
                                 onArtistRequested: name => {
                                     queueModel.clearQueue();
                                     queueModel.enqueueArtist(name);
@@ -747,10 +747,13 @@ Window {
                                 playlists: playlistModel
                             }
 
-                            SectionStub {
+                            SettingsView {
+                                id: settingsView
+
                                 visible: root.section === "settings"
-                                title: qsTr("Settings")
-                                note: qsTr("Keyboard (R-014): Space play/pause · media next/previous · volume up/down/mute · / or Ctrl+K search · Esc closes Now Playing, then search, then back · Alt+Left/Right history. Music folders live in the Folders rail item. Playback and appearance persist in config.")
+                                queue: queueModel
+                                library: library
+                                tray: tray
                             }
                         }
 
@@ -804,5 +807,36 @@ Window {
                     root.toggleQueue();
             }
         }
+    }
+
+    TrayPopup {
+        id: trayPopup
+
+        queue: queueModel
+        mainVisible: root.visible
+        onShowWindowRequested: {
+            root.visible = true;
+            root.raise();
+            root.requestActivate();
+        }
+        onQuitRequested: Qt.quit()
+    }
+
+    Connections {
+        function onPopupRequested(x, y) {
+            trayPopup.openAt(x, y);
+        }
+
+        function onMenuRequested(x, y) {
+            trayPopup.openAt(x, y);
+        }
+
+        function onPlayPauseRequested() {
+            queueModel.playPause();
+            if (trayPopup.visible)
+                trayPopup.sync();
+        }
+
+        target: tray
     }
 }

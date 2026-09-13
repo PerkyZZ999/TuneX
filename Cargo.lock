@@ -1910,6 +1910,7 @@ dependencies = [
  "tunex-core",
  "tunex-library",
  "tunex-player",
+ "zbus",
 ]
 
 [[package]]

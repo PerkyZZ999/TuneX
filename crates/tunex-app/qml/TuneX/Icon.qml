@@ -9,7 +9,6 @@ import TuneX
 // relative `m` would shift once concatenated. Decorative: hosts set
 // Accessible.name. `filled` paints the same geometry solid (primary
 // transport glyph only, as in the mockup).
-//
 // Path data from Lucide (https://lucide.dev): ISC License, Copyright (c)
 // Lucide Icons and Contributors; portions derived from Feather: MIT
 // License, Copyright (c) 2013-present Cole Bemis. Full notices:
@@ -78,6 +77,16 @@ Shape {
             return "M21.73 18l-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3 M12 9v4 M12 17h.01";
         case "check":
             return "M20 6L9 17l-5-5";
+        case "keyboard":
+            return "M2 8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z M6 10h.01 M10 10h.01 M14 10h.01 M18 10h.01 M6 14h.01 M18 14h.01 M10 14h4";
+        case "sliders-horizontal":
+            return "M16 6a2 2 0 1 0-4 0a2 2 0 1 0 4 0 M4 6h8 M16 6h4 M10 12a2 2 0 1 0-4 0a2 2 0 1 0 4 0 M4 12h2 M10 12h10 M18 18a2 2 0 1 0-4 0a2 2 0 1 0 4 0 M4 18h10 M18 18h2";
+        case "blend":
+            return "M2 9a7 7 0 1 0 14 0a7 7 0 1 0-14 0 M8 15a7 7 0 1 0 14 0a7 7 0 1 0-14 0";
+        case "log-out":
+            return "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9";
+        case "app-window":
+            return "M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z M5 10h14";
         default:
             // "x": close, and the visible fallback for unknown names.
             return "M18 6L6 18 M6 6l12 12";

@@ -24,39 +24,39 @@ colors:
 typography:
   display-lg:
     fontFamily: Inter
-    fontSize: 34px
+    fontSize: 32px
     fontWeight: 700
     lineHeight: 1.18
     letterSpacing: -0.01em
   headline-md:
     fontFamily: Inter
-    fontSize: 24px
+    fontSize: 22px
     fontWeight: 700
     lineHeight: 1.25
   title-md:
     fontFamily: Inter
-    fontSize: 18px
+    fontSize: 16px
     fontWeight: 600
     lineHeight: 1.33
   body-md:
     fontFamily: Inter
-    fontSize: 16px
+    fontSize: 14px
     fontWeight: 400
     lineHeight: 1.5
   body-sm:
     fontFamily: Inter
-    fontSize: 13px
+    fontSize: 12px
     fontWeight: 400
     lineHeight: 1.45
     fontFeature: "tnum"
   label-md:
     fontFamily: Inter
-    fontSize: 14px
+    fontSize: 12px
     fontWeight: 500
     lineHeight: 1.3
   label-sm:
     fontFamily: Inter
-    fontSize: 13px
+    fontSize: 12px
     fontWeight: 500
     lineHeight: 1.3
   caption-md:
@@ -230,7 +230,7 @@ Roles, darkest to brightest. Solid tokens below back every component; translucen
 - **Surfaces `{colors.surface}` / `{colors.surface-raised}`:** cards, panels, drawers, dialogs. Raised is one step up for hoverable containers and toasts. Track rows deliberately stay transparent over the canvas — opaque rows would chop long lists into visual noise.
 - **Wells `{colors.chrome}`:** recessed inputs (search field) — darker than cards so fields read as "type here".
 - **Interaction states `{colors.hover}` / `{colors.selected}`:** row hover and nav selection. Selection always pairs the surface with an accent indicator bar plus `{colors.foreground}` text — never color alone.
-- **Text `{colors.foreground}` / `{colors.muted}`:** high-contrast neutral for titles, rows, controls; neutral gray strictly for metadata (artist under title, durations, captions) at 12–13px minimum. Muted-on-background is 7.9:1, foreground 17.9:1; every token in this palette clears AA against the canvas.
+- **Text `{colors.foreground}` / `{colors.muted}`:** high-contrast neutral for titles, rows, controls; neutral gray strictly for metadata (artist under title, durations, captions) at the 12px caption floor. Muted-on-background is 7.9:1, foreground 17.9:1; every token in this palette clears AA against the canvas.
 - **Dividers `{colors.border}`:** 1px hairlines between rail sections and list groups. Borders, not shadows, separate most surfaces.
 - **Primary `{colors.primary}` + hover `{colors.primary-hover}` with `{colors.on-primary}` white text:** royal blue, the single conversion color — primary buttons ("Play Something", "Add folder"), selected chips, active progress. White on primary is 5.6:1; on hover 4.9:1.
 - **Signal accents `{colors.accent}` / `{colors.accent-secondary}`:** accent for text-level signals (eyebrow labels, links, "See all", playing-row marker, focus-adjacent highlights); accent-secondary for progress fill and gradient end-stops over artwork. Both stay inside the royal-blue family — no cyan, no teal — so the interface reads as one brand hue against grey. Accent is never a large-area fill and never body text.
@@ -245,7 +245,7 @@ Inter throughout (weights 400/500/600/700), fallback `"Inter, 'Noto Sans', syste
 - `{typography.display-lg}` — hero greeting only ("Music feels different here."). 700, tight tracking. Never in lists or dialogs.
 - `{typography.headline-md}` — view titles (artist/album names in detail headers, Now Playing title at large size).
 - `{typography.title-md}` — section/rail headers ("Recently Played"), dialog titles, card titles at grid size.
-- `{typography.body-md}` — track rows, menu items, primary UI text. Default reading size is 16px (desktop body minimum per skill guidance), not smaller — lists stay legible over long sessions.
+- `{typography.body-md}` — track rows, menu items, primary UI text. Default reading size is 14px. Hierarchy stays display > headline > title > body > labels/captions; captions never drop below 12px.
 - `{typography.body-sm}` — secondary lines (artist under title in rows, toasts). Tabular numbers on (`tnum`) so durations don't jitter.
 - `{typography.label-md}` / `{typography.label-sm}` — buttons, nav items, chips, controls. Medium weight carries small sizes on dark.
 - `{typography.caption-md}` — metadata: durations, counts, scan %, status lines. Always `{colors.muted}`, never smaller than 12px. `tnum` on for times/counts.

@@ -7,7 +7,7 @@ Fast Rust engine + beautiful Qt Quick shell. QML renders; Rust decides. `tunex-a
 | Component | Responsibility | Notes |
 |-----------|----------------|-------|
 | QML shell (`qml/`) | Nav, theme tokens, lists/grids, player UI, search field, dialogs | `qt_add_qml_module`; models are Rust QAbstractListModels; qmllint/qmlformat gated |
-| tunex-app | cxx-qt QObjects, QML models, AppEvent fan-out, watcher debounce, settings (XDG), MPRIS/D-Bus, config | Only crate touching Qt; owns Qt-thread affinity |
+| tunex-app | cxx-qt QObjects, QML models, AppEvent fan-out, watcher debounce, settings (XDG), MPRIS/D-Bus, StatusNotifierItem tray, config | Only crate touching Qt; owns Qt-thread affinity |
 | tunex-library | Roots, recursive scan, metadata trait, SQLite + migrations + FTS5 search controller, artwork pipeline, playlists/favorites/history | Largest crate by design; split later per D-008 |
 | tunex-player | PlayerEngine over playbin3, queue + shuffle/repeat, volume/mute, position/bus events | Emits TrackChanged/State/Position/Duration/Error/EndOfTrack as AppEvents |
 | tunex-core | Domain types (Track/Album/Artist/Queue/Playlist/...), PlayerState machine, errors, AppEvent enum, config schema | No Qt/GStreamer/SQLite/notify deps |

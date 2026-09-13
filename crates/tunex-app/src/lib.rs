@@ -31,6 +31,9 @@ pub mod playback;
 /// Debounced search orchestration (keystrokes in, grouped results out).
 pub mod search;
 
+/// `StatusNotifierItem` tray presence (Plasma/Wayland).
+pub mod tray;
+
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QUrl};
 
 // Anchor the cxx-qt generated initializers into every final link.
@@ -81,6 +84,8 @@ pub fn run() -> i32 {
     );
     // MPRIS presence starts with the process (own thread; Qt keeps main).
     mpris::spawn();
+    // Tray icon (own thread; missing host is a debug log).
+    tray::spawn();
     // SAFETY: generated, idempotent initializers; called once on the main
     // thread before any Qt object exists. (`let ()` form satisfies both
     // semicolon lints at once.)
