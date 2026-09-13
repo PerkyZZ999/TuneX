@@ -43,7 +43,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Phase 7 Release — AUR publish is a human confirmation (production release). Remaining maintainer follow-ups, no code risk: true `extra-x86_64-build`, true X11-Plasma visual pass, toast pixels under a real notification daemon.
+- Phase 7 Release — publish `master` to GitHub, then AUR as a human confirmation. Remaining maintainer follow-ups, no code risk: true `extra-x86_64-build`, true X11-Plasma visual pass, toast pixels under a real notification daemon.
 
 ## Phase checklist
 - [x] 0 Intake
