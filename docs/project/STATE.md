@@ -16,7 +16,7 @@
 
 ## Current evidence
 - Latest passed gate: `rust-tc sonar` for the W-042 S6 gate (QG OK, 81.9% coverage, 0 violations)
-- Latest validation entry: 2026-09-13 library UX (sort + Folders browse + click-to-play) on top of W-046 tray + Settings — see VALIDATION.md
+- Latest validation entry: 2026-09-13 W-047 density pass on top of library UX + W-046 tray/Settings — see VALIDATION.md
 - M6 numbers (R-NFR-06, measured not estimated): cold start 850 ms windowed at 50k (<1.5 s) · search p95 6.8–9.2 ms at 50k (<50 ms) · scroll p50 16 ms with 0.36 ms app-side work per frame (60 fps) · transport control ≤8 ms (<50 ms) · scan 52,400 files/min (>500) · no app-side frame cost during scans
 - Visual identity: charcoal-black neutrals (`#0B0B0E` up, hue-free) with royal blue `#2B5CE6` as the only brand family; chrome is tinted-translucent over an artwork-derived ambient wash, real blur reserved for overlays
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
@@ -26,7 +26,7 @@
 - Build: CMake 4.4 + Corrosion v0.6.1 + Qt 6.11.2 configure/build green; PKGBUILD final (install rules + full plugin deps + `!lto`, local `makepkg -f` green, namcap clean; url `github.com/PerkyZZ999/TuneX`)
 - S5 (W-032–W-037 done): live-engine MPRIS matrix, desktop notifications, `scripts/netoff-rehearsal.sh` ALL GREEN, Wayland/X11/HiDPI/dialogs KWin-proven; QG OK
 - Bridge (W-002 done): cxx-qt 0.10 stack pinned; `TrackListModel` round-trip GUI-proven; module owned by build.rs; bridge code lives in binary; explicit init anchoring in main.rs
-- Shell (W-003 done): Theme singleton + nav shell + Home/empty states GUI-proven; `tunex-core::config` + tracing live; DESIGN.md body 14px (W-046 type-scale tighten; caption 12px floor)
+- Shell (W-003 done): Theme singleton + nav shell + Home/empty states GUI-proven; `tunex-core::config` + tracing live; DESIGN.md body 13px (W-047 density pass; caption 12px floor)
 - Player (W-004 done): `PlayerEngine` playbin3 + `PlayerEvent` bus, 14 fakesink tests green, S3776 fixed
 - Queue (W-005 done): pure `Queue` + preload hook + gapless integration green; Quality Gate OK (waiver closed)
 - Codecs (W-006 done): 6-format fixture matrix + corrupt path green; QG OK
@@ -34,7 +34,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1–S6 done. S6 closed at W-042. S7 (W-046) adds the StatusNotifierItem tray, Settings list-detail, close-to-tray, Settings-only scanned-folder management, and a ~2px type-scale tighten. Visual identity is charcoal + royal blue with tinted-translucent chrome over an artwork wash; glass stays hierarchical; glow appears exactly twice. M6 numbers remain aspirational and were met. Maintainer follow-ups before AUR publish are unchanged from S5.
+- Repo reality: S1–S6 done. S6 closed at W-042. S7 (W-046) adds the StatusNotifierItem tray, Settings list-detail, close-to-tray, Settings-only scanned-folder management. W-047 is a one-step density pass (type, chrome, rows, cards) on top of that. Visual identity is charcoal + royal blue with tinted-translucent chrome over an artwork wash; glass stays hierarchical; glow appears exactly twice. M6 numbers remain aspirational and were met. Maintainer follow-ups before AUR publish are unchanged from S5.
 
 ## Open loops
 - S7 W-046 KWin/Plasma tray hover + close-to-tray visual proof (this environment has no StatusNotifierWatcher / isolated Plasma session)
@@ -44,7 +44,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Charles tests library UX (sort / Folders browse / click-to-play) on the W-046 Settings/tray main. Phase 7 Release still waits on human confirmation for AUR publish.
+- Charles tests the W-047 density pass plus library UX (sort / Folders browse / click-to-play) on the packaged install after a rebuild. Phase 7 Release still waits on human confirmation for AUR publish.
 
 ## Phase checklist
 - [x] 0 Intake

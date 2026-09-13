@@ -1,7 +1,7 @@
 import QtQuick
 import TuneX
 
-// MiniPlayer (S4 W-026, icon transport in S6 W-038): opaque 76px bottom
+// MiniPlayer (S4 W-026, icon transport in S6 W-038): opaque 64px bottom
 // transport for windows below 1280px (DESIGN.md: opaque, never glass).
 // Hidden until the first play; idle after that shows honest "Nothing
 // playing" copy. Progress is read-only; scrub lives on the Now Playing

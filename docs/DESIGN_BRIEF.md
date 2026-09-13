@@ -86,10 +86,10 @@ All UI work must load and follow three skills (see `AGENTS.md`): `craft-beautifu
 
 Desktop-only product (no mobile breakpoints). Window classes:
 
-- **≥1280px:** full three-column home — rail 240px, fluid content, Now Playing/Up Next panel 320px (the persistent player; no bottom bar at this width, per the mockup).
+- **≥1280px:** full three-column home — rail 216px, fluid content, Now Playing/Up Next panel 288px (the persistent player; no bottom bar at this width, per the mockup).
 - **1024–1279px:** right panel becomes an overlay drawer (toggle from the top bar); bottom mini-player bar appears as the persistent player; content grid drops one column.
 - **800–1023px:** single column; rail collapses to icon strip 64px with tooltips; Now Playing is full overlay.
-- **Minimum 960×640**, enforced by window. High-DPI scales via Qt devicePixelRatio; artwork grid uses fluid 160–220px cards, never fixed counts. No component changes *meaning* across sizes — only placement and column counts.
+- **Minimum 960×640**, enforced by window. High-DPI scales via Qt devicePixelRatio; artwork grid uses fluid 152–200px cards, never fixed counts. No component changes *meaning* across sizes — only placement and column counts.
 
 ## Accessibility Requirements
 

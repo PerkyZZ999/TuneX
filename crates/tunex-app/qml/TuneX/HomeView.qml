@@ -18,12 +18,12 @@ Item {
     // in half at the panel edge: pick the count that lands nearest the target
     // card size, then divide the row between them.
     readonly property int contentWidth: root.width - Theme.spaceLg * 2
-    readonly property int railColumns: Math.max(2, Math.round(root.contentWidth / 196))
+    readonly property int railColumns: Math.max(2, Math.round(root.contentWidth / Theme.gridTarget))
     readonly property int railCell: Math.floor((root.contentWidth - Theme.spaceMd * (root.railColumns - 1)) / root.railColumns)
     // Playlist rail: wide tiles, about four across like the mockup's second
     // rail, and never so narrow that a name has no room.
-    readonly property int playlistCellHeight: 76
-    readonly property int playlistColumns: Math.max(2, Math.min(4, Math.floor(root.contentWidth / 220)))
+    readonly property int playlistCellHeight: Theme.miniPlayerHeight
+    readonly property int playlistColumns: Math.max(2, Math.min(4, Math.floor(root.contentWidth / 200)))
     readonly property int playlistCell: Math.floor((root.contentWidth - Theme.spaceMd * (root.playlistColumns - 1)) / root.playlistColumns)
 
     signal browseRequested(string tab)
@@ -198,7 +198,7 @@ Item {
                     id: albumRail
 
                     width: parent.width
-                    height: root.railCell + 64
+                    height: root.railCell + Theme.cardMetaHeight
                     orientation: ListView.Horizontal
                     clip: true
                     spacing: Theme.spaceMd

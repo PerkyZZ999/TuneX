@@ -12,7 +12,7 @@ Item {
     signal activated
 
     implicitWidth: chipText.implicitWidth + Theme.spaceMd * 2
-    implicitHeight: 32
+    implicitHeight: Theme.chipHeight
     width: implicitWidth
     height: implicitHeight
     activeFocusOnTab: true

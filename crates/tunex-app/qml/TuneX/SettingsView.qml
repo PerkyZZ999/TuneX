@@ -160,7 +160,7 @@ Item {
                             anchors.fill: parent
                             radius: Theme.radiusSm
                             color: root.section === sectionRow.modelData ? Theme.selected : (sectionMouse.containsMouse || sectionRow.activeFocus ? Theme.hover : "transparent")
-                            Behavior on color  {
+                            Behavior on color {
                                 ColorAnimation {
                                     duration: Appearance.duration(Theme.motionHover)
                                     easing.type: Easing.OutCubic
@@ -305,7 +305,7 @@ Item {
                                 radius: Theme.radiusXs
                                 color: Theme.accentSecondary
 
-                                XAnimator on x  {
+                                XAnimator on x {
                                     from: -scanSegment.width
                                     to: scanSegment.parent.width
                                     duration: 1200

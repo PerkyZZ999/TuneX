@@ -28,7 +28,7 @@ Item {
     // View counts (the models expose rows, not a count property).
     readonly property bool libraryEmpty: songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
     // Fluid artwork columns shared by both grids (160–220px cards).
-    readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
+    readonly property int gridCell: Math.max(Theme.gridMin, Math.floor(content.width / Math.max(1, Math.floor(content.width / Theme.gridTarget))))
 
     signal settingsRequested(bool pickFolder)
     // An artist card was activated: V1 has no artist detail view, so the
@@ -407,296 +407,295 @@ Item {
                 color: Theme.foreground
             }
         }
+    }
 
+    Item {
+        id: content
+
+        anchors.top: header.bottom
+        anchors.topMargin: Theme.spaceMd
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: Theme.spaceLg
+        anchors.rightMargin: Theme.spaceLg
+        anchors.bottomMargin: Theme.spaceLg
+
+        EmptyState {
+            visible: root.libraryEmpty
+            art: "qrc:/qt/qml/TuneX/empty-library.png"
+            title: qsTr("No music yet")
+            note: qsTr("Add a music folder and your artists, albums, and songs will appear here.")
+            actionLabel: qsTr("Add music folder")
+            onActionRequested: root.settingsRequested(true)
         }
 
-        Item {
-            id: content
+        // Songs tab: virtualized list over the capped songs query.
+        ListView {
+            id: songsView
 
-            anchors.top: header.bottom
-            anchors.topMargin: Theme.spaceMd
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.leftMargin: Theme.spaceLg
-            anchors.rightMargin: Theme.spaceLg
-            anchors.bottomMargin: Theme.spaceLg
-
-            EmptyState {
-                visible: root.libraryEmpty
-                art: "qrc:/qt/qml/TuneX/empty-library.png"
-                title: qsTr("No music yet")
-                note: qsTr("Add a music folder and your artists, albums, and songs will appear here.")
-                actionLabel: qsTr("Add music folder")
-                onActionRequested: root.settingsRequested(true)
+            visible: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
+            anchors.fill: parent
+            model: songs
+            focus: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
+            activeFocusOnTab: true
+            clip: true
+            highlightMoveDuration: Appearance.duration(Theme.motionHover)
+            Accessible.role: Accessible.List
+            Accessible.name: root.albumDrilled ? root.albumTitle : (root.folderDrilled ? root.folderTitle : qsTr("Songs"))
+            Keys.onReturnPressed: {
+                const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
+                if (at < songsView.count && songs.isPlayableAt(at))
+                    root.queue.playTrackNow(songs.trackIdAt(at));
+            }
+            Keys.onEnterPressed: {
+                const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
+                if (at < songsView.count && songs.isPlayableAt(at))
+                    root.queue.playTrackNow(songs.trackIdAt(at));
+            }
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                    root.openSongMenu(songsView.currentIndex >= 0 ? songsView.currentIndex : 0);
+                    event.accepted = true;
+                }
             }
 
-            // Songs tab: virtualized list over the capped songs query.
-            ListView {
-                id: songsView
+            highlight: Rectangle {
+                color: Theme.selected
+                radius: Theme.radiusSm
+            }
 
-                visible: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
-                anchors.fill: parent
-                model: songs
-                focus: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
-                activeFocusOnTab: true
-                clip: true
-                highlightMoveDuration: Appearance.duration(Theme.motionHover)
-                Accessible.role: Accessible.List
-                Accessible.name: root.albumDrilled ? root.albumTitle : (root.folderDrilled ? root.folderTitle : qsTr("Songs"))
-                Keys.onReturnPressed: {
-                    const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                    if (at < songsView.count && songs.isPlayableAt(at))
-                        root.queue.playTrackNow(songs.trackIdAt(at));
+            delegate: TrackRow {
+                trackId: model.trackId
+                title: model.title
+                artist: model.artist
+                trackNumber: model.trackNumber
+                durationMs: model.durationMs
+                missing: model.missing
+                onPlayRequested: (trackId, rowIndex, dangling) => {
+                    songsView.currentIndex = index;
+                    songsView.forceActiveFocus();
+                    if (!dangling && songs.isPlayableAt(index))
+                        root.queue.playTrackNow(trackId);
                 }
-                Keys.onEnterPressed: {
-                    const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                    if (at < songsView.count && songs.isPlayableAt(at))
-                        root.queue.playTrackNow(songs.trackIdAt(at));
+                onMenuRequested: trackId => {
+                    songsView.currentIndex = index;
+                    trackMenu.trackId = trackId;
+                    trackMenu.popup();
                 }
-                Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                        root.openSongMenu(songsView.currentIndex >= 0 ? songsView.currentIndex : 0);
-                        event.accepted = true;
-                    }
-                }
+            }
 
-                highlight: Rectangle {
-                    color: Theme.selected
+            // The cap notice sits in a wrapper: a Text whose own height
+            // is bound to its implicitHeight is a binding loop, which Qt
+            // reports the moment a library is big enough to show it.
+            footer: Item {
+                id: songsFooter
+
+                readonly property bool shown: !root.albumDrilled && !root.folderDrilled && songsView.count >= 500
+
+                width: songsView.width
+                height: songsFooter.shown ? capNotice.implicitHeight + Theme.spaceMd : 0
+
+                Text {
+                    id: capNotice
+
+                    visible: songsFooter.shown
+                    anchors.centerIn: parent
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    text: qsTr("Showing the first 500 songs — search finds the rest.")
+                    textFormat: Text.PlainText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontCaption
+                    color: Theme.muted
+                }
+            }
+        }
+
+        // Albums tab: fluid artwork grid over the album query.
+        GridView {
+            id: albumsView
+
+            visible: root.tab === "albums" && !root.libraryEmpty
+            anchors.fill: parent
+            model: albums
+            focus: root.tab === "albums" && !root.libraryEmpty
+            activeFocusOnTab: true
+            clip: true
+            cellWidth: root.gridCell
+            cellHeight: cellWidth + Theme.cardMetaHeight
+            highlightMoveDuration: Appearance.duration(Theme.motionHover)
+            Accessible.role: Accessible.List
+            Accessible.name: qsTr("Albums")
+
+            highlight: Rectangle {
+                color: "transparent"
+                radius: Theme.radiusMd
+                border.color: albumsView.activeFocus ? Theme.focus : "transparent"
+                border.width: 2
+            }
+
+            delegate: AlbumCard {
+                albumId: model.albumId
+                title: model.title
+                artist: model.artist
+                year: model.year
+                trackCount: model.trackCount
+                artUrl: model.artUrl
+                cardIndex: index
+                onActivated: id => {
+                    albumsView.currentIndex = cardIndex;
+                    root.drillIntoAlbum(id, title);
+                }
+                // Ask as the card appears; answered rows cost nothing.
+                Component.onCompleted: {
+                    albums.requestArt(index);
+                    artPump.start();
+                }
+            }
+        }
+
+        // Artists tab: fluid monogram grid over the artist query.
+        // Display-only in S2 (drill-down arrives with S3); the
+        // focus-gated ring is a reading cursor, not a selection.
+        GridView {
+            id: artistsView
+
+            visible: root.tab === "artists" && !root.libraryEmpty
+            anchors.fill: parent
+            model: artists
+            focus: root.tab === "artists" && !root.libraryEmpty
+            activeFocusOnTab: true
+            clip: true
+            cellWidth: root.gridCell
+            cellHeight: cellWidth + Theme.cardMetaHeight
+            highlightMoveDuration: Appearance.duration(Theme.motionHover)
+            Accessible.role: Accessible.List
+            Accessible.name: qsTr("Artists")
+
+            highlight: Rectangle {
+                color: "transparent"
+                radius: Theme.radiusMd
+                border.color: artistsView.activeFocus ? Theme.focus : "transparent"
+                border.width: 2
+            }
+
+            delegate: ArtistCard {
+                artistName: model.name
+                albumCount: model.albumCount
+                trackCount: model.trackCount
+                onActivated: name => root.artistRequested(name)
+            }
+        }
+
+        // Folders tab: browse indexed tracks by parent directory.
+        ListView {
+            id: foldersView
+
+            visible: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
+            anchors.fill: parent
+            model: folders
+            focus: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
+            activeFocusOnTab: true
+            clip: true
+            highlightMoveDuration: Appearance.duration(Theme.motionHover)
+            Accessible.role: Accessible.List
+            Accessible.name: qsTr("Folders")
+            Keys.onReturnPressed: {
+                const at = foldersView.currentIndex >= 0 ? foldersView.currentIndex : 0;
+                if (at < foldersView.count)
+                    root.drillIntoFolder(folders.pathAt(at), folders.nameAt(at));
+            }
+            Keys.onEnterPressed: {
+                const at = foldersView.currentIndex >= 0 ? foldersView.currentIndex : 0;
+                if (at < foldersView.count)
+                    root.drillIntoFolder(folders.pathAt(at), folders.nameAt(at));
+            }
+
+            highlight: Rectangle {
+                color: Theme.selected
+                radius: Theme.radiusSm
+            }
+
+            delegate: Item {
+                id: folderRow
+
+                // Plain (not required) properties: `required` construction-
+                // time initialization races the cxx-qt delegate context
+                // and locks role bindings to their defaults (W-018).
+                readonly property string countLine: model.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(model.trackCount)
+
+                width: ListView.view.width
+                height: Theme.trackRowHeight
+                Accessible.role: Accessible.ListItem
+                Accessible.name: model.name + ", " + folderRow.countLine
+                Accessible.onPressAction: root.drillIntoFolder(model.path, model.name)
+
+                Rectangle {
+                    anchors.fill: parent
                     radius: Theme.radiusSm
-                }
+                    color: folderMouse.containsMouse || folderRow.activeFocus ? Theme.hover : "transparent"
 
-                delegate: TrackRow {
-                    trackId: model.trackId
-                    title: model.title
-                    artist: model.artist
-                    trackNumber: model.trackNumber
-                    durationMs: model.durationMs
-                    missing: model.missing
-                    onPlayRequested: (trackId, rowIndex, dangling) => {
-                        songsView.currentIndex = index;
-                        songsView.forceActiveFocus();
-                        if (!dangling && songs.isPlayableAt(index))
-                            root.queue.playTrackNow(trackId);
-                    }
-                    onMenuRequested: trackId => {
-                        songsView.currentIndex = index;
-                        trackMenu.trackId = trackId;
-                        trackMenu.popup();
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Appearance.duration(Theme.motionHover)
+                            easing.type: Easing.OutCubic
+                        }
                     }
                 }
 
-                // The cap notice sits in a wrapper: a Text whose own height
-                // is bound to its implicitHeight is a binding loop, which Qt
-                // reports the moment a library is big enough to show it.
-                footer: Item {
-                    id: songsFooter
+                MouseArea {
+                    id: folderMouse
 
-                    readonly property bool shown: !root.albumDrilled && !root.folderDrilled && songsView.count >= 500
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        foldersView.currentIndex = index;
+                        root.drillIntoFolder(model.path, model.name);
+                    }
+                }
 
-                    width: songsView.width
-                    height: songsFooter.shown ? capNotice.implicitHeight + Theme.spaceMd : 0
+                Icon {
+                    id: folderGlyph
+
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "folder"
+                    iconSize: 20
+                    stroke: Theme.muted
+                }
+
+                Column {
+                    anchors.left: folderGlyph.right
+                    anchors.leftMargin: Theme.spaceMd
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
 
                     Text {
-                        id: capNotice
-
-                        visible: songsFooter.shown
-                        anchors.centerIn: parent
                         width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: qsTr("Showing the first 500 songs — search finds the rest.")
+                        elide: Text.ElideRight
+                        text: model.name
                         textFormat: Text.PlainText
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontCaption
+                        font.pixelSize: Theme.fontBody
+                        color: Theme.foreground
+                    }
+
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: folderRow.countLine + " · " + model.path
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontBodySm
                         color: Theme.muted
                     }
                 }
             }
-
-            // Albums tab: fluid artwork grid over the album query.
-            GridView {
-                id: albumsView
-
-                visible: root.tab === "albums" && !root.libraryEmpty
-                anchors.fill: parent
-                model: albums
-                focus: root.tab === "albums" && !root.libraryEmpty
-                activeFocusOnTab: true
-                clip: true
-                cellWidth: root.gridCell
-                cellHeight: cellWidth + 64
-                highlightMoveDuration: Appearance.duration(Theme.motionHover)
-                Accessible.role: Accessible.List
-                Accessible.name: qsTr("Albums")
-
-                highlight: Rectangle {
-                    color: "transparent"
-                    radius: Theme.radiusMd
-                    border.color: albumsView.activeFocus ? Theme.focus : "transparent"
-                    border.width: 2
-                }
-
-                delegate: AlbumCard {
-                    albumId: model.albumId
-                    title: model.title
-                    artist: model.artist
-                    year: model.year
-                    trackCount: model.trackCount
-                    artUrl: model.artUrl
-                    cardIndex: index
-                    onActivated: id => {
-                        albumsView.currentIndex = cardIndex;
-                        root.drillIntoAlbum(id, title);
-                    }
-                    // Ask as the card appears; answered rows cost nothing.
-                    Component.onCompleted: {
-                        albums.requestArt(index);
-                        artPump.start();
-                    }
-                }
-            }
-
-            // Artists tab: fluid monogram grid over the artist query.
-            // Display-only in S2 (drill-down arrives with S3); the
-            // focus-gated ring is a reading cursor, not a selection.
-            GridView {
-                id: artistsView
-
-                visible: root.tab === "artists" && !root.libraryEmpty
-                anchors.fill: parent
-                model: artists
-                focus: root.tab === "artists" && !root.libraryEmpty
-                activeFocusOnTab: true
-                clip: true
-                cellWidth: root.gridCell
-                cellHeight: cellWidth + 64
-                highlightMoveDuration: Appearance.duration(Theme.motionHover)
-                Accessible.role: Accessible.List
-                Accessible.name: qsTr("Artists")
-
-                highlight: Rectangle {
-                    color: "transparent"
-                    radius: Theme.radiusMd
-                    border.color: artistsView.activeFocus ? Theme.focus : "transparent"
-                    border.width: 2
-                }
-
-                delegate: ArtistCard {
-                    artistName: model.name
-                    albumCount: model.albumCount
-                    trackCount: model.trackCount
-                    onActivated: name => root.artistRequested(name)
-                }
-            }
-
-            // Folders tab: browse indexed tracks by parent directory.
-            ListView {
-                id: foldersView
-
-                visible: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
-                anchors.fill: parent
-                model: folders
-                focus: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
-                activeFocusOnTab: true
-                clip: true
-                highlightMoveDuration: Appearance.duration(Theme.motionHover)
-                Accessible.role: Accessible.List
-                Accessible.name: qsTr("Folders")
-                Keys.onReturnPressed: {
-                    const at = foldersView.currentIndex >= 0 ? foldersView.currentIndex : 0;
-                    if (at < foldersView.count)
-                        root.drillIntoFolder(folders.pathAt(at), folders.nameAt(at));
-                }
-                Keys.onEnterPressed: {
-                    const at = foldersView.currentIndex >= 0 ? foldersView.currentIndex : 0;
-                    if (at < foldersView.count)
-                        root.drillIntoFolder(folders.pathAt(at), folders.nameAt(at));
-                }
-
-                highlight: Rectangle {
-                    color: Theme.selected
-                    radius: Theme.radiusSm
-                }
-
-                delegate: Item {
-                    id: folderRow
-
-                    // Plain (not required) properties: `required` construction-
-                    // time initialization races the cxx-qt delegate context
-                    // and locks role bindings to their defaults (W-018).
-                    readonly property string countLine: model.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(model.trackCount)
-
-                    width: ListView.view.width
-                    height: 56
-                    Accessible.role: Accessible.ListItem
-                    Accessible.name: model.name + ", " + folderRow.countLine
-                    Accessible.onPressAction: root.drillIntoFolder(model.path, model.name)
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: Theme.radiusSm
-                        color: folderMouse.containsMouse || folderRow.activeFocus ? Theme.hover : "transparent"
-
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: Appearance.duration(Theme.motionHover)
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        id: folderMouse
-
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            foldersView.currentIndex = index;
-                            root.drillIntoFolder(model.path, model.name);
-                        }
-                    }
-
-                    Icon {
-                        id: folderGlyph
-
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.spaceMd
-                        anchors.verticalCenter: parent.verticalCenter
-                        name: "folder"
-                        iconSize: 20
-                        stroke: Theme.muted
-                    }
-
-                    Column {
-                        anchors.left: folderGlyph.right
-                        anchors.leftMargin: Theme.spaceMd
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.spaceMd
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
-
-                        Text {
-                            width: parent.width
-                            elide: Text.ElideRight
-                            text: model.name
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            color: Theme.foreground
-                        }
-
-                        Text {
-                            width: parent.width
-                            elide: Text.ElideRight
-                            text: folderRow.countLine + " · " + model.path
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBodySm
-                            color: Theme.muted
-                        }
-                    }
-                }
-            }
         }
+    }
 }

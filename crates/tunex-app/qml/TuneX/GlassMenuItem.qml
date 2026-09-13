@@ -9,8 +9,7 @@ import TuneX
 MenuItem {
     id: root
 
-    implicitHeight: 40
-    leftPadding: Theme.spaceMd
+    implicitHeight: Theme.denseTarget
     rightPadding: Theme.spaceMd
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontBody
@@ -40,7 +39,7 @@ MenuItem {
     background: Rectangle {
         x: Theme.spaceXs
         implicitWidth: 216
-        implicitHeight: 40
+        implicitHeight: Theme.denseTarget
         width: root.width - Theme.spaceXs * 2
         radius: Theme.radiusSm
         color: root.highlighted && root.enabled ? Theme.hover : "transparent"

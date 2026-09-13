@@ -41,15 +41,15 @@ QtObject {
     readonly property int spaceXs: 4
     readonly property int spaceSm: 8
     readonly property int spaceMd: 16
-    readonly property int spaceLg: 24
-    readonly property int spaceXl: 32
-    readonly property int spaceXxl: 48
+    readonly property int spaceLg: 20
+    readonly property int spaceXl: 28
+    readonly property int spaceXxl: 40
     // Type scale (Inter with system fallback; px per DESIGN.md).
     readonly property string fontFamily: "Inter"
-    readonly property int fontDisplay: 32
-    readonly property int fontHeadline: 22
-    readonly property int fontTitle: 16
-    readonly property int fontBody: 14
+    readonly property int fontDisplay: 28
+    readonly property int fontHeadline: 18
+    readonly property int fontTitle: 14
+    readonly property int fontBody: 13
     readonly property int fontBodySm: 12
     readonly property int fontLabel: 12
     readonly property int fontLabelSm: 12
@@ -58,21 +58,32 @@ QtObject {
     // Shell geometry.
     readonly property int windowMinWidth: 960
     readonly property int windowMinHeight: 640
-    readonly property int railWidth: 240
+    readonly property int railWidth: 216
     readonly property int railNarrow: 64
-    readonly property int panelWidth: 320
+    readonly property int panelWidth: 288
     // Dialog measure: title + one field or two lines of body copy.
-    readonly property int dialogWidth: 440
-    // DESIGN.md: three-column shell at ≥1280; 76px opaque mini-player below.
+    readonly property int dialogWidth: 400
+    // DESIGN.md: three-column shell at ≥1280; 64px opaque mini-player below.
     readonly property int shellWide: 1280
     readonly property int shellCompact: 1024
-    readonly property int miniPlayerHeight: 76
+    readonly property int miniPlayerHeight: 64
     readonly property int progressTrack: 4
     readonly property int targetMin: 44
-    readonly property int artThumb: 48
-    // Now Playing overlay (DESIGN.md: art ≥320, play 64, blur 24–40, 200ms).
-    readonly property int nowPlayingArt: 320
-    readonly property int playPrimary: 64
+    readonly property int denseTarget: 40
+    readonly property int artThumb: 40
+    readonly property int topBarHeight: 48
+    readonly property int trackRowHeight: 48
+    readonly property int brandMark: 24
+    readonly property int cardMetaHeight: 56
+    readonly property int heroHeight: 280
+    readonly property int chipHeight: 28
+    readonly property int playBadge: 32
+    readonly property int emptyArt: 128
+    readonly property int gridMin: 152
+    readonly property int gridTarget: 176
+    // Now Playing overlay (DESIGN.md: art ≥280, play 52, blur 24–40, 200ms).
+    readonly property int nowPlayingArt: 280
+    readonly property int playPrimary: 52
     readonly property int overlayMs: 200
     readonly property int artCrossfadeMs: 180
     readonly property int thumbSize: 12

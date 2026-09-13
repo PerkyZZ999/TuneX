@@ -13,7 +13,7 @@ Item {
     // Wide tile-beside-text layout for the Home rail; the grid keeps the
     // tall artwork-over-text card.
     property bool horizontal: false
-    property int horizontalHeight: 76
+    property int horizontalHeight: Theme.miniPlayerHeight
     readonly property string countLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
 
     signal activated(int id, string name)
@@ -23,7 +23,7 @@ Item {
         if (root.horizontal)
             return root.horizontalHeight;
 
-        return root.explicitWidth > 0 ? root.explicitWidth + 64 : GridView.view.cellHeight;
+        return root.explicitWidth > 0 ? root.explicitWidth + Theme.cardMetaHeight : GridView.view.cellHeight;
     }
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
@@ -59,8 +59,8 @@ Item {
         Row {
             visible: root.horizontal
             anchors.fill: parent
-            anchors.margins: Theme.spaceSm
-            spacing: Theme.spaceSm
+            anchors.margins: Theme.spaceXs
+            spacing: Theme.spaceXs
 
             Rectangle {
                 width: parent.height
@@ -71,7 +71,7 @@ Item {
                 Icon {
                     anchors.centerIn: parent
                     name: "list"
-                    iconSize: 22
+                    iconSize: 20
                     stroke: Theme.accent
                 }
 
@@ -121,8 +121,8 @@ Item {
         Column {
             visible: !root.horizontal
             anchors.fill: parent
-            anchors.margins: Theme.spaceSm
-            spacing: Theme.spaceSm
+            anchors.margins: Theme.spaceXs
+            spacing: Theme.spaceXs
 
             Rectangle {
                 width: parent.width
@@ -133,7 +133,7 @@ Item {
                 Icon {
                     anchors.centerIn: parent
                     name: "list"
-                    iconSize: 28
+                    iconSize: 24
                     stroke: Theme.accent
                 }
 

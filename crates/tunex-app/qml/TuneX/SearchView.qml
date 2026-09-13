@@ -30,7 +30,7 @@ Item {
     readonly property bool settledEmpty: root.songsSettled && root.albumsSettled && root.artistsSettled && !root.drilled && songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
     readonly property bool showContent: root.query !== "" && !root.awaitingFirst && !root.settledEmpty
     // Fluid artwork columns shared by both grids (160–220px cards).
-    readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
+    readonly property int gridCell: Math.max(Theme.gridMin, Math.floor(content.width / Math.max(1, Math.floor(content.width / Theme.gridTarget))))
 
     signal focusFieldRequested
     signal clearRequested
@@ -414,7 +414,7 @@ Item {
                     activeFocusOnTab: true
                     clip: true
                     cellWidth: root.gridCell
-                    cellHeight: cellWidth + 64
+                    cellHeight: cellWidth + Theme.cardMetaHeight
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Album results")
@@ -480,7 +480,7 @@ Item {
                     activeFocusOnTab: true
                     clip: true
                     cellWidth: root.gridCell
-                    cellHeight: cellWidth + 64
+                    cellHeight: cellWidth + Theme.cardMetaHeight
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Artist results")

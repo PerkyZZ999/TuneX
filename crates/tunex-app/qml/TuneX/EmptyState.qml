@@ -17,15 +17,15 @@ Column {
     property bool primaryAction: true
     property bool centerInParent: true
     // Optional art-glyph above the title (DESIGN.md Empty states). Left empty
-    // for the compact surfaces — the Up Next panel is 320px wide and an
-    // illustration there would crowd out the words that carry the meaning.
+    // on compact surfaces such as the docked Up Next panel, where an
+    // illustration would crowd out the words that carry the meaning.
     property url art
-    property int artSize: 160
+    property int artSize: Theme.emptyArt
 
     signal actionRequested
 
     anchors.centerIn: root.centerInParent ? parent : undefined
-    width: Math.min(parent.width - (root.centerInParent ? Theme.spaceXl * 2 : 0), 420)
+    width: Math.min(parent.width - (root.centerInParent ? Theme.spaceXl * 2 : 0), 360)
     spacing: Theme.spaceSm
 
     Image {

@@ -266,7 +266,7 @@ Item {
                     required property int playlistId
 
                     width: playlistsView.width
-                    height: 56
+                    height: Theme.trackRowHeight
                     Accessible.role: Accessible.ListItem
                     Accessible.name: sidebarRow.name
 

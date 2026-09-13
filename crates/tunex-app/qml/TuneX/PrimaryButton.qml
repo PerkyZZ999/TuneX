@@ -12,8 +12,8 @@ Button {
     property string glyph: ""
 
     implicitHeight: Theme.targetMin
-    leftPadding: Theme.spaceLg
-    rightPadding: Theme.spaceLg
+    leftPadding: Theme.spaceMd
+    rightPadding: Theme.spaceMd
     opacity: root.enabled ? 1 : 0.38
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontLabel

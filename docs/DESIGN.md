@@ -24,25 +24,25 @@ colors:
 typography:
   display-lg:
     fontFamily: Inter
-    fontSize: 32px
+    fontSize: 28px
     fontWeight: 700
     lineHeight: 1.18
     letterSpacing: -0.01em
   headline-md:
     fontFamily: Inter
-    fontSize: 22px
+    fontSize: 18px
     fontWeight: 700
     lineHeight: 1.25
   title-md:
     fontFamily: Inter
-    fontSize: 16px
+    fontSize: 14px
     fontWeight: 600
     lineHeight: 1.33
   body-md:
     fontFamily: Inter
-    fontSize: 14px
+    fontSize: 13px
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.45
   body-sm:
     fontFamily: Inter
     fontSize: 12px
@@ -82,34 +82,34 @@ spacing:
   xs: 4px
   sm: 8px
   md: 16px
-  lg: 24px
-  xl: 32px
-  xxl: 48px
+  lg: 20px
+  xl: 28px
+  xxl: 40px
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.label-md}"
     rounded: "{rounded.pill}"
-    padding: 12px
+    padding: 8px
   button-primary-hover:
     backgroundColor: "{colors.primary-hover}"
     textColor: "{colors.on-primary}"
     typography: "{typography.label-md}"
     rounded: "{rounded.pill}"
-    padding: 12px
+    padding: 8px
   button-secondary:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.foreground}"
     typography: "{typography.label-md}"
     rounded: "{rounded.pill}"
-    padding: 12px
+    padding: 8px
   button-secondary-hover:
     backgroundColor: "{colors.hover}"
     textColor: "{colors.foreground}"
     typography: "{typography.label-md}"
     rounded: "{rounded.pill}"
-    padding: 12px
+    padding: 8px
   nav-item:
     backgroundColor: "transparent"
     textColor: "{colors.muted}"
@@ -139,19 +139,19 @@ components:
     textColor: "{colors.foreground}"
     typography: "{typography.body-md}"
     rounded: "{rounded.pill}"
-    padding: 12px
+    padding: 8px
   glass-panel:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.foreground}"
     typography: "{typography.body-md}"
     rounded: "{rounded.lg}"
-    padding: 16px
+    padding: 12px
   album-card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.foreground}"
     typography: "{typography.body-md}"
     rounded: "{rounded.md}"
-    padding: 12px
+    padding: 8px
   chip:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.muted}"
@@ -179,7 +179,7 @@ components:
     textColor: "{colors.error}"
     typography: "{typography.body-sm}"
     rounded: "{rounded.md}"
-    padding: 12px
+    padding: 8px
   status-success:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.success}"
@@ -245,7 +245,7 @@ Inter throughout (weights 400/500/600/700), fallback `"Inter, 'Noto Sans', syste
 - `{typography.display-lg}` — hero greeting only ("Music feels different here."). 700, tight tracking. Never in lists or dialogs.
 - `{typography.headline-md}` — view titles (artist/album names in detail headers, Now Playing title at large size).
 - `{typography.title-md}` — section/rail headers ("Recently Played"), dialog titles, card titles at grid size.
-- `{typography.body-md}` — track rows, menu items, primary UI text. Default reading size is 14px. Hierarchy stays display > headline > title > body > labels/captions; captions never drop below 12px.
+- `{typography.body-md}` — track rows, menu items, primary UI text. Default reading size is 13px. Hierarchy stays display > headline > title > body > labels/captions; captions never drop below 12px.
 - `{typography.body-sm}` — secondary lines (artist under title in rows, toasts). Tabular numbers on (`tnum`) so durations don't jitter.
 - `{typography.label-md}` / `{typography.label-sm}` — buttons, nav items, chips, controls. Medium weight carries small sizes on dark.
 - `{typography.caption-md}` — metadata: durations, counts, scan %, status lines. Always `{colors.muted}`, never smaller than 12px. `tnum` on for times/counts.
@@ -254,9 +254,9 @@ Inter throughout (weights 400/500/600/700), fallback `"Inter, 'Noto Sans', syste
 
 ## Layout
 
-Shell grid (≥1280px): 240px nav rail · fluid content with 24px gutters · 320px Now Playing/Up Next panel as the persistent player (as in the mockup — no bottom bar at this width). Below 1280px the panel becomes a drawer and a 76px bottom mini-player bar carries the persistent player. Content max measure is fluid — artwork grids reflow 160–220px cards; text columns cap ~72ch in detail headers.
+Shell grid (≥1280px): 216px nav rail · fluid content with 20px gutters · 288px Now Playing/Up Next panel as the persistent player (as in the mockup — no bottom bar at this width). Below 1280px the panel becomes a drawer and a 64px bottom mini-player bar carries the persistent player. Content max measure is fluid — artwork grids reflow 152–200px cards; text columns cap ~72ch in detail headers.
 
-- **Rhythm:** 4px base unit; section gaps 24–32px (`lg`–`xl`); card internal padding 12–16px; row padding 8px vertical so 50k lists stay scannable. Page gutters 24px, never less than 16px.
+- **Rhythm:** 4px base unit; section gaps 20–28px (`lg`–`xl`); card internal padding 8–12px; row padding 8px vertical so 50k lists stay scannable. Page gutters 20px, never less than 16px.
 - **Grouping:** hairline borders + whitespace group; cards only for artwork-bearing content (albums, playlists, hero). Plain rows group by alignment alone.
 - **Breakpoints (window classes, desktop-only):** ≥1280 full three-column; 1024–1279 right panel becomes overlay drawer; 800–1023 rail collapses to 64px icon strip; minimum window 960×640. Placement changes, meaning never does.
 - **Density:** one density for all sizes. No compact/comfortable toggle in V1 — the base density already serves both scanning and lounging.
@@ -295,13 +295,13 @@ Contracts for the V1 primitives. QML implements these as custom components (no v
 - **Primary button (`button-primary` → `button-primary-hover`):** pill, 44px min height, label-md. Reserved for the one main action per view (Play, Add folder, Save). One per view — a second primary action is a design error; demote to secondary. Disabled: 38% opacity, desaturated, no hover. Loading: icon swaps to spinner, width locked so layout never shifts.
 - **Secondary button:** same geometry on `{colors.surface-raised}`; hover steps to `{colors.hover}`. Row-level and dialog-cancel actions.
 - **Nav item (`nav-item` → `nav-item-selected`):** full-width 40px rows, icon + label-md; selected adds the surface plus a 3px accent bar at the leading edge. Unselected text is muted; icons inherit text color.
-- **Track row (`track-row` → `track-row-hover`):** 56px, transparent; columns art-thumb 40px (sm radius) · title/body-md + artist/body-sm-muted · duration/caption-muted right. Playing row: accent 3px bar + title in foreground (not accent-colored text) + animated equalizer tick allowed only with motion on. Missing-file rows dim to 50% with "File missing" caption + actions.
+- **Track row (`track-row` → `track-row-hover`):** 48px, transparent; columns art-thumb 40px (sm radius) · title/body-md + artist/body-sm-muted · duration/caption-muted right. Playing row: accent 3px bar + title in foreground (not accent-colored text) + animated equalizer tick allowed only with motion on. Missing-file rows dim to 50% with "File missing" caption + actions.
 - **Search field (`search-field`):** pill well with magnifier icon; typed text foreground, placeholder muted at full opacity (never transparent-ized placeholder text); Esc clears; focus ring replaces any glow.
 - **Glass panel (`glass-panel`):** dialogs and menus only. Dialogs: title-md + body + primary/secondary actions; menus: body-md items 40px with hover surface. Menus open toward available space, never off-window.
 - **Album/artist/playlist cards (`album-card`):** art on top (1:1, md radius), title/body-md truncated 1 line, subtitle/body-sm-muted 1 line; hover lifts nothing — art gets a 4% brighten + play-affordance overlay button. No text wider than the art.
 - **Chips (`chip` → `chip-selected`):** filter pills (search groups, view filters). Selected steps up to the selected surface with foreground text — max one selected per group in V1.
 - **Progress + volume (`progress-fill` on xs track):** 4px track in `{colors.hover}`, cyan fill, 12px thumb appearing on hover/focus/drag. Dragging scrubs the engine live; time labels use tabular caption and never overlap the thumb at min width.
-- **Now Playing surface:** lg glass panel; artwork ≥320px md radius with 180ms crossfade on track change; headline title, muted artist, favorite heart toggle; transport row (shuffle · prev · play/pause 64px primary circle · next · repeat) + volume + queue toggle.
+- **Now Playing surface:** lg glass panel; artwork ≥280px md radius with 180ms crossfade on track change; headline title, muted artist, favorite heart toggle; transport row (shuffle · prev · play/pause 52px primary circle · next · repeat) + volume + queue toggle.
 - **Toast (`toast-error`, `status-success`, `status-warning`):** bottom-center above the persistent player, surface-raised, icon + one-line copy + optional action ("Reveal", "Rescan", "Retry"). Auto-dismiss 5s except errors with actions (persist until dismissed).
 - **Empty states:** centered art-glyph + title-md + one body-sm line + one primary action. Three variants only: no-library (Add folder), no-results (Clear search), empty-playlist (Browse library).
 - **Loading:** skeleton blocks in card/row shape for library and search operations over ~300ms; determinate progress (counts + %) for scans; spinner only inside the triggering button. Never a blank screen.

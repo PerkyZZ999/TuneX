@@ -14,7 +14,7 @@ Item {
 
     // Revealed while the card is hovered or keyboard-focused.
     property bool shown: false
-    property int size: 40
+    property int size: Theme.playBadge
 
     implicitWidth: root.size
     implicitHeight: root.size
@@ -40,7 +40,7 @@ Item {
             // its bounding box, so nudge it back toward the circle's middle.
             anchors.horizontalCenterOffset: 1
             name: "play"
-            iconSize: 20
+            iconSize: 16
             filled: true
             stroke: Theme.primaryText
         }

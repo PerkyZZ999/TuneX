@@ -20,11 +20,11 @@ Window {
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
     readonly property string monogram: {
         const words = root.shownTitle.split(/\s+/).filter(function (word) {
-                return word.length > 0;
-            });
+            return word.length > 0;
+        });
         const letters = words.slice(0, 2).map(function (word) {
-                return word[0].toUpperCase();
-            });
+            return word[0].toUpperCase();
+        });
         return letters.join("");
     }
 

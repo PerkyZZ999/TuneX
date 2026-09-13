@@ -41,7 +41,7 @@ Item {
     signal activated(int id)
 
     width: root.explicitWidth > 0 ? root.explicitWidth : GridView.view.cellWidth
-    height: root.explicitWidth > 0 ? root.explicitWidth + 64 : GridView.view.cellHeight
+    height: root.explicitWidth > 0 ? root.explicitWidth + Theme.cardMetaHeight : GridView.view.cellHeight
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: root.title + ", " + root.artist
@@ -72,8 +72,8 @@ Item {
 
         Column {
             anchors.fill: parent
-            anchors.margins: Theme.spaceSm
-            spacing: Theme.spaceSm
+            anchors.margins: Theme.spaceXs
+            spacing: Theme.spaceXs
 
             Item {
                 width: parent.width
@@ -105,7 +105,7 @@ Item {
                 PlayBadge {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.margins: Theme.spaceSm
+                    anchors.margins: Theme.spaceXs
                     shown: hoverArea.containsMouse || root.activeFocus
                 }
             }

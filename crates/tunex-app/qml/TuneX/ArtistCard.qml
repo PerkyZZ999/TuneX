@@ -64,8 +64,8 @@ Item {
 
         Column {
             anchors.fill: parent
-            anchors.margins: Theme.spaceSm
-            spacing: Theme.spaceSm
+            anchors.margins: Theme.spaceXs
+            spacing: Theme.spaceXs
 
             Item {
                 width: parent.width
@@ -108,7 +108,7 @@ Item {
                     // The crest is a circle inscribed in this square, so the
                     // corner sits outside it; inset until the badge rests on
                     // the arc instead of floating past it.
-                    anchors.margins: Theme.spaceSm
+                    anchors.margins: Theme.spaceXs
                     shown: hoverArea.containsMouse || root.activeFocus
                 }
             }

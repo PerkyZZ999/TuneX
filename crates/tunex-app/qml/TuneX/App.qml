@@ -150,13 +150,29 @@ Window {
     palette.dark: Theme.muted
     palette.shadow: Theme.background
     palette.link: Theme.accent
+    // Seed Appearance from config once the models exist. Bindings, not
+    // onCompleted assignments — the BestPractices plugin forbids the latter.
+    Binding {
+        target: Appearance
+        property: "reduceTransparency"
+        value: queueModel.reduceTransparency()
+    }
+    Binding {
+        target: Appearance
+        property: "reduceMotion"
+        value: queueModel.reduceMotion()
+    }
+    Binding {
+        target: Appearance
+        property: "canvas"
+        value: canvas
+    }
+    Binding {
+        target: Qt.application
+        property: "quitOnLastWindowClosed"
+        value: false
+    }
     Component.onCompleted: {
-        // Appearance first, so the first frame already honours both
-        // accessibility preferences (read once, not per poll).
-        Appearance.reduceTransparency = queueModel.reduceTransparency();
-        Appearance.reduceMotion = queueModel.reduceMotion();
-        Appearance.canvas = canvas;
-        Qt.application.quitOnLastWindowClosed = false;
         library.startup();
         playlistModel.refresh();
     }
@@ -379,13 +395,13 @@ Window {
 
                         Item {
                             width: parent.width
-                            height: 48
+                            height: Theme.topBarHeight
 
                             Rectangle {
                                 id: mark
 
-                                width: 28
-                                height: 28
+                                width: Theme.brandMark
+                                height: Theme.brandMark
                                 radius: Theme.radiusSm
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.left: parent.left
@@ -549,7 +565,7 @@ Window {
                         id: topBar
 
                         width: parent.width
-                        height: 56
+                        height: Theme.topBarHeight
 
                         // Translucent chrome over the ambient wash, with a
                         // hairline where it meets the content below so the

@@ -38,8 +38,8 @@ Item {
     signal addFolderRequested
     signal browseRequested
 
-    implicitHeight: 320
-    height: 320
+    implicitHeight: Theme.heroHeight
+    height: Theme.heroHeight
 
     RectangularShadow {
         anchors.fill: card

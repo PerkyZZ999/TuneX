@@ -33,7 +33,7 @@ Item {
     signal menuRequested(int trackId, int rowIndex, bool dangling)
 
     width: ListView.view.width
-    height: 56
+    height: Theme.trackRowHeight
     Accessible.role: Accessible.ListItem
     Accessible.name: root.title + ", " + root.artist + (root.isCurrent ? ", " + qsTr("now playing") : "") + (root.missing ? ", " + qsTr("missing") : "") + (root.dangling ? ", " + qsTr("unavailable") : "")
     Accessible.onPressAction: {
@@ -181,7 +181,7 @@ Item {
         anchors.right: danglingBadge.left
         anchors.rightMargin: Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
-        size: 40
+        size: Theme.denseTarget
         iconName: "ellipsis"
         glyphColor: Theme.muted
         accessibleName: qsTr("More actions for %1").arg(root.title)

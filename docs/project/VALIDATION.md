@@ -481,3 +481,10 @@
 - **Evidence:** Songs/Albums/Artists gained V1-basic sort chips whose order is applied in `tunex-library` SQL (`TrackSort`/`AlbumSort`/`ArtistSort`), held session-stable on the cxx-qt models (the app does not persist view prefs today). The Folders rail item (and Home Folders chip) open a folder browse of indexed parent directories (`FolderListModel` + folder drill via `LibraryTrackModel.refreshFolder`). Scanned-root add/remove stays in Settings → Library (`FoldersDrawer` stays gone). Library → Music folders and empty-state Add folder open Settings. Left-click / Enter on a song still calls `playTrackNow`; right-click, Menu, Shift+F10, and the ⋯ button open the row menu, whose queue action is now labeled "Queue in Up Next". L-006 (advanced sorting/filtering) is unchanged. Gates: `rust-tc doctor` on the pre-rebase commit (245 tests); re-run after rebase. Traceability: R-007 → this entry.
 - **Waiver:** none
 - **Follow-up:** Charles tests this on top of merged W-046. Plasma tray pixels remain a W-046 follow-up.
+
+### 2026-09-13 — W-047 density pass
+- **Slice:** S7
+- **Result:** pass (tokens + QML; visual proof is the owner's daily-driver install after rebuild)
+- **Evidence:** One-step density tighten without dropping the 12px caption floor or 44px hit targets. Type: display 28 / headline 18 / title 14 / body 13 / captions 12. Chrome: rail 216, panel 288, mini-player 64, top bar 48, track rows 48, hero 280, Now Playing art 280, play disc 52, card meta 56. Spacing `lg`/`xl`/`xxl` stepped down on the 4px grid. Hardcoded 56/64/76/320 sizes in QML now bind Theme tokens (`trackRowHeight`, `cardMetaHeight`, `miniPlayerHeight`, `heroHeight`, `gridMin`/`gridTarget`). Traceability: R-018 → S7 → W-047 → this entry.
+- **Waiver:** none
+- **Follow-up:** Rebuild the pacman package so the daily-driver install matches; owner tests density on the real library.

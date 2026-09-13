@@ -46,7 +46,7 @@ Item {
         border.width: root.activeFocus ? 2 : 0
         border.color: Theme.focus
 
-        Behavior on color  {
+        Behavior on color {
             ColorAnimation {
                 duration: Appearance.duration(Theme.motionHover)
                 easing.type: Easing.OutCubic
@@ -99,7 +99,7 @@ Item {
         border.color: root.checked ? Theme.primary : Theme.border
         Accessible.ignored: true
 
-        Behavior on color  {
+        Behavior on color {
             ColorAnimation {
                 duration: Appearance.duration(Theme.motionHover)
                 easing.type: Easing.OutCubic
@@ -114,7 +114,7 @@ Item {
             x: root.checked ? parent.width - width - Theme.spaceXs : Theme.spaceXs
             color: Theme.primaryText
 
-            Behavior on x  {
+            Behavior on x {
                 NumberAnimation {
                     duration: Appearance.duration(Theme.motionHover)
                     easing.type: Easing.OutCubic
