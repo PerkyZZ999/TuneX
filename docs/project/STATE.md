@@ -5,18 +5,18 @@
 - **Source spec:** docs/SPEC.md (v1.1 patched 2026-09-09)
 - **Workflow profile:** product
 - **Profile rationale:** Shipping Linux desktop app with native audio/DB/GPU surface. Not disposable (prototype rejected), not regulated (high-risk rejected). Full gates + decision locks + release/observe loops required.
-- **Current phase:** 6 — Implement (S5 done 2026-09-10, S6 active)
+- **Current phase:** 6 — Implement (S6 done 2026-09-13; Implement complete, Release next)
 - **Status:** active
 - **MVP success signal:** User installs TuneX on Arch via AUR PKGBUILD, adds music dir, scans without UI freeze, browses/searches/plays with artwork, controls via app + MPRIS, manages queue + playlists, restarts without state loss, all offline.
-- **Last updated:** 2026-09-12
+- **Last updated:** 2026-09-13
 
 ## Authority boundaries
 - Agent may decide: stack-local reversible implementation details consistent with locked decisions (crate-internal APIs, QML component names, channel types, test layout).
 - Human confirmation required: production release, any network/cloud scope addition, paid services/secrets, reopening locked decisions (D-001–D-014 exc. D-011 superseded).
 
 ## Current evidence
-- Latest passed gate: `rust-tc sonar` for the W-037 S5 gate (QG OK, 81.0% new coverage)
-- Latest validation entry: 2026-09-12 W-045 charcoal palette, translucent chrome, artwork trimming, generated assets (see VALIDATION.md)
+- Latest passed gate: `rust-tc sonar` for the W-042 S6 gate (QG OK, 81.9% coverage, 0 violations)
+- Latest validation entry: 2026-09-13 W-042 S6 gate PASS, no loop-back (see VALIDATION.md)
 - M6 numbers (R-NFR-06, measured not estimated): cold start 850 ms windowed at 50k (<1.5 s) · search p95 6.8–9.2 ms at 50k (<50 ms) · scroll p50 16 ms with 0.36 ms app-side work per frame (60 fps) · transport control ≤8 ms (<50 ms) · scan 52,400 files/min (>500) · no app-side frame cost during scans
 - Visual identity: charcoal-black neutrals (`#0B0B0E` up, hue-free) with royal blue `#2B5CE6` as the only brand family; chrome is tinted-translucent over an artwork-derived ambient wash, real blur reserved for overlays
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
@@ -34,7 +34,7 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1+S2+S3+S4+S5 done; visual-contract refactor landed; S6 active — W-038 (glass hierarchy), W-039 (motion), W-040 (artwork), W-043 (QML best-practices lint plugin), W-041 (profile pass) W-044 (design refinement) and W-045 (charcoal palette + glass + artwork trim + assets) done, W-042 (S6 gate) next. The profile pass justified two library optimizations (covering indexes for the grouped joins; rescans that skip unchanged files) and exposed a concurrent-migration defect, all fixed and validated. Three player/shell defects found during W-038 are fixed and validated: the end-of-track UI freeze, repeat-one never replaying, and the restored track missing from Up Next.
+- Repo reality: S1–S6 done. S6 closed at W-042 with a full DoD rehearsal against the tagged demo library and no loop-back. Visual identity is charcoal + royal blue with tinted-translucent chrome over an artwork wash; glass stays hierarchical; glow appears exactly twice. M6 numbers remain aspirational and were met. Maintainer follow-ups before AUR publish are unchanged from S5.
 
 ## Open loops
 - None
@@ -43,7 +43,7 @@
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- W-042: S6 gate — release checklist + full DoD rehearsal (`rust-tc doctor` + `sonar`, `makepkg`, ROADMAP/STATE updates), then close or loop back.
+- Phase 7 Release — AUR publish is a human confirmation (production release). Remaining maintainer follow-ups, no code risk: true `extra-x86_64-build`, true X11-Plasma visual pass, toast pixels under a real notification daemon.
 
 ## Phase checklist
 - [x] 0 Intake
@@ -52,6 +52,6 @@
 - [x] 3 Spec
 - [x] 4 Decision lock (records written, human confirm pending)
 - [x] 5 Architecture
-- [ ] 6 Implement
+- [x] 6 Implement
 - [ ] 7 Release
 - [ ] 8 Observe
