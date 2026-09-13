@@ -49,13 +49,22 @@
 - **Validation method:** test + manual
 
 ### R-007 — Browse library
-- **Description:** Browse tracks/albums/artists/folders with artwork grid + track lists, virtualized for large libs. V1-basic sort on Songs (title/artist/album/date), Albums (title/artist/date), Artists (name/songs). Clicking a song plays it now; queueing is a row-menu "Queue in Up Next" action.
+- **Description:** Browse tracks/albums/artists/folders with artwork grid + track lists, virtualized for large libs. V1-basic sort on Songs (title/artist/album/date), Albums (title/artist/date), Artists (name/songs). Clicking a song plays it now; queueing is a row-menu "Queue in Up Next" action. Album cards open `AlbumDetailView`; artist cards open `ArtistDetailView` (play is the header primary).
 - **Priority:** must
 - **Acceptance:**
   - [ ] 50k-track seed browsable, scroll holds, album → tracks correct
   - [ ] Songs/Albums/Artists sort chips reorder the Rust models (session-stable)
   - [ ] Folders rail opens a folder browse (not scanned-root management)
   - [ ] Song click plays now; context menu queues in Up Next
+  - [x] Album click opens the album landing page; artist click opens the artist landing page (W-052, W-053)
+- **Validation method:** manual + test
+
+### R-019 — Genre, composer, and search recents
+- **Description:** Browse Genres and Composers from Your Library (Unknown stays Unknown). Search keeps local recent queries (cap 10) and Tab / Shift+Tab cycles Songs → Albums → Artists groups.
+- **Priority:** must (post-V1; promoted from L-014)
+- **Acceptance:**
+  - [x] Genres and Composers rail entries list groups then filtered songs (W-054)
+  - [x] Recent searches persist locally; Tab cycles search groups (W-055)
 - **Validation method:** manual + test
 
 ### R-008 — Instant search
@@ -101,7 +110,7 @@
 - **Validation method:** manual
 
 ### R-014 — Keyboard
-- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, list/grid arrows and j/k, Enter to play or open, type-to-select in Songs, standard text editing. Settings → Shortcuts is a complete reference list of real bindings (not a rebind UI).
+- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, list/grid arrows and j/k, Enter to play or open, type-to-select in Songs, Tab/Shift+Tab cycles Search groups, standard text editing. Settings → Shortcuts is a complete reference list of real bindings (not a rebind UI).
 - **Priority:** must
 - **Acceptance:**
   - [x] All bindings work focused in library/search/player; list documented (W-029, W-050)
@@ -146,7 +155,7 @@
 - **R-NFR-06 Perf (aspirational, M6 only):** 1.5s cold 50k, search p95 <50ms, 60fps scroll, <50ms controls, >500 files/min. Desired, not V1-blocking.
 
 ## Later (out of V1)
-- L-001 ReplayGain, L-002 crossfade, L-003 advanced queue, L-004 smart playlists, L-005 metadata editing, L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm, L-012 queue-across-restart, L-013 output-device picker, L-014 composer/genre pages.
+- L-001 ReplayGain, L-002 crossfade, L-003 advanced queue, L-004 smart playlists, L-005 metadata editing, L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm, L-012 queue-across-restart, L-013 output-device picker.
 
 ## Non-goals
 - Streaming/accounts/cloud, social, podcasts, video, mobile, DAW/editor, store, AI, advanced DSP — per BRIEF.

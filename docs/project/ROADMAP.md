@@ -48,5 +48,11 @@
 - **Validation:** `cargo test` config/geometry/view prefs + delete_track; `scripts/qml-lint.sh`
 - **Status:** done (W-048–W-051, 2026-09-13)
 
+## Slice S9 — Browse depth (post-V1)
+- **Acceptance:** Album and artist landing pages (grid → detail → back; artist card opens detail, Play is the header primary); Genres and Composers under Your Library (Unknown stays Unknown); search recents (cap 10) and Tab / Shift+Tab cycle Songs → Albums → Artists groups.
+- **Requirements:** R-007, R-019 (promoted L-014), R-008, R-014
+- **Validation:** `cargo test` album/artist/facet queries + recent searches; `scripts/qml-lint.sh`
+- **Status:** done (W-052–W-055, 2026-09-13)
+
 ## Traceability (req → slices)
-- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2, R-008→S3, R-009→S1, R-010→S1+S3, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7.
+- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9.

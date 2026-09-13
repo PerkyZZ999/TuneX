@@ -13,7 +13,8 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
     - Artists `ArtistListView` → Artist detail `ArtistDetailView`
     - Albums `AlbumListView` → Album detail `AlbumDetailView`
     - Songs `SongListView`
-    - Genres `GenreListView` (V1: simple list → filtered songs; no destination pages per scope)
+    - Genres `GenreListView` (list → filtered songs; Unknown stays Unknown)
+    - Composers `ComposerListView` (list → filtered songs; Unknown stays Unknown)
     - Folders `FolderListView` (browse tracks by parent folder; add/remove roots live in Settings → Library)
   - Playlists `PlaylistListView` → Playlist detail `PlaylistDetailView`
   - Favorites `FavoritesView` (playlist-like smart view over local favorites)
@@ -27,7 +28,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 
 ## Navigation Model
 
-- **Primary navigation (left rail, max 9 items + playlists, labels per the mockup):** Home · Search · Your Library section (Artists · Albums · Songs · Genres · Folders) · Playlists section (+ New → Favorites · user playlists, scrollable). Selected item gets accent indicator bar + selected surface; everything else muted. Rail never exceeds two visual groups plus playlists.
+- **Primary navigation (left rail, max 9 items + playlists, labels per the mockup):** Home · Search · Your Library section (Artists · Albums · Songs · Genres · Composers · Folders) · Playlists section (+ New → Favorites · user playlists, scrollable). Selected item gets accent indicator bar + selected surface; everything else muted. Rail never exceeds two visual groups plus playlists.
 - **Secondary navigation:** in-view tabs/segmented headers only where content genuinely splits — Search results groups (Songs/Albums/Artists), Playlist detail (fixed header + rows, no tabs in V1), Settings sections (left list + detail pane). No secondary nav inside Artist/Album detail beyond back.
 - **Utility navigation (top bar + window):** back/forward (view history), global SearchBar (focus via `/` or Ctrl+K, Esc restores), settings gear, window controls. Queue toggle and Now Playing expand live in the persistent player, not the top bar.
 - **Persistent player:** right Now Playing/Up Next panel at ≥1280px (as in the mockup); bottom mini-player bar on every view below that width. Expanded Now Playing is a full overlay at any width. Player state is global — navigation never interrupts playback.
@@ -43,11 +44,11 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 5. Library shortcuts (Artists/Albums/Songs/Folders entry cards). Why last: escape hatches, not the daily path.
 
 ### SearchView
-1. Grouped live results — Songs, then Albums, then Artists. Why: most keystrokes name a track.
-2. Recent searches (local only). 3. Empty states: no-query hint, no-results with scope note ("searched your library").
+1. Grouped live results — Songs, then Albums, then Artists. Why: most keystrokes name a track. Tab / Shift+Tab cycles those groups.
+2. Recent searches (local only, cap 10). 3. Empty states: no-query hint, no-results with scope note ("searched your library"). Album and artist hits open the library landing pages.
 
 ### ArtistDetailView / AlbumDetailView
-1. Header: art, name, play + shuffle actions, key meta (albums count / year / duration). 2. Track list (virtualized rows). 3. More-by context (other albums by artist) on album view.
+1. Header: art, name, one primary Play, key meta (albums count / year / duration). 2. Track list (virtualized rows). 3. More-by context (other albums by artist) on album view. Artist card activation opens this page; Play is the header primary (it does not enqueue from the grid).
 
 ### SongListView / FolderListView / GenreListView
 1. Filter/sort bar (text filter V1; V1-basic sort on Songs/Albums/Artists: title/name, artist, album, date). 2. Virtualized TrackList. 3. Folder view: directory list → tracks in that folder (library-root add/remove, rescan, and watcher status live in Settings → Library, not this view). Missing-file states stay on the track rows.
@@ -106,7 +107,8 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 | Library roots | Music folders | Settings label; "Library Root" never shown. |
 | Now Playing | Now Playing | Expanded overlay title; the collapsed player (panel or bar) shows no title. |
 | Playlists | Playlists | User collections; "Mix/Weekly/Discover" algorithmic names banned in V1. |
-| Genres | Genres | V1: filter list only, no destination editorial pages. |
+| Genres | Genres | Filter list → songs; untagged group is Unknown. |
+| Composers | Composers | Same shape as Genres; untagged group is Unknown. |
 | Missing track | File missing | Exact copy; never "Unavailable" (implies service). |
 
 ## Component Reuse Map

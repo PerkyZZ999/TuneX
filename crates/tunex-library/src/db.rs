@@ -800,6 +800,169 @@ pub fn list_albums(db: &Connection, sort: AlbumSort) -> Result<Vec<AlbumRow>> {
         .map_err(|err| db_error(&err))
 }
 
+/// One album by row id (landing-page header).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn album_by_id(db: &Connection, album_id: i64) -> Result<Option<AlbumRow>> {
+    let mut statement = db
+        .prepare(&format!(
+            "{ALBUM_LIST_SELECT} WHERE albums.id = ?1 {ALBUM_LIST_GROUP}"
+        ))
+        .map_err(|err| db_error(&err))?;
+    let mut rows = statement
+        .query_map([album_id], album_from_list_row)
+        .map_err(|err| db_error(&err))?;
+    rows.next().transpose().map_err(|err| db_error(&err))
+}
+
+/// Total duration of an album's indexed tracks, in milliseconds.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn album_duration_ms(db: &Connection, album_id: i64) -> Result<i64> {
+    db.query_row(
+        "SELECT COALESCE(SUM(duration_ms), 0) FROM tracks WHERE album_id = ?1",
+        [album_id],
+        |row| row.get(0),
+    )
+    .map_err(|err| db_error(&err))
+}
+
+/// Albums attributed to one artist, optionally excluding one album id
+/// (“more by this artist”).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_albums_for_artist(
+    db: &Connection,
+    artist: &str,
+    exclude_id: Option<i64>,
+) -> Result<Vec<AlbumRow>> {
+    let sql = if exclude_id.is_some() {
+        format!(
+            "{ALBUM_LIST_SELECT}
+             WHERE artists.name = ?1 AND albums.id != ?2
+             {ALBUM_LIST_GROUP}
+             ORDER BY COALESCE(albums.year, 0) DESC, albums.title COLLATE NOCASE"
+        )
+    } else {
+        format!(
+            "{ALBUM_LIST_SELECT}
+             WHERE artists.name = ?1
+             {ALBUM_LIST_GROUP}
+             ORDER BY COALESCE(albums.year, 0) DESC, albums.title COLLATE NOCASE"
+        )
+    };
+    let mut statement = db.prepare(&sql).map_err(|err| db_error(&err))?;
+    let mapped = if let Some(exclude) = exclude_id {
+        statement.query_map(rusqlite::params![artist, exclude], album_from_list_row)
+    } else {
+        statement.query_map(rusqlite::params![artist], album_from_list_row)
+    }
+    .map_err(|err| db_error(&err))?;
+    mapped
+        .collect::<rusqlite::Result<Vec<AlbumRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+fn album_from_list_row(row: &Row<'_>) -> rusqlite::Result<AlbumRow> {
+    Ok(AlbumRow {
+        id: row.get("id")?,
+        title: row.get("title")?,
+        artist: row.get("artist")?,
+        year: row.get("year")?,
+        track_count: row.get("track_count")?,
+        art_source: row.get("art_source")?,
+    })
+}
+
+/// One artist by name (landing-page header).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn artist_by_name(db: &Connection, name: &str) -> Result<Option<ArtistRow>> {
+    let mut statement = db
+        .prepare(&format!(
+            "{ARTIST_LIST_SELECT} WHERE artists.name = ?1 {ARTIST_LIST_GROUP}"
+        ))
+        .map_err(|err| db_error(&err))?;
+    let mut rows = statement
+        .query_map([name], |row| {
+            Ok(ArtistRow {
+                name: row.get("name")?,
+                album_count: row.get("album_count")?,
+                track_count: row.get("track_count")?,
+            })
+        })
+        .map_err(|err| db_error(&err))?;
+    rows.next().transpose().map_err(|err| db_error(&err))
+}
+
+/// Display name used when a genre or composer tag is missing.
+pub const UNKNOWN_FACET: &str = "Unknown";
+
+/// One genre or composer group for the library rail.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FacetRow {
+    /// Display name (`Unknown` when untagged).
+    pub name: String,
+    /// Indexed tracks in this group.
+    pub track_count: i64,
+}
+
+/// Every genre with a track count. Untagged rows group as [`UNKNOWN_FACET`].
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_genres(db: &Connection) -> Result<Vec<FacetRow>> {
+    list_facets(
+        db,
+        "SELECT COALESCE(NULLIF(genres.name, ''), 'Unknown') AS name,
+                COUNT(tracks.id) AS track_count
+         FROM tracks
+         LEFT JOIN genres ON genres.id = tracks.genre_id
+         GROUP BY 1
+         ORDER BY name COLLATE NOCASE",
+    )
+}
+
+/// Every composer with a track count. Untagged rows group as [`UNKNOWN_FACET`].
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_composers(db: &Connection) -> Result<Vec<FacetRow>> {
+    list_facets(
+        db,
+        "SELECT CASE WHEN tracks.composer IS NULL OR TRIM(tracks.composer) = ''
+                     THEN 'Unknown' ELSE tracks.composer END AS name,
+                COUNT(tracks.id) AS track_count
+         FROM tracks
+         GROUP BY 1
+         ORDER BY name COLLATE NOCASE",
+    )
+}
+
+fn list_facets(db: &Connection, sql: &str) -> Result<Vec<FacetRow>> {
+    let mut statement = db.prepare(sql).map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(FacetRow {
+                name: row.get("name")?,
+                track_count: row.get("track_count")?,
+            })
+        })
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<FacetRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
 /// Tracks on one album in disc/track order (untagged numbers sort last).
 ///
 /// # Errors
@@ -843,6 +1006,67 @@ pub fn list_tracks_for_artist(db: &Connection, artist: &str) -> Result<Vec<Track
     let rows = statement
         .query_map([artist], TrackRow::from_row)
         .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// Tracks in one genre group (untagged rows live under [`UNKNOWN_FACET`]).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_tracks_for_genre(db: &Connection, name: &str) -> Result<Vec<TrackRow>> {
+    let sql = if name == UNKNOWN_FACET {
+        format!(
+            "{TRACK_LIST_SELECT}
+             WHERE tracks.genre_id IS NULL OR genres.name IS NULL OR TRIM(genres.name) = ''
+             ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        )
+    } else {
+        format!(
+            "{TRACK_LIST_SELECT}
+             WHERE genres.name = ?1
+             ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        )
+    };
+    query_named_tracks(db, &sql, name == UNKNOWN_FACET, name)
+}
+
+/// Tracks credited to one composer (untagged rows live under [`UNKNOWN_FACET`]).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_tracks_for_composer(db: &Connection, name: &str) -> Result<Vec<TrackRow>> {
+    let sql = if name == UNKNOWN_FACET {
+        format!(
+            "{TRACK_LIST_SELECT}
+             WHERE tracks.composer IS NULL OR TRIM(tracks.composer) = ''
+             ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        )
+    } else {
+        format!(
+            "{TRACK_LIST_SELECT}
+             WHERE tracks.composer = ?1
+             ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        )
+    };
+    query_named_tracks(db, &sql, name == UNKNOWN_FACET, name)
+}
+
+fn query_named_tracks(
+    db: &Connection,
+    sql: &str,
+    untagged: bool,
+    name: &str,
+) -> Result<Vec<TrackRow>> {
+    let mut statement = db.prepare(sql).map_err(|err| db_error(&err))?;
+    let rows = if untagged {
+        statement.query_map([], TrackRow::from_row)
+    } else {
+        statement.query_map([name], TrackRow::from_row)
+    }
+    .map_err(|err| db_error(&err))?;
     rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
         .map_err(|err| db_error(&err))
 }
@@ -1562,6 +1786,83 @@ mod tests {
         let artists_by_songs = list_artists(&db, ArtistSort::Songs).expect("artist song sort");
         assert_eq!(artists_by_songs[0].name, "Nova Rae");
         assert_eq!(artists_by_songs[0].track_count, 2);
+
+        let loaded = album_by_id(&db, tapes.id)
+            .expect("album by id")
+            .expect("present");
+        assert_eq!(loaded.title, "Night Tapes");
+        assert_eq!(album_duration_ms(&db, tapes.id).expect("duration"), 0);
+        let more = list_albums_for_artist(&db, "Nova Rae", Some(tapes.id)).expect("more by");
+        assert!(more.is_empty());
+        let all_nova = list_albums_for_artist(&db, "Nova Rae", None).expect("artist albums");
+        assert_eq!(all_nova.len(), 1);
+        assert_eq!(
+            artist_by_name(&db, "Nova Rae")
+                .expect("artist by name")
+                .expect("present")
+                .track_count,
+            2
+        );
+    }
+
+    #[test]
+    fn genres_and_composers_group_unknown() {
+        let mut db = open_memory().expect("in-memory opens");
+        upsert_track(
+            &mut db,
+            &NewTrack {
+                path: "/music/tagged.flac".to_owned(),
+                stable_key: "t".to_owned(),
+                title: Some("Tagged".to_owned()),
+                genre: Some("Ambient".to_owned()),
+                composer: Some("Novo".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("tagged upsert");
+        upsert_track(
+            &mut db,
+            &NewTrack {
+                path: "/music/bare.flac".to_owned(),
+                stable_key: "b".to_owned(),
+                title: Some("Bare".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("bare upsert");
+        let genres = list_genres(&db).expect("genres");
+        assert_eq!(genres.len(), 2);
+        assert!(
+            genres
+                .iter()
+                .any(|row| row.name == "Ambient" && row.track_count == 1)
+        );
+        assert!(
+            genres
+                .iter()
+                .any(|row| row.name == UNKNOWN_FACET && row.track_count == 1)
+        );
+        let composers = list_composers(&db).expect("composers");
+        assert!(composers.iter().any(|row| row.name == "Novo"));
+        assert!(composers.iter().any(|row| row.name == UNKNOWN_FACET));
+        assert_eq!(
+            list_tracks_for_genre(&db, "Ambient")
+                .expect("genre tracks")
+                .len(),
+            1
+        );
+        assert_eq!(
+            list_tracks_for_genre(&db, UNKNOWN_FACET)
+                .expect("unknown genre")
+                .len(),
+            1
+        );
+        assert_eq!(
+            list_tracks_for_composer(&db, "Novo")
+                .expect("composer tracks")
+                .len(),
+            1
+        );
     }
 
     #[test]

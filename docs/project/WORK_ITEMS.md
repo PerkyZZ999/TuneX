@@ -1,11 +1,17 @@
-# Work items (current slice: S8 — Session memory and player UX)
+# Work items (current slice: S9 — Browse depth)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055).
 
 ## Current slice
-S8 — Persist window + view prefs, compact-chrome scrub, keyboard completeness, missing-file reveal/remove, first-run hero. **Done 2026-09-13** (W-048–W-051). Does not reopen S7. Sleep timer and stop-after-album stay out.
+S9 — Album and artist landing pages, genre/composer browse, search recents + Tab groups. **Done 2026-09-13** (W-052–W-055). Does not reopen S8. Sleep timer and stop-after-album stay out.
 
-**Done condition:** Window geometry and library tab/sort survive restart; MiniPlayer and Up Next seek; arrows/j-k/Enter/type-to-select; Settings → Shortcuts matches real bindings; missing files can be revealed or removed; hero stays disabled until the first album exists.
+**Done condition:** Album/artist cards open landing pages (Play is the header primary); Genres and Composers list Unknown-grouped facets then songs; Search remembers the last 10 queries and Tab cycles result groups.
+
+## Queue (S9)
+- [x] W-052 — Album landing page: large art header, one primary Play, meta, virtualized tracks, more-by-this-artist row; history stack grid → detail → back (R-007, R-019).
+- [x] W-053 — Artist landing page: header Play, album grid, then tracks; artist card activation opens detail (does not enqueue) (R-007, R-019).
+- [x] W-054 — Genre and composer browse under Your Library; `FacetListModel` over existing `genres` / `tracks.composer`; Unknown stays Unknown (R-019, promoted L-014).
+- [x] W-055 — Persist recent search queries locally (cap 10); Tab / Shift+Tab cycles Songs → Albums → Artists groups; album/artist hits open landing pages (R-008, R-014, R-019).
 
 ## Queue (S8)
 - [x] W-048 — Persist window geometry (min 960×640) and last library tab + sort chips in additive TOML; restore on startup; debounce geometry writes (R-015). Verified: `WindowConfig` width/height/x/y + `ViewConfig` tab/sort keys; clamp on load; `TrayController`/`LibraryManager` slots; App restores then saves after a 400 ms quiet window.

@@ -496,3 +496,10 @@
 - **Waiver:** none
 - **Follow-up:** S9 album/artist landing pages. AUR publish stays a human confirmation.
 
+### 2026-09-13 — S9 W-052–W-055 browse depth
+- **Slice:** S9
+- **Result:** pass (code + unit tests)
+- **Evidence:** `AlbumDetailView` / `ArtistDetailView` (header Play, virtualized tracks, more-by-artist). Artist cards open detail instead of enqueue. `FacetListModel` lists genres and composers (Unknown grouped in SQL). Search recents cap 10 in `[view] recent_searches`; Tab / Shift+Tab cycles Songs → Albums → Artists; album/artist hits open landing pages. Rail: Genres + Composers (max 9 + playlists). Tests: `album_by_id`, `list_albums_for_artist`, `list_genres` / `list_composers` + Unknown, view-prefs recents. `scripts/qml-lint.sh` 40/40 ✓. `rust-tc doctor` ✓ (261 tests). Traceability: R-007 + R-019 → S9 → W-052–W-055 → this entry.
+- **Waiver:** none
+- **Follow-up:** S10 queue as an instrument. AUR publish stays a human confirmation.
+

@@ -1,11 +1,11 @@
 import QtQuick
 import TuneX
 
-// LibraryView (S2 W-016): browse the indexed library — Songs list, Albums
-// grid, Artists grid, Folders list. Models load from the index on completion;
-// a missing index shows the empty state (never an error). Album cards drill
-// into the songs tab; folder rows drill into tracks in that directory.
-// V1-basic sort chips drive Rust ORDER BY (session-stable). Scanned-folder
+// LibraryView (S2 W-016, S9 landing pages): browse the indexed library —
+// Songs, Albums, Artists, Genres, Composers, Folders. Album and artist
+// cards open detail views; genre/composer rows filter songs. Models load
+// from the index on completion; a missing index shows the empty state
+// (never an error). V1-basic sort chips drive Rust ORDER BY. Scanned-folder
 // add/remove lives in Settings → Library.
 Item {
     id: root
@@ -19,6 +19,9 @@ Item {
     property string folderPath: ""
     property string folderTitle: ""
     property string tab: "songs"
+    property string page: "browse"
+    property string previousPage: "browse"
+    property string facetName: ""
     property string songsSort: "title"
     property string albumsSort: "title"
     property string artistsSort: "name"
@@ -26,15 +29,13 @@ Item {
     readonly property bool albumDrilled: root.albumId >= 0
     readonly property bool folderDrilled: root.folderPath !== ""
     readonly property bool drilled: root.albumDrilled || root.folderDrilled
+    readonly property bool showingBrowse: root.page === "browse"
     // View counts (the models expose rows, not a count property).
     readonly property bool libraryEmpty: songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
     // Fluid artwork columns shared by both grids (160–220px cards).
     readonly property int gridCell: Math.max(Theme.gridMin, Math.floor(content.width / Math.max(1, Math.floor(content.width / Theme.gridTarget))))
 
     signal settingsRequested(bool pickFolder)
-    // An artist card was activated: V1 plays that artist until S9 opens
-    // an artist detail view.
-    signal artistRequested(string name)
 
     // Display name for one tab key (the tab strip models keys, not labels).
     function tabLabel(key) {
@@ -42,10 +43,12 @@ Item {
             return qsTr("Albums");
         if (key === "artists")
             return qsTr("Artists");
-
         if (key === "folders")
             return qsTr("Folders");
-
+        if (key === "genres")
+            return qsTr("Genres");
+        if (key === "composers")
+            return qsTr("Composers");
         return qsTr("Songs");
     }
 
@@ -67,10 +70,21 @@ Item {
         root.library.setArtistsSort(key);
     }
 
+    function showTab(key) {
+        if (root.page !== "browse") {
+            root.page = "browse";
+            root.previousPage = "browse";
+            root.albumId = -1;
+            root.albumTitle = "";
+            root.facetName = "";
+        }
+        root.tab = key;
+    }
+
     function applyRestoredPrefs() {
         const tab = root.library.libraryTab();
-        if (tab === "albums" || tab === "artists" || tab === "folders" || tab === "songs")
-            root.tab = tab;
+        if (tab === "albums" || tab === "artists" || tab === "folders" || tab === "songs" || tab === "genres" || tab === "composers")
+            root.showTab(tab);
 
         const songsKey = root.library.songsSort();
         if (songsKey !== "")
@@ -117,10 +131,81 @@ Item {
     }
 
     function drillIntoAlbum(id, title) {
+        root.openAlbum(id);
+    }
+
+    function openAlbum(id) {
+        root.previousPage = root.page;
         root.albumId = id;
-        root.albumTitle = title;
-        songs.refreshAlbum(id);
-        root.tab = "songs";
+        root.albumTitle = root.library.albumTitle(id);
+        albumDetail.albumId = id;
+        albumDetail.titleText = root.albumTitle;
+        albumDetail.artistText = root.library.albumArtist(id);
+        albumDetail.year = root.library.albumYear(id);
+        albumDetail.trackCount = root.library.albumTrackCount(id);
+        albumDetail.durationMs = root.library.albumDurationMs(id);
+        albumDetail.load();
+        root.page = "album";
+    }
+
+    function openArtist(name) {
+        root.previousPage = root.page === "album" ? "browse" : root.page;
+        artistDetail.artistName = name;
+        artistDetail.albumCount = root.library.artistAlbumCount(name);
+        artistDetail.trackCount = root.library.artistTrackCount(name);
+        artistDetail.load();
+        root.page = "artist";
+    }
+
+    function openGenre(name) {
+        root.previousPage = "browse";
+        root.facetName = name;
+        songs.refreshGenre(name);
+        root.page = "genre";
+    }
+
+    function openComposer(name) {
+        root.previousPage = "browse";
+        root.facetName = name;
+        songs.refreshComposer(name);
+        root.page = "composer";
+    }
+
+    function openFacetName(name) {
+        if (root.tab === "composers")
+            root.openComposer(name);
+        else
+            root.openGenre(name);
+    }
+
+    function openFacetAt(at) {
+        const model = root.tab === "composers" ? composers : genres;
+        root.openFacetName(model.nameAt(at));
+    }
+
+    function goBack() {
+        if (root.page === "album" && root.previousPage === "artist") {
+            root.page = "artist";
+            root.previousPage = "browse";
+            root.albumId = -1;
+            root.albumTitle = "";
+            return true;
+        }
+        if (root.page === "album" || root.page === "artist" || root.page === "genre" || root.page === "composer") {
+            root.page = "browse";
+            root.previousPage = "browse";
+            root.albumId = -1;
+            root.albumTitle = "";
+            root.facetName = "";
+            if (root.tab === "songs")
+                songs.refreshSongs();
+            return true;
+        }
+        if (root.folderDrilled) {
+            root.leaveFolderDrill();
+            return true;
+        }
+        return false;
     }
 
     function leaveDrill() {
@@ -158,6 +243,8 @@ Item {
         albums.refresh();
         songs.refresh();
         folders.refresh();
+        genres.refreshGenres();
+        composers.refreshComposers();
     }
 
     onTabChanged: {
@@ -167,7 +254,10 @@ Item {
         if (root.tab !== "folders" && root.folderDrilled)
             root.leaveFolderDrillKeepTab();
 
-        if (root.tab === "songs" || root.tab === "albums" || root.tab === "artists" || root.tab === "folders")
+        if (root.tab === "songs" && !root.albumDrilled && !root.folderDrilled)
+            songs.refreshSongs();
+
+        if (root.tab === "songs" || root.tab === "albums" || root.tab === "artists" || root.tab === "folders" || root.tab === "genres" || root.tab === "composers")
             root.library.setLibraryTab(root.tab);
     }
     anchors.fill: parent
@@ -176,6 +266,8 @@ Item {
         albums.refresh();
         songs.refresh();
         folders.refresh();
+        genres.refreshGenres();
+        composers.refreshComposers();
     }
 
     ArtistListModel {
@@ -205,6 +297,14 @@ Item {
 
     FolderListModel {
         id: folders
+    }
+
+    FacetListModel {
+        id: genres
+    }
+
+    FacetListModel {
+        id: composers
     }
 
     TrackMenu {
@@ -247,14 +347,14 @@ Item {
                 Repeater {
                     // Keys only, so the model stays a typed string list; the
                     // translated label comes from `root.tabLabel`.
-                    model: ["songs", "albums", "artists", "folders"]
+                    model: ["songs", "albums", "artists", "genres", "composers", "folders"]
 
                     Chip {
                         required property string modelData
 
                         label: root.tabLabel(modelData)
                         selected: root.tab === modelData
-                        onActivated: root.tab = modelData
+                        onActivated: root.showTab(modelData)
                     }
                 }
             }
@@ -490,10 +590,10 @@ Item {
         ListView {
             id: songsView
 
-            visible: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
+            visible: root.showingBrowse && ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
             anchors.fill: parent
             model: songs
-            focus: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
+            focus: root.showingBrowse && ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
@@ -587,10 +687,10 @@ Item {
         GridView {
             id: albumsView
 
-            visible: root.tab === "albums" && !root.libraryEmpty
+            visible: root.showingBrowse && root.tab === "albums" && !root.libraryEmpty
             anchors.fill: parent
             model: albums
-            focus: root.tab === "albums" && !root.libraryEmpty
+            focus: root.showingBrowse && root.tab === "albums" && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
             cellWidth: root.gridCell
@@ -651,10 +751,10 @@ Item {
         GridView {
             id: artistsView
 
-            visible: root.tab === "artists" && !root.libraryEmpty
+            visible: root.showingBrowse && root.tab === "artists" && !root.libraryEmpty
             anchors.fill: parent
             model: artists
-            focus: root.tab === "artists" && !root.libraryEmpty
+            focus: root.showingBrowse && root.tab === "artists" && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
             cellWidth: root.gridCell
@@ -665,12 +765,12 @@ Item {
             Keys.onReturnPressed: {
                 const at = artistsView.currentIndex >= 0 ? artistsView.currentIndex : 0;
                 if (at < artistsView.count)
-                    root.artistRequested(artists.nameAt(at));
+                    root.openArtist(artists.nameAt(at));
             }
             Keys.onEnterPressed: {
                 const at = artistsView.currentIndex >= 0 ? artistsView.currentIndex : 0;
                 if (at < artistsView.count)
-                    root.artistRequested(artists.nameAt(at));
+                    root.openArtist(artists.nameAt(at));
             }
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_J) {
@@ -693,7 +793,7 @@ Item {
                 artistName: model.name
                 albumCount: model.albumCount
                 trackCount: model.trackCount
-                onActivated: name => root.artistRequested(name)
+                onActivated: name => root.openArtist(name)
             }
         }
 
@@ -701,10 +801,10 @@ Item {
         ListView {
             id: foldersView
 
-            visible: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
+            visible: root.showingBrowse && root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
             anchors.fill: parent
             model: folders
-            focus: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
+            focus: root.showingBrowse && root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
@@ -811,6 +911,230 @@ Item {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontBodySm
                         color: Theme.muted
+                    }
+                }
+            }
+        }
+
+        ListView {
+            id: facetsView
+
+            visible: root.showingBrowse && (root.tab === "genres" || root.tab === "composers") && !root.libraryEmpty
+            anchors.fill: parent
+            model: root.tab === "composers" ? composers : genres
+            focus: root.showingBrowse && (root.tab === "genres" || root.tab === "composers") && !root.libraryEmpty
+            activeFocusOnTab: true
+            clip: true
+            highlightMoveDuration: Appearance.duration(Theme.motionHover)
+            Accessible.role: Accessible.List
+            Accessible.name: root.tab === "composers" ? qsTr("Composers") : qsTr("Genres")
+            Keys.onReturnPressed: {
+                const at = facetsView.currentIndex >= 0 ? facetsView.currentIndex : 0;
+                if (at < facetsView.count)
+                    root.openFacetAt(at);
+            }
+            Keys.onEnterPressed: {
+                const at = facetsView.currentIndex >= 0 ? facetsView.currentIndex : 0;
+                if (at < facetsView.count)
+                    root.openFacetAt(at);
+            }
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_J) {
+                    root.moveList(facetsView, 1);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_K) {
+                    root.moveList(facetsView, -1);
+                    event.accepted = true;
+                }
+            }
+
+            highlight: Rectangle {
+                color: Theme.selected
+                radius: Theme.radiusSm
+            }
+
+            delegate: Item {
+                id: facetRow
+
+                readonly property string countLine: model.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(model.trackCount)
+
+                width: ListView.view.width
+                height: Theme.trackRowHeight
+                Accessible.role: Accessible.ListItem
+                Accessible.name: model.name + ", " + facetRow.countLine
+                Accessible.onPressAction: root.openFacetName(model.name)
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: Theme.radiusSm
+                    color: facetMouse.containsMouse || facetRow.activeFocus ? Theme.hover : "transparent"
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Appearance.duration(Theme.motionHover)
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: facetMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        facetsView.currentIndex = index;
+                        root.openFacetName(model.name);
+                    }
+                }
+
+                Icon {
+                    id: facetGlyph
+
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: root.tab === "composers" ? "pen" : "tag"
+                    iconSize: 20
+                    stroke: Theme.muted
+                }
+
+                Column {
+                    anchors.left: facetGlyph.right
+                    anchors.leftMargin: Theme.spaceMd
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: model.name
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontBody
+                        color: Theme.foreground
+                    }
+
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: facetRow.countLine
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontBodySm
+                        color: Theme.muted
+                    }
+                }
+            }
+        }
+    }
+
+    AlbumDetailView {
+        id: albumDetail
+
+        visible: root.page === "album"
+        z: 1
+        queue: root.queue
+        playlists: root.playlists
+        library: root.library
+        onBackRequested: root.goBack()
+        onAlbumRequested: id => root.openAlbum(id)
+        onArtistRequested: name => root.openArtist(name)
+    }
+
+    ArtistDetailView {
+        id: artistDetail
+
+        visible: root.page === "artist"
+        z: 1
+        queue: root.queue
+        playlists: root.playlists
+        library: root.library
+        onBackRequested: root.goBack()
+        onAlbumRequested: id => root.openAlbum(id)
+    }
+
+    Item {
+        id: facetDetail
+
+        visible: root.page === "genre" || root.page === "composer"
+        z: 1
+        anchors.fill: parent
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: Theme.spaceLg
+            spacing: Theme.spaceMd
+
+            Row {
+                width: parent.width
+                spacing: Theme.spaceSm
+
+                IconButton {
+                    iconName: "chevron-left"
+                    accessibleName: qsTr("Back")
+                    onActivated: root.goBack()
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - Theme.targetMin - Theme.spaceSm
+                    elide: Text.ElideRight
+                    text: root.facetName
+                    textFormat: Text.PlainText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontHeadline
+                    font.weight: Font.DemiBold
+                    color: Theme.foreground
+                }
+            }
+
+            ListView {
+                id: facetTracksView
+
+                width: parent.width
+                height: parent.height - Theme.fontHeadline - Theme.spaceMd * 2
+                model: songs
+                clip: true
+                activeFocusOnTab: true
+                highlightMoveDuration: Appearance.duration(Theme.motionHover)
+                Accessible.role: Accessible.List
+                Accessible.name: root.facetName
+                Keys.onReturnPressed: {
+                    const at = facetTracksView.currentIndex >= 0 ? facetTracksView.currentIndex : 0;
+                    if (at < facetTracksView.count && songs.isPlayableAt(at))
+                        root.queue.playTrackNow(songs.trackIdAt(at));
+                }
+                Keys.onEnterPressed: {
+                    const at = facetTracksView.currentIndex >= 0 ? facetTracksView.currentIndex : 0;
+                    if (at < facetTracksView.count && songs.isPlayableAt(at))
+                        root.queue.playTrackNow(songs.trackIdAt(at));
+                }
+
+                highlight: Rectangle {
+                    color: Theme.selected
+                    radius: Theme.radiusSm
+                }
+
+                delegate: TrackRow {
+                    trackId: model.trackId
+                    title: model.title
+                    artist: model.artist
+                    trackNumber: model.trackNumber
+                    durationMs: model.durationMs
+                    missing: model.missing
+                    onPlayRequested: (trackId, rowIndex, dangling) => {
+                        facetTracksView.currentIndex = index;
+                        if (!dangling && songs.isPlayableAt(index))
+                            root.queue.playTrackNow(trackId);
+                    }
+                    onMenuRequested: (trackId, rowIndex, dangling) => {
+                        facetTracksView.currentIndex = index;
+                        trackMenu.trackId = trackId;
+                        trackMenu.popup();
                     }
                 }
             }

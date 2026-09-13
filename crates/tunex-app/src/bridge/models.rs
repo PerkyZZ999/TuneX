@@ -37,6 +37,7 @@
 // paths, so the structs cannot be named across modules directly).
 use super::album_list_model::AlbumListModelRust;
 use super::artist_list_model::ArtistListModelRust;
+use super::facet_list_model::FacetListModelRust;
 use super::folder_list_model::FolderListModelRust;
 use super::library_manager::LibraryManagerRust;
 use super::library_track_model::LibraryTrackModelRust;
@@ -103,6 +104,16 @@ pub mod qobject {
         TrackCount,
     }
 
+    /// Roles exposed to QML delegates as `name` / `trackCount` (genres and
+    /// composers).
+    #[qenum(FacetListModel)]
+    enum FacetRoles {
+        /// Genre or composer name (`Unknown` when untagged).
+        Name,
+        /// Indexed tracks in this group.
+        TrackCount,
+    }
+
     /// Roles exposed to QML delegates (`albumId`, `title`, `artist`, `year`,
     /// `trackCount`; `year` is 0 when unknown).
     #[qenum(AlbumListModel)]
@@ -163,6 +174,11 @@ pub mod qobject {
         #[base = QAbstractListModel]
         #[qml_element]
         type FolderListModel = super::FolderListModelRust;
+
+        #[qobject]
+        #[base = QAbstractListModel]
+        #[qml_element]
+        type FacetListModel = super::FacetListModelRust;
     }
 
     // Base-class model signals. QML connects to `rowsInserted` directly;
@@ -253,6 +269,19 @@ pub mod qobject {
         #[inherit]
         #[cxx_name = "endResetModel"]
         unsafe fn end_reset_model_folders(self: Pin<&mut FolderListModel>);
+
+        /// # Safety
+        ///
+        /// Inherited `beginResetModel` for `FacetListModel`.
+        #[inherit]
+        #[cxx_name = "beginResetModel"]
+        unsafe fn begin_reset_model_facets(self: Pin<&mut FacetListModel>);
+        /// # Safety
+        ///
+        /// Inherited `endResetModel` for `FacetListModel`.
+        #[inherit]
+        #[cxx_name = "endResetModel"]
+        unsafe fn end_reset_model_facets(self: Pin<&mut FacetListModel>);
     }
 
     extern "RustQt" {
@@ -383,6 +412,12 @@ pub mod qobject {
         #[cxx_name = "titleAt"]
         fn title_at(self: &AlbumListModel, row: i32) -> QString;
 
+        /// Reload albums by one artist, optionally excluding `excludeId`
+        /// (`-1` keeps every album). Exposed as `refreshForArtist`.
+        #[qinvokable]
+        #[cxx_name = "refreshForArtist"]
+        fn refresh_for_artist(self: Pin<&mut AlbumListModel>, artist: &QString, exclude_id: i32);
+
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
         #[cxx_override]
@@ -418,6 +453,21 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "refreshFolder"]
         fn refresh_folder(self: Pin<&mut LibraryTrackModel>, folder: &QString);
+
+        /// Reload tracks by one artist. Exposed as `refreshArtist`.
+        #[qinvokable]
+        #[cxx_name = "refreshArtist"]
+        fn refresh_artist(self: Pin<&mut LibraryTrackModel>, artist: &QString);
+
+        /// Reload tracks in one genre group. Exposed as `refreshGenre`.
+        #[qinvokable]
+        #[cxx_name = "refreshGenre"]
+        fn refresh_genre(self: Pin<&mut LibraryTrackModel>, name: &QString);
+
+        /// Reload tracks credited to one composer. Exposed as `refreshComposer`.
+        #[qinvokable]
+        #[cxx_name = "refreshComposer"]
+        fn refresh_composer(self: Pin<&mut LibraryTrackModel>, name: &QString);
 
         /// Return to the capped songs tab (clears album/folder drill).
         /// Exposed as `refreshSongs`.
@@ -531,6 +581,43 @@ pub mod qobject {
         #[cxx_override]
         #[cxx_name = "roleNames"]
         fn role_names_folders(self: &FolderListModel) -> QHash_i32_QByteArray;
+
+        /// Reload genre groups. Exposed as `refreshGenres`.
+        #[qinvokable]
+        #[cxx_name = "refreshGenres"]
+        fn refresh_genres(self: Pin<&mut FacetListModel>);
+
+        /// Reload composer groups. Exposed as `refreshComposers`.
+        #[qinvokable]
+        #[cxx_name = "refreshComposers"]
+        fn refresh_composers(self: Pin<&mut FacetListModel>);
+
+        /// Drop all facet rows; emits model reset so views rebuild.
+        #[qinvokable]
+        fn clear(self: Pin<&mut FacetListModel>);
+
+        /// Display name at `row` (empty when out of range). Exposed as `nameAt`.
+        #[qinvokable]
+        #[cxx_name = "nameAt"]
+        fn name_at(self: &FacetListModel, row: i32) -> QString;
+
+        /// Row count override for `QAbstractListModel`.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "rowCount"]
+        fn row_count_facets(self: &FacetListModel, parent: &QModelIndex) -> i32;
+
+        /// Role data override for `QAbstractListModel`.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "data"]
+        fn data_facets(self: &FacetListModel, index: &QModelIndex, role: i32) -> QVariant;
+
+        /// Role-name table override; without it QML sees no custom roles.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "roleNames"]
+        fn role_names_facets(self: &FacetListModel) -> QHash_i32_QByteArray;
     }
 
     /// Roles exposed to QML delegates (`title`, `artist`, `album`,
@@ -1284,6 +1371,56 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "removeTrack"]
         fn remove_track(self: Pin<&mut LibraryManager>, track_id: i32);
+
+        /// Album title by id (empty when unknown). Exposed as `albumTitle`.
+        #[qinvokable]
+        #[cxx_name = "albumTitle"]
+        fn album_title(self: &LibraryManager, album_id: i32) -> QString;
+
+        /// Album artist by id. Exposed as `albumArtist`.
+        #[qinvokable]
+        #[cxx_name = "albumArtist"]
+        fn album_artist(self: &LibraryManager, album_id: i32) -> QString;
+
+        /// Album year by id (0 when unknown). Exposed as `albumYear`.
+        #[qinvokable]
+        #[cxx_name = "albumYear"]
+        fn album_year(self: &LibraryManager, album_id: i32) -> i32;
+
+        /// Album track count by id. Exposed as `albumTrackCount`.
+        #[qinvokable]
+        #[cxx_name = "albumTrackCount"]
+        fn album_track_count(self: &LibraryManager, album_id: i32) -> i32;
+
+        /// Album duration in milliseconds. Exposed as `albumDurationMs`.
+        #[qinvokable]
+        #[cxx_name = "albumDurationMs"]
+        fn album_duration_ms(self: &LibraryManager, album_id: i32) -> i32;
+
+        /// Artist album count. Exposed as `artistAlbumCount`.
+        #[qinvokable]
+        #[cxx_name = "artistAlbumCount"]
+        fn artist_album_count(self: &LibraryManager, name: &QString) -> i32;
+
+        /// Artist track count. Exposed as `artistTrackCount`.
+        #[qinvokable]
+        #[cxx_name = "artistTrackCount"]
+        fn artist_track_count(self: &LibraryManager, name: &QString) -> i32;
+
+        /// Remember a search query (newest first, cap 10). Exposed as `rememberSearch`.
+        #[qinvokable]
+        #[cxx_name = "rememberSearch"]
+        fn remember_search(self: Pin<&mut LibraryManager>, query: &QString);
+
+        /// How many recent searches are stored. Exposed as `recentSearchCount`.
+        #[qinvokable]
+        #[cxx_name = "recentSearchCount"]
+        fn recent_search_count(self: &LibraryManager) -> i32;
+
+        /// Recent search at `index` (0 = newest). Exposed as `recentSearchAt`.
+        #[qinvokable]
+        #[cxx_name = "recentSearchAt"]
+        fn recent_search_at(self: &LibraryManager, index: i32) -> QString;
     }
 
     extern "RustQt" {

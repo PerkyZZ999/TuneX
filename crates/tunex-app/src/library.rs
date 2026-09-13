@@ -428,6 +428,38 @@ impl LibraryCore {
         tunex_core::update(&self.config_path, |config| apply(&mut config.view))
     }
 
+    /// One album header, when the index knows it.
+    #[must_use]
+    pub fn album(&self, id: i64) -> Option<tunex_library::AlbumRow> {
+        if !self.db_path.is_file() {
+            return None;
+        }
+        let db = tunex_library::open_file(&self.db_path).ok()?;
+        tunex_library::album_by_id(&db, id).ok().flatten()
+    }
+
+    /// Album duration in milliseconds (0 when unknown).
+    #[must_use]
+    pub fn album_duration_ms(&self, id: i64) -> i64 {
+        if !self.db_path.is_file() {
+            return 0;
+        }
+        let Ok(db) = tunex_library::open_file(&self.db_path) else {
+            return 0;
+        };
+        tunex_library::album_duration_ms(&db, id).unwrap_or(0)
+    }
+
+    /// One artist header, when the index knows it.
+    #[must_use]
+    pub fn artist(&self, name: &str) -> Option<tunex_library::ArtistRow> {
+        if !self.db_path.is_file() {
+            return None;
+        }
+        let db = tunex_library::open_file(&self.db_path).ok()?;
+        tunex_library::artist_by_name(&db, name).ok().flatten()
+    }
+
     /// (Re)start the watcher over the current folders. Failures degrade to
     /// no watching (manual rescans still work) with a warning, never a crash.
     fn restart_watcher(&mut self) {
@@ -736,11 +768,13 @@ mod tests {
         core.set_view_prefs(|view| {
             view.library_tab = "albums".to_owned();
             view.songs_sort = "date".to_owned();
+            view.recent_searches = vec!["nova".to_owned(), "harbor".to_owned()];
         })
         .expect("persist works");
         let loaded = core.view_prefs();
         assert_eq!(loaded.library_tab, "albums");
         assert_eq!(loaded.songs_sort, "date");
+        assert_eq!(loaded.recent_searches, ["nova", "harbor"]);
         let revived = LibraryCore::with_paths(config, dir.join("other.db"));
         assert_eq!(revived.view_prefs().library_tab, "albums");
         std::fs::remove_dir_all(&dir).expect("cleanup works");

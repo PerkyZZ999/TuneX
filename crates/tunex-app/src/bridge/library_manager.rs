@@ -179,4 +179,101 @@ impl qobject::LibraryManager {
             tracing::warn!(name = "library.remove_track_failed", error = %err, "row kept");
         }
     }
+
+    /// Album title by id.
+    pub fn album_title(&self, album_id: i32) -> QString {
+        self.rust()
+            .core
+            .album(i64::from(album_id))
+            .map(|row| QString::from(row.title.as_str()))
+            .unwrap_or_default()
+    }
+
+    /// Album artist by id.
+    pub fn album_artist(&self, album_id: i32) -> QString {
+        self.rust()
+            .core
+            .album(i64::from(album_id))
+            .and_then(|row| row.artist)
+            .map_or_else(
+                || QString::from("Unknown Artist"),
+                |name| QString::from(name.as_str()),
+            )
+    }
+
+    /// Album year by id (0 when unknown).
+    pub fn album_year(&self, album_id: i32) -> i32 {
+        self.rust()
+            .core
+            .album(i64::from(album_id))
+            .and_then(|row| row.year)
+            .and_then(|year| i32::try_from(year).ok())
+            .unwrap_or(0)
+    }
+
+    /// Album track count by id.
+    pub fn album_track_count(&self, album_id: i32) -> i32 {
+        self.rust()
+            .core
+            .album(i64::from(album_id))
+            .map_or(0, |row| i32::try_from(row.track_count).unwrap_or(i32::MAX))
+    }
+
+    /// Album duration in milliseconds.
+    pub fn album_duration_ms(&self, album_id: i32) -> i32 {
+        i32::try_from(self.rust().core.album_duration_ms(i64::from(album_id))).unwrap_or(0)
+    }
+
+    /// Artist album count.
+    pub fn artist_album_count(&self, name: &QString) -> i32 {
+        self.rust()
+            .core
+            .artist(&String::from(name))
+            .map_or(0, |row| i32::try_from(row.album_count).unwrap_or(i32::MAX))
+    }
+
+    /// Artist track count.
+    pub fn artist_track_count(&self, name: &QString) -> i32 {
+        self.rust()
+            .core
+            .artist(&String::from(name))
+            .map_or(0, |row| i32::try_from(row.track_count).unwrap_or(i32::MAX))
+    }
+
+    /// Remember a search query, newest first, cap 10, case-insensitive dedupe.
+    pub fn remember_search(self: Pin<&mut Self>, query: &QString) {
+        let trimmed = String::from(query).trim().to_owned();
+        if trimmed.len() < 2 {
+            return;
+        }
+        if let Err(err) = self.rust().core.set_view_prefs(|view| {
+            view.recent_searches
+                .retain(|item| !item.eq_ignore_ascii_case(&trimmed));
+            view.recent_searches.insert(0, trimmed);
+            view.recent_searches.truncate(10);
+        }) {
+            tracing::warn!(name = "library.search_remember_failed", error = %err, "query not saved");
+        }
+    }
+
+    /// How many recent searches are stored.
+    pub fn recent_search_count(&self) -> i32 {
+        i32::try_from(self.rust().core.view_prefs().recent_searches.len()).unwrap_or(i32::MAX)
+    }
+
+    /// Recent search at `index` (0 = newest).
+    pub fn recent_search_at(&self, index: i32) -> QString {
+        usize::try_from(index)
+            .ok()
+            .and_then(|index| {
+                self.rust()
+                    .core
+                    .view_prefs()
+                    .recent_searches
+                    .get(index)
+                    .cloned()
+            })
+            .map(|query| QString::from(query.as_str()))
+            .unwrap_or_default()
+    }
 }

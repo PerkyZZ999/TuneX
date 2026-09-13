@@ -240,6 +240,30 @@ fn load_albums(path: &std::path::Path, sort: tunex_library::AlbumSort) -> Vec<Al
     }
 }
 
+fn load_albums_for_artist(
+    path: &std::path::Path,
+    artist: &str,
+    exclude_id: Option<i64>,
+) -> Vec<AlbumRow> {
+    if !path.is_file() {
+        return Vec::new();
+    }
+    let db = match tunex_library::open_file(path) {
+        Ok(db) => db,
+        Err(err) => {
+            tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
+            return Vec::new();
+        }
+    };
+    match tunex_library::list_albums_for_artist(&db, artist, exclude_id) {
+        Ok(rows) => rows.iter().map(display_album).collect(),
+        Err(err) => {
+            tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
+            Vec::new()
+        }
+    }
+}
+
 impl qobject::AlbumListModel {
     /// Reload all albums from the library index; emits model reset.
     pub fn refresh(mut self: Pin<&mut Self>) {
@@ -277,6 +301,27 @@ impl qobject::AlbumListModel {
     /// Current albums-tab sort key. Exposed as `sortKey`.
     pub fn sort_key(&self) -> QString {
         QString::from(self.rust().sort.as_key())
+    }
+
+    /// Reload albums by one artist, optionally excluding `exclude_id`.
+    pub fn refresh_for_artist(mut self: Pin<&mut Self>, artist: &QString, exclude_id: i32) {
+        let name = artist.to_string();
+        let exclude = if exclude_id < 0 {
+            None
+        } else {
+            Some(i64::from(exclude_id))
+        };
+        let rows = load_albums_for_artist(&tunex_core::library_db_path(), &name, exclude);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_albums();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for album in rows {
+                rust.push_row(album);
+            }
+            self.as_mut().end_reset_model_albums();
+        }
     }
 
     /// Database album id at `row` (-1 when out of range).

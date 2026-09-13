@@ -51,6 +51,12 @@ enum TrackBrowse {
     Album(i64),
     /// One parent directory of indexed tracks.
     Folder(String),
+    /// One artist, album then disc/track order.
+    Artist(String),
+    /// One genre group (`Unknown` for untagged).
+    Genre(String),
+    /// One composer group (`Unknown` for untagged).
+    Composer(String),
 }
 
 /// Song row store: display strings plus numeric roles.
@@ -191,6 +197,9 @@ fn load_tracks(
         TrackBrowse::Folder(folder) => {
             tunex_library::list_tracks_in_folder(&db, folder, SONGS_CAP, sort)
         }
+        TrackBrowse::Artist(name) => tunex_library::list_tracks_for_artist(&db, name),
+        TrackBrowse::Genre(name) => tunex_library::list_tracks_for_genre(&db, name),
+        TrackBrowse::Composer(name) => tunex_library::list_tracks_for_composer(&db, name),
         TrackBrowse::Songs => tunex_library::list_tracks_capped(&db, SONGS_CAP, sort),
     };
     match rows {
@@ -253,14 +262,69 @@ impl qobject::LibraryTrackModel {
         }
     }
 
-    /// Remember a songs-tab sort key and reload when the current browse
+    /// Reload tracks by one artist. Exposed as `refreshArtist`.
+    pub fn refresh_artist(mut self: Pin<&mut Self>, artist: &QString) {
+        let name = artist.to_string();
+        self.as_mut().rust_mut().browse = TrackBrowse::Artist(name.clone());
+        let rows = load_tracks(
+            &tunex_core::library_db_path(),
+            &TrackBrowse::Artist(name),
+            tunex_library::TrackSort::Title,
+        );
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        }
+    }
+
+    /// Reload tracks in one genre group. Exposed as `refreshGenre`.
+    pub fn refresh_genre(mut self: Pin<&mut Self>, name: &QString) {
+        let name = name.to_string();
+        self.as_mut().rust_mut().browse = TrackBrowse::Genre(name.clone());
+        let rows = load_tracks(
+            &tunex_core::library_db_path(),
+            &TrackBrowse::Genre(name),
+            tunex_library::TrackSort::Title,
+        );
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        }
+    }
+
+    /// Reload tracks credited to one composer. Exposed as `refreshComposer`.
+    pub fn refresh_composer(mut self: Pin<&mut Self>, name: &QString) {
+        let name = name.to_string();
+        self.as_mut().rust_mut().browse = TrackBrowse::Composer(name.clone());
+        let rows = load_tracks(
+            &tunex_core::library_db_path(),
+            &TrackBrowse::Composer(name),
+            tunex_library::TrackSort::Title,
+        );
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        }
+    }
     /// honours it (songs tab or folder drill). Album drill stays disc/track.
     /// Exposed as `setSort`.
     pub fn set_sort(mut self: Pin<&mut Self>, key: &QString) {
         let sort = tunex_library::TrackSort::from_key(&key.to_string());
         self.as_mut().rust_mut().sort = sort;
         let browse = self.as_ref().rust().browse.clone();
-        if matches!(browse, TrackBrowse::Album(_)) {
+        if matches!(
+            browse,
+            TrackBrowse::Album(_)
+                | TrackBrowse::Artist(_)
+                | TrackBrowse::Genre(_)
+                | TrackBrowse::Composer(_)
+        ) {
             return;
         }
         let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort);

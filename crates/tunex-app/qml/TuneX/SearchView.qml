@@ -26,6 +26,8 @@ Item {
     property bool albumsSettled: false
     property bool artistsSettled: false
     property string searchError: ""
+    property string rememberedFor: ""
+    property list<string> recents: []
     readonly property bool drilled: root.albumId >= 0
     readonly property bool awaitingFirst: root.query !== "" && !root.songsSettled && !root.albumsSettled && !root.artistsSettled
     readonly property bool settledEmpty: root.songsSettled && root.albumsSettled && root.artistsSettled && !root.drilled && songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
@@ -35,6 +37,55 @@ Item {
 
     signal focusFieldRequested
     signal clearRequested
+    signal queryRequested(string text)
+    signal albumRequested(int albumId)
+    signal artistRequested(string name)
+
+    function loadRecents() {
+        const items = [];
+        const n = root.library.recentSearchCount();
+        for (let i = 0; i < n; i++)
+            items.push(root.library.recentSearchAt(i));
+        root.recents = items;
+    }
+
+    function maybeRemember() {
+        const q = root.query.trim();
+        if (q.length < 2 || root.rememberedFor === q)
+            return;
+        if (!root.songsSettled && !root.albumsSettled && !root.artistsSettled)
+            return;
+        root.library.rememberSearch(q);
+        root.rememberedFor = q;
+        root.loadRecents();
+    }
+
+    function cycleGroup(back) {
+        const order = ["songs", "albums", "artists"];
+        let at = order.indexOf(root.tab);
+        if (at < 0)
+            at = 0;
+        const step = back ? -1 : 1;
+        for (let n = 0; n < order.length; n++) {
+            at = (at + step + order.length) % order.length;
+            const key = order[at];
+            if (key === "songs" && songsView.count > 0) {
+                root.tab = key;
+                songsView.forceActiveFocus();
+                return;
+            }
+            if (key === "albums" && albumsView.count > 0) {
+                root.tab = key;
+                albumsView.forceActiveFocus();
+                return;
+            }
+            if (key === "artists" && artistsView.count > 0) {
+                root.tab = key;
+                artistsView.forceActiveFocus();
+                return;
+            }
+        }
+    }
 
     function submitAll() {
         songs.search(root.query);
@@ -118,6 +169,7 @@ Item {
             root.submitAll();
         }
     }
+    Component.onCompleted: root.loadRecents()
     anchors.fill: parent
 
     ArtistListModel {
@@ -159,6 +211,7 @@ Item {
                 root.artistsSettled = true;
 
             root.searchError = songs.errorText() || albums.errorText() || artists.errorText();
+            root.maybeRemember();
         }
     }
 
@@ -279,6 +332,25 @@ Item {
                 onActionRequested: root.focusFieldRequested()
             }
 
+            Flow {
+                visible: root.query === "" && root.recents.length > 0
+                anchors.bottom: parent.bottom
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width, 520)
+                spacing: Theme.spaceXs
+
+                Repeater {
+                    model: root.recents
+
+                    Chip {
+                        required property string modelData
+
+                        label: modelData
+                        onActivated: root.queryRequested(modelData)
+                    }
+                }
+            }
+
             // First-results loading: one centered spinner until any group
             // settles; groups then stream in progressively, no global wait.
             Column {
@@ -340,6 +412,11 @@ Item {
                             root.queue.playTrackNow(songs.trackIdAt(at));
                     }
                     Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Tab) {
+                            root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                            event.accepted = true;
+                            return;
+                        }
                         if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
                             const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                             if (at < songsView.count) {
@@ -421,6 +498,12 @@ Item {
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Album results")
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Tab) {
+                            root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                            event.accepted = true;
+                        }
+                    }
 
                     highlight: Rectangle {
                         color: "transparent"
@@ -438,7 +521,7 @@ Item {
                         cardIndex: index
                         onActivated: id => {
                             albumsView.currentIndex = cardIndex;
-                            root.drillIntoAlbum(id, title);
+                            root.albumRequested(id);
                         }
                     }
 
@@ -487,6 +570,12 @@ Item {
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Artist results")
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Tab) {
+                            root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                            event.accepted = true;
+                        }
+                    }
 
                     highlight: Rectangle {
                         color: "transparent"
@@ -499,6 +588,7 @@ Item {
                         artistName: model.name
                         albumCount: model.albumCount
                         trackCount: model.trackCount
+                        onActivated: name => root.artistRequested(name)
                     }
 
                     footer: Text {

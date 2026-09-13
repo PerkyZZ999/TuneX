@@ -17,7 +17,7 @@ Window {
     property bool playerActive: false
     property bool nowPlayingOpen: false
     property bool sessionReady: false
-    readonly property bool canGoBack: historyAt > 0
+    readonly property bool canGoBack: historyAt > 0 || (section === "library" && !libraryView.showingBrowse) || (section === "search" && searchView.drilled)
     readonly property bool canGoForward: historyAt < history.length - 1
     readonly property bool wideShell: root.width >= Theme.shellWide
     readonly property bool compactRail: root.width < Theme.shellCompact
@@ -60,6 +60,12 @@ Window {
     }
 
     function goBack() {
+        if (root.section === "library" && libraryView.goBack())
+            return;
+        if (root.section === "search" && searchView.drilled) {
+            searchView.leaveDrill();
+            return;
+        }
         if (!root.canGoBack)
             return;
         root.historyAt -= 1;
@@ -498,7 +504,7 @@ Window {
                             compact: root.compactRail
                             selected: root.section === "library" && libraryView.tab === "artists"
                             onActivated: {
-                                libraryView.tab = "artists";
+                                libraryView.showTab("artists");
                                 root.navigate("library");
                             }
                         }
@@ -509,7 +515,7 @@ Window {
                             compact: root.compactRail
                             selected: root.section === "library" && libraryView.tab === "albums"
                             onActivated: {
-                                libraryView.tab = "albums";
+                                libraryView.showTab("albums");
                                 root.navigate("library");
                             }
                         }
@@ -520,7 +526,29 @@ Window {
                             compact: root.compactRail
                             selected: root.section === "library" && libraryView.tab === "songs"
                             onActivated: {
-                                libraryView.tab = "songs";
+                                libraryView.showTab("songs");
+                                root.navigate("library");
+                            }
+                        }
+
+                        NavItem {
+                            label: qsTr("Genres")
+                            iconName: "tag"
+                            compact: root.compactRail
+                            selected: root.section === "library" && libraryView.tab === "genres"
+                            onActivated: {
+                                libraryView.showTab("genres");
+                                root.navigate("library");
+                            }
+                        }
+
+                        NavItem {
+                            label: qsTr("Composers")
+                            iconName: "pen"
+                            compact: root.compactRail
+                            selected: root.section === "library" && libraryView.tab === "composers"
+                            onActivated: {
+                                libraryView.showTab("composers");
                                 root.navigate("library");
                             }
                         }
@@ -531,7 +559,7 @@ Window {
                             compact: root.compactRail
                             selected: root.section === "library" && libraryView.tab === "folders"
                             onActivated: {
-                                libraryView.tab = "folders";
+                                libraryView.showTab("folders");
                                 root.navigate("library");
                             }
                         }
@@ -686,6 +714,12 @@ Window {
                                     if (root.section === "search")
                                         searchView.focusResults();
                                 }
+                                Keys.onPressed: event => {
+                                    if (root.section === "search" && event.key === Qt.Key_Tab) {
+                                        searchView.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                                        event.accepted = true;
+                                    }
+                                }
                                 Keys.onReturnPressed: {
                                     if (root.section === "search")
                                         searchView.focusResults();
@@ -758,7 +792,7 @@ Window {
                                 library: library
                                 canContinue: root.playerActive
                                 onBrowseRequested: tab => {
-                                    libraryView.tab = tab;
+                                    libraryView.showTab(tab);
                                     root.navigate("library");
                                 }
                                 onSettingsRequested: pickFolder => root.openSettings("library", pickFolder)
@@ -779,6 +813,18 @@ Window {
                                     searchField.text = "";
                                     searchField.forceActiveFocus();
                                 }
+                                onQueryRequested: text => {
+                                    searchField.text = text;
+                                    searchField.forceActiveFocus();
+                                }
+                                onAlbumRequested: albumId => {
+                                    root.navigate("library");
+                                    libraryView.openAlbum(albumId);
+                                }
+                                onArtistRequested: name => {
+                                    root.navigate("library");
+                                    libraryView.openArtist(name);
+                                }
                             }
 
                             LibraryView {
@@ -789,11 +835,6 @@ Window {
                                 playlists: playlistModel
                                 library: library
                                 onSettingsRequested: pickFolder => root.openSettings("library", pickFolder)
-                                onArtistRequested: name => {
-                                    queueModel.clearQueue();
-                                    queueModel.enqueueArtist(name);
-                                    queueModel.playAt(0);
-                                }
                             }
 
                             PlaylistsView {
