@@ -64,6 +64,7 @@ pub struct AlbumListModelRust {
     albums: Vec<AlbumRow>,
     art: ArtCore,
     search: SearchCore,
+    sort: tunex_library::AlbumSort,
 }
 
 /// One settled search result set as display rows.
@@ -203,7 +204,7 @@ fn file_url(path: &Path) -> QString {
 
 /// Load album rows from the index at `path` (empty when absent/unreadable —
 /// the empty-library state, never an error surface).
-fn load_albums(path: &std::path::Path) -> Vec<AlbumRow> {
+fn load_albums(path: &std::path::Path, sort: tunex_library::AlbumSort) -> Vec<AlbumRow> {
     if !path.is_file() {
         return Vec::new();
     }
@@ -214,7 +215,7 @@ fn load_albums(path: &std::path::Path) -> Vec<AlbumRow> {
             return Vec::new();
         }
     };
-    match tunex_library::list_albums(&db) {
+    match tunex_library::list_albums(&db, sort) {
         Ok(rows) => rows.iter().map(display_album).collect(),
         Err(err) => {
             tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
@@ -226,7 +227,8 @@ fn load_albums(path: &std::path::Path) -> Vec<AlbumRow> {
 impl qobject::AlbumListModel {
     /// Reload all albums from the library index; emits model reset.
     pub fn refresh(mut self: Pin<&mut Self>) {
-        let rows = load_albums(&tunex_core::library_db_path());
+        let sort = self.as_ref().rust().sort;
+        let rows = load_albums(&tunex_core::library_db_path(), sort);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_albums();
@@ -237,6 +239,28 @@ impl qobject::AlbumListModel {
             }
             self.as_mut().end_reset_model_albums();
         }
+    }
+
+    /// Remember an albums-tab sort key and reload. Exposed as `setSort`.
+    pub fn set_sort(mut self: Pin<&mut Self>, key: &QString) {
+        let sort = tunex_library::AlbumSort::from_key(&key.to_string());
+        self.as_mut().rust_mut().sort = sort;
+        let rows = load_albums(&tunex_core::library_db_path(), sort);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_albums();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for album in rows {
+                rust.push_row(album);
+            }
+            self.as_mut().end_reset_model_albums();
+        }
+    }
+
+    /// Current albums-tab sort key. Exposed as `sortKey`.
+    pub fn sort_key(&self) -> QString {
+        QString::from(self.rust().sort.as_key())
     }
 
     /// Drop all rows; emits model reset so views rebuild.
@@ -451,14 +475,20 @@ mod tests {
     fn missing_index_loads_zero_rows() {
         let missing =
             std::env::temp_dir().join(format!("tunex-browse-missing-{}", std::process::id()));
-        assert!(super::load_albums(&missing.join("library.db")).is_empty());
+        assert!(
+            super::load_albums(&missing.join("library.db"), tunex_library::AlbumSort::Title)
+                .is_empty()
+        );
     }
 
     #[test]
     fn seeded_index_loads_album_rows() {
         let (_guard, path) = seeded_index("albums");
-        let rows = super::load_albums(&path);
+        let rows = super::load_albums(&path, tunex_library::AlbumSort::Title);
         assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].title, QString::from("Night Tapes"));
+        let by_artist = super::load_albums(&path, tunex_library::AlbumSort::Artist);
+        assert_eq!(by_artist[0].artist, QString::from("Nova Rae"));
     }
 
     #[test]

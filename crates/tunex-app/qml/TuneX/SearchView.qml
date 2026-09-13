@@ -336,6 +336,17 @@ Item {
                         if (at < songsView.count && songs.isPlayableAt(at))
                             root.queue.playTrackNow(songs.trackIdAt(at));
                     }
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                            const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
+                            if (at < songsView.count) {
+                                songsView.currentIndex = at;
+                                trackMenu.trackId = songs.trackIdAt(at);
+                                trackMenu.popup();
+                                event.accepted = true;
+                            }
+                        }
+                    }
 
                     highlight: Rectangle {
                         color: Theme.selected

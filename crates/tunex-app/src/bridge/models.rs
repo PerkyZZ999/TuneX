@@ -37,6 +37,7 @@
 // paths, so the structs cannot be named across modules directly).
 use super::album_list_model::AlbumListModelRust;
 use super::artist_list_model::ArtistListModelRust;
+use super::folder_list_model::FolderListModelRust;
 use super::library_manager::LibraryManagerRust;
 use super::library_track_model::LibraryTrackModelRust;
 use super::playlist_list_model::PlaylistModelRust;
@@ -88,6 +89,17 @@ pub mod qobject {
         /// Attributed album count.
         AlbumCount,
         /// Attributed track count.
+        TrackCount,
+    }
+
+    /// Roles exposed to QML delegates as `path` / `name` / `trackCount`.
+    #[qenum(FolderListModel)]
+    enum FolderRoles {
+        /// Absolute directory path (drill-down key).
+        Path,
+        /// Last path component (row title).
+        Name,
+        /// Indexed tracks living directly in this folder.
         TrackCount,
     }
 
@@ -146,6 +158,11 @@ pub mod qobject {
         #[base = QAbstractListModel]
         #[qml_element]
         type LibraryTrackModel = super::LibraryTrackModelRust;
+
+        #[qobject]
+        #[base = QAbstractListModel]
+        #[qml_element]
+        type FolderListModel = super::FolderListModelRust;
     }
 
     // Base-class model signals. QML connects to `rowsInserted` directly;
@@ -223,6 +240,19 @@ pub mod qobject {
         #[inherit]
         #[cxx_name = "endResetModel"]
         unsafe fn end_reset_model_tracks(self: Pin<&mut LibraryTrackModel>);
+
+        /// # Safety
+        ///
+        /// Inherited `beginResetModel` for `FolderListModel`.
+        #[inherit]
+        #[cxx_name = "beginResetModel"]
+        unsafe fn begin_reset_model_folders(self: Pin<&mut FolderListModel>);
+        /// # Safety
+        ///
+        /// Inherited `endResetModel` for `FolderListModel`.
+        #[inherit]
+        #[cxx_name = "endResetModel"]
+        unsafe fn end_reset_model_folders(self: Pin<&mut FolderListModel>);
     }
 
     extern "RustQt" {
@@ -255,6 +285,16 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "errorText"]
         fn error_text(self: &ArtistListModel) -> QString;
+
+        /// Remember an artists-tab sort key and reload. Exposed as `setSort`.
+        #[qinvokable]
+        #[cxx_name = "setSort"]
+        fn set_sort(self: Pin<&mut ArtistListModel>, key: &QString);
+
+        /// Current artists-tab sort key. Exposed as `sortKey`.
+        #[qinvokable]
+        #[cxx_name = "sortKey"]
+        fn sort_key(self: &ArtistListModel) -> QString;
 
         /// Row count override for `QAbstractListModel`. The macro-generated
         /// glue forwards `parent`, so it must not be underscore-prefixed here
@@ -318,6 +358,16 @@ pub mod qobject {
         #[cxx_name = "errorText"]
         fn error_text(self: &AlbumListModel) -> QString;
 
+        /// Remember an albums-tab sort key and reload. Exposed as `setSort`.
+        #[qinvokable]
+        #[cxx_name = "setSort"]
+        fn set_sort(self: Pin<&mut AlbumListModel>, key: &QString);
+
+        /// Current albums-tab sort key. Exposed as `sortKey`.
+        #[qinvokable]
+        #[cxx_name = "sortKey"]
+        fn sort_key(self: &AlbumListModel) -> QString;
+
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
         #[cxx_override]
@@ -347,6 +397,29 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "refreshAlbum"]
         fn refresh_album(self: Pin<&mut LibraryTrackModel>, album_id: i32);
+
+        /// Reload tracks whose parent directory is `folder`. Exposed as
+        /// `refreshFolder`.
+        #[qinvokable]
+        #[cxx_name = "refreshFolder"]
+        fn refresh_folder(self: Pin<&mut LibraryTrackModel>, folder: &QString);
+
+        /// Return to the capped songs tab (clears album/folder drill).
+        /// Exposed as `refreshSongs`.
+        #[qinvokable]
+        #[cxx_name = "refreshSongs"]
+        fn refresh_songs(self: Pin<&mut LibraryTrackModel>);
+
+        /// Remember a songs-tab sort key and reload when the current browse
+        /// honours it. Exposed as `setSort`.
+        #[qinvokable]
+        #[cxx_name = "setSort"]
+        fn set_sort(self: Pin<&mut LibraryTrackModel>, key: &QString);
+
+        /// Current songs-tab sort key. Exposed as `sortKey`.
+        #[qinvokable]
+        #[cxx_name = "sortKey"]
+        fn sort_key(self: &LibraryTrackModel) -> QString;
 
         /// Drop all song rows; emits model reset so views rebuild.
         #[qinvokable]
@@ -402,6 +475,42 @@ pub mod qobject {
         #[cxx_override]
         #[cxx_name = "roleNames"]
         fn role_names_tracks(self: &LibraryTrackModel) -> QHash_i32_QByteArray;
+
+        /// Reload folders from the library index; emits model reset.
+        #[qinvokable]
+        fn refresh(self: Pin<&mut FolderListModel>);
+
+        /// Drop all folder rows; emits model reset so views rebuild.
+        #[qinvokable]
+        fn clear(self: Pin<&mut FolderListModel>);
+
+        /// Absolute path at `row` (empty when out of range). Exposed as `pathAt`.
+        #[qinvokable]
+        #[cxx_name = "pathAt"]
+        fn path_at(self: &FolderListModel, row: i32) -> QString;
+
+        /// Display name at `row` (empty when out of range). Exposed as `nameAt`.
+        #[qinvokable]
+        #[cxx_name = "nameAt"]
+        fn name_at(self: &FolderListModel, row: i32) -> QString;
+
+        /// Row count override for `QAbstractListModel`.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "rowCount"]
+        fn row_count_folders(self: &FolderListModel, parent: &QModelIndex) -> i32;
+
+        /// Role data override for `QAbstractListModel`.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "data"]
+        fn data_folders(self: &FolderListModel, index: &QModelIndex, role: i32) -> QVariant;
+
+        /// Role-name table override; without it QML sees no custom roles.
+        #[qinvokable]
+        #[cxx_override]
+        #[cxx_name = "roleNames"]
+        fn role_names_folders(self: &FolderListModel) -> QHash_i32_QByteArray;
     }
 
     /// Roles exposed to QML delegates (`title`, `artist`, `album`,
@@ -689,6 +798,12 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "enqueueAlbum"]
         fn enqueue_album(self: Pin<&mut QueueModel>, album_id: i32) -> i32;
+
+        /// Enqueue every playable track in one folder (direct children),
+        /// ordered by `sort_key`. Exposed as `enqueueFolder`.
+        #[qinvokable]
+        #[cxx_name = "enqueueFolder"]
+        fn enqueue_folder(self: Pin<&mut QueueModel>, folder: &QString, sort_key: &QString) -> i32;
 
         /// Enqueue one artist in album order; returns the number enqueued.
         /// Exposed to QML as `enqueueArtist`.

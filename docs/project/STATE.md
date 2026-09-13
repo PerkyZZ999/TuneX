@@ -16,7 +16,7 @@
 
 ## Current evidence
 - Latest passed gate: `rust-tc sonar` for the W-042 S6 gate (QG OK, 81.9% coverage, 0 violations)
-- Latest validation entry: 2026-09-13 W-046 tray + Settings (see VALIDATION.md); prior S6 gate W-042 PASS
+- Latest validation entry: 2026-09-13 library UX (sort + Folders browse + click-to-play) on top of W-046 tray + Settings — see VALIDATION.md
 - M6 numbers (R-NFR-06, measured not estimated): cold start 850 ms windowed at 50k (<1.5 s) · search p95 6.8–9.2 ms at 50k (<50 ms) · scroll p50 16 ms with 0.36 ms app-side work per frame (60 fps) · transport control ≤8 ms (<50 ms) · scan 52,400 files/min (>500) · no app-side frame cost during scans
 - Visual identity: charcoal-black neutrals (`#0B0B0E` up, hue-free) with royal blue `#2B5CE6` as the only brand family; chrome is tinted-translucent over an artwork-derived ambient wash, real blur reserved for overlays
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
@@ -38,12 +38,13 @@
 
 ## Open loops
 - S7 W-046 KWin/Plasma tray hover + close-to-tray visual proof (this environment has no StatusNotifierWatcher / isolated Plasma session)
+- Library UX (sort / Folders browse / click-to-play) rebased onto W-046; scanned-folder add/remove lives in Settings → Library. Charles tests once this PR is conflict-free.
 
 ## Blockers
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Land W-046 (tray + Settings). Phase 7 Release still waits on human confirmation for AUR publish. Remaining maintainer follow-ups, no code risk: true `extra-x86_64-build`, true X11-Plasma visual pass, toast pixels under a real notification daemon.
+- Charles tests library UX (sort / Folders browse / click-to-play) on the W-046 Settings/tray main. Phase 7 Release still waits on human confirmation for AUR publish.
 
 ## Phase checklist
 - [x] 0 Intake

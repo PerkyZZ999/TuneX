@@ -41,11 +41,25 @@ impl std::fmt::Debug for qobject::LibraryTrackRoles {
 /// Songs-tab cap: the view stays virtualized and bounded; S3 adds paging.
 pub const SONGS_CAP: u32 = 500;
 
+/// Which library slice the songs model is showing.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum TrackBrowse {
+    /// Capped songs tab.
+    #[default]
+    Songs,
+    /// One album in disc/track order.
+    Album(i64),
+    /// One parent directory of indexed tracks.
+    Folder(String),
+}
+
 /// Song row store: display strings plus numeric roles.
 #[derive(Debug, Default)]
 pub struct LibraryTrackModelRust {
     tracks: Vec<(i32, QString, QString, QString, i32, i32, bool)>,
     search: SearchCore,
+    sort: tunex_library::TrackSort,
+    browse: TrackBrowse,
 }
 
 /// One settled search result set as display rows.
@@ -147,12 +161,12 @@ fn display_row(row: &tunex_library::TrackRow) -> (i32, QString, QString, QString
     )
 }
 
-/// Load song rows from the index at `path`: `None` album means the capped
-/// songs tab, `Some(id)` means that album in disc/track order. An absent or
-/// unreadable index loads zero rows (the empty-library state in QML).
+/// Load song rows from the index at `path` for the current browse + sort.
+/// An absent or unreadable index loads zero rows (the empty-library state).
 fn load_tracks(
     path: &std::path::Path,
-    album: Option<i64>,
+    browse: &TrackBrowse,
+    sort: tunex_library::TrackSort,
 ) -> Vec<(i32, QString, QString, QString, i32, i32, bool)> {
     if !path.is_file() {
         return Vec::new();
@@ -164,9 +178,12 @@ fn load_tracks(
             return Vec::new();
         }
     };
-    let rows = match album {
-        Some(album_id) => tunex_library::list_tracks_in_album(&db, album_id),
-        None => tunex_library::list_tracks_capped(&db, SONGS_CAP),
+    let rows = match browse {
+        TrackBrowse::Album(album_id) => tunex_library::list_tracks_in_album(&db, *album_id),
+        TrackBrowse::Folder(folder) => {
+            tunex_library::list_tracks_in_folder(&db, folder, SONGS_CAP, sort)
+        }
+        TrackBrowse::Songs => tunex_library::list_tracks_capped(&db, SONGS_CAP, sort),
     };
     match rows {
         Ok(rows) => rows.iter().map(display_row).collect(),
@@ -178,9 +195,12 @@ fn load_tracks(
 }
 
 impl qobject::LibraryTrackModel {
-    /// Reload the capped songs tab; emits model reset.
+    /// Reload the current browse (songs tab, album drill, or folder drill)
+    /// using the session-stable sort; emits model reset.
     pub fn refresh(mut self: Pin<&mut Self>) {
-        let rows = load_tracks(&tunex_core::library_db_path(), None);
+        let browse = self.as_ref().rust().browse.clone();
+        let sort = self.as_ref().rust().sort;
+        let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_tracks();
@@ -190,8 +210,70 @@ impl qobject::LibraryTrackModel {
     }
 
     /// Reload one album's tracks in disc/track order; emits model reset.
+    /// Album order is canonical (not the songs-tab sort).
     pub fn refresh_album(mut self: Pin<&mut Self>, album_id: i32) {
-        let rows = load_tracks(&tunex_core::library_db_path(), Some(i64::from(album_id)));
+        self.as_mut().rust_mut().browse = TrackBrowse::Album(i64::from(album_id));
+        let rows = load_tracks(
+            &tunex_core::library_db_path(),
+            &TrackBrowse::Album(i64::from(album_id)),
+            tunex_library::TrackSort::Title,
+        );
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        }
+    }
+
+    /// Reload tracks whose parent directory is `folder`; emits model reset.
+    /// Uses the session-stable songs sort. Exposed as `refreshFolder`.
+    pub fn refresh_folder(mut self: Pin<&mut Self>, folder: &QString) {
+        let path = folder.to_string();
+        self.as_mut().rust_mut().browse = TrackBrowse::Folder(path.clone());
+        let sort = self.as_ref().rust().sort;
+        let rows = load_tracks(
+            &tunex_core::library_db_path(),
+            &TrackBrowse::Folder(path),
+            sort,
+        );
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        }
+    }
+
+    /// Remember a songs-tab sort key and reload when the current browse
+    /// honours it (songs tab or folder drill). Album drill stays disc/track.
+    /// Exposed as `setSort`.
+    pub fn set_sort(mut self: Pin<&mut Self>, key: &QString) {
+        let sort = tunex_library::TrackSort::from_key(&key.to_string());
+        self.as_mut().rust_mut().sort = sort;
+        let browse = self.as_ref().rust().browse.clone();
+        if matches!(browse, TrackBrowse::Album(_)) {
+            return;
+        }
+        let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        }
+    }
+
+    /// Current songs-tab sort key. Exposed as `sortKey`.
+    pub fn sort_key(&self) -> QString {
+        QString::from(self.rust().sort.as_key())
+    }
+
+    /// Return to the capped songs tab (clears album/folder drill) and reload.
+    pub fn refresh_songs(mut self: Pin<&mut Self>) {
+        self.as_mut().rust_mut().browse = TrackBrowse::Songs;
+        let sort = self.as_ref().rust().sort;
+        let rows = load_tracks(&tunex_core::library_db_path(), &TrackBrowse::Songs, sort);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_tracks();
@@ -450,14 +532,33 @@ mod tests {
     fn missing_index_loads_zero_rows() {
         let missing =
             std::env::temp_dir().join(format!("tunex-browse-missing-{}", std::process::id()));
-        assert!(super::load_tracks(&missing.join("library.db"), None).is_empty());
+        assert!(
+            super::load_tracks(
+                &missing.join("library.db"),
+                &super::TrackBrowse::Songs,
+                tunex_library::TrackSort::Title
+            )
+            .is_empty()
+        );
     }
 
     #[test]
     fn seeded_index_loads_song_rows() {
         let (_guard, path) = seeded_index("tracks");
-        let rows = super::load_tracks(&path, None);
+        let rows = super::load_tracks(
+            &path,
+            &super::TrackBrowse::Songs,
+            tunex_library::TrackSort::Title,
+        );
         assert_eq!(rows.len(), 3);
+        let titles: Vec<String> = rows.iter().map(|row| row.1.to_string()).collect();
+        assert_eq!(titles, ["One", "Solo", "Two"]);
+        let by_artist = super::load_tracks(
+            &path,
+            &super::TrackBrowse::Songs,
+            tunex_library::TrackSort::Artist,
+        );
+        assert_eq!(by_artist[2].1.to_string(), "Solo");
     }
 
     #[test]

@@ -65,7 +65,7 @@ Item {
         if (key === "all")
             return;
         if (key === "folders") {
-            root.settingsRequested(false);
+            root.browseRequested("folders");
             return;
         }
         if (key === "playlists") {
@@ -162,7 +162,7 @@ Item {
 
                 Chip {
                     label: qsTr("Folders")
-                    selected: false
+                    selected: root.chipKey === "folders"
                     onActivated: root.activateChip("folders")
                 }
             }

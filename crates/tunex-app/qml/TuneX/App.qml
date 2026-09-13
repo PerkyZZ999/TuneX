@@ -477,9 +477,17 @@ Window {
                             }
                         }
 
-                        // Folders (browse-by-folder) stays a rail destination.
-                        // Scanned-folder add/remove lives in Settings → Library
-                        // only — do not wire this item to a management drawer.
+                        NavItem {
+                            label: qsTr("Folders")
+                            iconName: "folder"
+                            compact: root.compactRail
+                            selected: root.section === "library" && libraryView.tab === "folders"
+                            onActivated: {
+                                libraryView.tab = "folders";
+                                root.navigate("library");
+                            }
+                        }
+
                         Text {
                             visible: !root.compactRail
                             width: parent.width
