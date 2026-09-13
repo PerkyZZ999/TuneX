@@ -567,6 +567,121 @@ pub struct AlbumRow {
     pub art_source: Option<String>,
 }
 
+/// Songs-tab / folder-track browse order (V1-basic; L-006 advanced filters
+/// stay out of scope). Keys match the IA labels the UI shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TrackSort {
+    /// Title A–Z, then path.
+    #[default]
+    Title,
+    /// Artist A–Z, then title.
+    Artist,
+    /// Album A–Z, then disc/track.
+    Album,
+    /// Year newest-first; untagged years last.
+    Date,
+}
+
+impl TrackSort {
+    /// Parse a UI sort key; unknown values fall back to [`TrackSort::Title`].
+    #[must_use]
+    pub fn from_key(key: &str) -> Self {
+        match key {
+            "artist" => Self::Artist,
+            "album" => Self::Album,
+            "date" => Self::Date,
+            _ => Self::Title,
+        }
+    }
+
+    /// Stable UI key for this order.
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            Self::Title => "title",
+            Self::Artist => "artist",
+            Self::Album => "album",
+            Self::Date => "date",
+        }
+    }
+}
+
+/// Albums-tab browse order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AlbumSort {
+    /// Title A–Z.
+    #[default]
+    Title,
+    /// Artist A–Z, then title.
+    Artist,
+    /// Year newest-first; untagged years last.
+    Date,
+}
+
+impl AlbumSort {
+    /// Parse a UI sort key; unknown values fall back to [`AlbumSort::Title`].
+    #[must_use]
+    pub fn from_key(key: &str) -> Self {
+        match key {
+            "artist" => Self::Artist,
+            "date" => Self::Date,
+            _ => Self::Title,
+        }
+    }
+
+    /// Stable UI key for this order.
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            Self::Title => "title",
+            Self::Artist => "artist",
+            Self::Date => "date",
+        }
+    }
+}
+
+/// Artists-tab browse order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ArtistSort {
+    /// Name A–Z.
+    #[default]
+    Name,
+    /// Song count, most first, then name.
+    Songs,
+}
+
+impl ArtistSort {
+    /// Parse a UI sort key; unknown values fall back to [`ArtistSort::Name`].
+    #[must_use]
+    pub fn from_key(key: &str) -> Self {
+        match key {
+            "songs" => Self::Songs,
+            _ => Self::Name,
+        }
+    }
+
+    /// Stable UI key for this order.
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            Self::Name => "name",
+            Self::Songs => "songs",
+        }
+    }
+}
+
+/// One folder that directly contains indexed tracks (browse, not library-root
+/// management).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FolderRow {
+    /// Absolute directory path (drill-down key for [`list_tracks_in_folder`]).
+    pub path: String,
+    /// Last path component, for the row title.
+    pub name: String,
+    /// Indexed tracks whose parent directory is this folder.
+    pub track_count: i64,
+}
+
 /// Shared album-list projection: attributed artist plus track counts.
 /// Callers append their own `WHERE` before [`ALBUM_LIST_TAIL`].
 const ALBUM_LIST_SELECT: &str = "SELECT albums.id AS id, albums.title AS title,
@@ -577,7 +692,10 @@ const ALBUM_LIST_SELECT: &str = "SELECT albums.id AS id, albums.title AS title,
              LEFT JOIN artists ON artists.id = albums.artist_id
              LEFT JOIN tracks ON tracks.album_id = albums.id";
 
-/// Grouping + ordering tail shared by every album-list query.
+/// Grouping shared by every album-list query (order is appended per sort).
+const ALBUM_LIST_GROUP: &str = "GROUP BY albums.id";
+
+/// Grouping + title order: search hydrates groups then reorders in memory.
 const ALBUM_LIST_TAIL: &str = "GROUP BY albums.id ORDER BY albums.title COLLATE NOCASE";
 
 /// Shared artist-list projection: album/track counts per name. Callers append
@@ -588,17 +706,58 @@ const ARTIST_LIST_SELECT: &str = "SELECT artists.name AS name,
              FROM artists
              LEFT JOIN tracks ON tracks.artist_id = artists.id";
 
-/// Grouping + ordering tail shared by every artist-list query.
+/// Grouping shared by every artist-list query (order is appended per sort).
+const ARTIST_LIST_GROUP: &str = "GROUP BY artists.id";
+
+/// Grouping + name order: search hydrates groups then reorders in memory.
 const ARTIST_LIST_TAIL: &str = "GROUP BY artists.id ORDER BY artists.name COLLATE NOCASE";
 
-/// Every attributed artist with album/track counts, ordered by name.
+/// Static `ORDER BY` for the songs browse (never interpolates user text).
+fn track_order_sql(sort: TrackSort) -> &'static str {
+    match sort {
+        TrackSort::Title => "ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path",
+        TrackSort::Artist => {
+            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE, COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        }
+        TrackSort::Album => {
+            "ORDER BY COALESCE(albums.title, '') COLLATE NOCASE, COALESCE(tracks.disc_number, 1), COALESCE(tracks.track_number, 1000000), tracks.path"
+        }
+        TrackSort::Date => {
+            "ORDER BY COALESCE(tracks.year, 0) DESC, COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        }
+    }
+}
+
+/// Static `ORDER BY` for the albums browse (never interpolates user text).
+fn album_order_sql(sort: AlbumSort) -> &'static str {
+    match sort {
+        AlbumSort::Title => "ORDER BY albums.title COLLATE NOCASE",
+        AlbumSort::Artist => {
+            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE, albums.title COLLATE NOCASE"
+        }
+        AlbumSort::Date => "ORDER BY COALESCE(albums.year, 0) DESC, albums.title COLLATE NOCASE",
+    }
+}
+
+/// Static `ORDER BY` for the artists browse (never interpolates user text).
+fn artist_order_sql(sort: ArtistSort) -> &'static str {
+    match sort {
+        ArtistSort::Name => "ORDER BY artists.name COLLATE NOCASE",
+        ArtistSort::Songs => "ORDER BY track_count DESC, artists.name COLLATE NOCASE",
+    }
+}
+
+/// Every attributed artist with album/track counts, ordered by [`ArtistSort`].
 ///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
-pub fn list_artists(db: &Connection) -> Result<Vec<ArtistRow>> {
+pub fn list_artists(db: &Connection, sort: ArtistSort) -> Result<Vec<ArtistRow>> {
     let mut statement = db
-        .prepare(&format!("{ARTIST_LIST_SELECT} {ARTIST_LIST_TAIL}"))
+        .prepare(&format!(
+            "{ARTIST_LIST_SELECT} {ARTIST_LIST_GROUP} {}",
+            artist_order_sql(sort)
+        ))
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], |row| {
@@ -613,13 +772,17 @@ pub fn list_artists(db: &Connection) -> Result<Vec<ArtistRow>> {
         .map_err(|err| db_error(&err))
 }
 
-/// Every album with artist, year, and track count, ordered by title.///
+/// Every album with artist, year, and track count, ordered by [`AlbumSort`].
+///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
-pub fn list_albums(db: &Connection) -> Result<Vec<AlbumRow>> {
+pub fn list_albums(db: &Connection, sort: AlbumSort) -> Result<Vec<AlbumRow>> {
     let mut statement = db
-        .prepare(&format!("{ALBUM_LIST_SELECT} {ALBUM_LIST_TAIL}"))
+        .prepare(&format!(
+            "{ALBUM_LIST_SELECT} {ALBUM_LIST_GROUP} {}",
+            album_order_sql(sort)
+        ))
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], |row| {
@@ -684,16 +847,17 @@ pub fn list_tracks_for_artist(db: &Connection, artist: &str) -> Result<Vec<Track
         .map_err(|err| db_error(&err))
 }
 
-/// First `limit` tracks by path (songs tab over large libraries stays
-/// bounded; full paging and search arrive in S3).
+/// First `limit` tracks ordered by [`TrackSort`] (songs tab over large
+/// libraries stays bounded; full paging stays with search).
 ///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
-pub fn list_tracks_capped(db: &Connection, limit: u32) -> Result<Vec<TrackRow>> {
+pub fn list_tracks_capped(db: &Connection, limit: u32, sort: TrackSort) -> Result<Vec<TrackRow>> {
     let mut statement = db
         .prepare(&format!(
-            "{TRACK_LIST_SELECT} ORDER BY tracks.path LIMIT ?1"
+            "{TRACK_LIST_SELECT} {} LIMIT ?1",
+            track_order_sql(sort)
         ))
         .map_err(|err| db_error(&err))?;
     let rows = statement
@@ -701,6 +865,95 @@ pub fn list_tracks_capped(db: &Connection, limit: u32) -> Result<Vec<TrackRow>> 
         .map_err(|err| db_error(&err))?;
     rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
         .map_err(|err| db_error(&err))
+}
+
+/// Distinct parent directories of indexed tracks, ordered by display name.
+///
+/// This is the Folders *browse* list (tracks grouped by the folder they live
+/// in). Library-root add/remove stays on [`crate::db::remove_library_root`]
+/// / config, not here.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_track_folders(db: &Connection) -> Result<Vec<FolderRow>> {
+    let mut statement = db
+        .prepare("SELECT path FROM tracks")
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|err| db_error(&err))?;
+    let mut counts = std::collections::BTreeMap::<String, i64>::new();
+    for path in rows {
+        let path = path.map_err(|err| db_error(&err))?;
+        let Some(parent) = std::path::Path::new(&path).parent() else {
+            continue;
+        };
+        let Some(parent) = parent.to_str() else {
+            continue;
+        };
+        if parent.is_empty() {
+            continue;
+        }
+        *counts.entry(parent.to_owned()).or_insert(0) += 1;
+    }
+    let mut rows: Vec<FolderRow> = counts
+        .into_iter()
+        .map(|(path, track_count)| FolderRow {
+            name: folder_display_name(&path),
+            path,
+            track_count,
+        })
+        .collect();
+    rows.sort_by_key(|row| (row.name.to_lowercase(), row.path.clone()));
+    Ok(rows)
+}
+
+/// Tracks whose parent directory is `folder`, ordered by [`TrackSort`] and
+/// capped at `limit`. Nested subfolders are listed separately.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_tracks_in_folder(
+    db: &Connection,
+    folder: &str,
+    limit: u32,
+    sort: TrackSort,
+) -> Result<Vec<TrackRow>> {
+    let prefix = format!("{}/%", like_escaped(folder));
+    let nested = format!("{}/%/%", like_escaped(folder));
+    let mut statement = db
+        .prepare(&format!(
+            "{TRACK_LIST_SELECT}
+             WHERE tracks.path LIKE ?1 ESCAPE '\\'
+               AND tracks.path NOT LIKE ?2 ESCAPE '\\'
+             {} LIMIT ?3",
+            track_order_sql(sort)
+        ))
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map(rusqlite::params![prefix, nested, limit], TrackRow::from_row)
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<TrackRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
+/// Last path component for a folder row title.
+fn folder_display_name(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path)
+        .to_owned()
+}
+
+/// Escape `\`, `%`, and `_` so a `LIKE` prefix matches the path literally.
+fn like_escaped(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 /// Every indexed row's reconcile identity, ordered by path.
@@ -774,11 +1027,7 @@ pub fn set_missing(db: &Connection, id: i64, missing: bool) -> Result<()> {
 pub fn remove_library_root(db: &Connection, root: &str) -> Result<u64> {
     // `LIKE` metacharacters in real paths (`%`, `_`, `\`) must match
     // literally, or one root could garbage-collect its neighbor.
-    let escaped = root
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
-    let prefix = format!("{escaped}/%");
+    let prefix = format!("{}/{}", like_escaped(root), "%");
     let removed = db
         .execute(
             "DELETE FROM tracks WHERE path = ?1 OR path LIKE ?2 ESCAPE '\\'",
@@ -1225,7 +1474,7 @@ mod tests {
             )
             .expect("upsert works");
         }
-        let artists = list_artists(&db).expect("artists list");
+        let artists = list_artists(&db, ArtistSort::Name).expect("artists list");
         assert_eq!(artists.len(), 2);
         let nova = artists
             .iter()
@@ -1233,7 +1482,7 @@ mod tests {
             .expect("artist present");
         assert_eq!((nova.album_count, nova.track_count), (1, 2));
 
-        let albums = list_albums(&db).expect("albums list");
+        let albums = list_albums(&db, AlbumSort::Title).expect("albums list");
         assert_eq!(albums.len(), 2);
         let tapes = albums
             .iter()
@@ -1252,9 +1501,75 @@ mod tests {
         assert_eq!(songs[0].title.as_deref(), Some("One"));
         assert_eq!(songs[1].title.as_deref(), Some("Two"));
 
-        let capped = list_tracks_capped(&db, 2).expect("capped list");
+        let capped = list_tracks_capped(&db, 2, TrackSort::Title).expect("capped list");
         assert_eq!(capped.len(), 2);
-        assert!(list_tracks_capped(&db, 0).expect("empty cap").is_empty());
+        assert!(
+            list_tracks_capped(&db, 0, TrackSort::Title)
+                .expect("empty cap")
+                .is_empty()
+        );
+        let by_title = list_tracks_capped(&db, 10, TrackSort::Title).expect("title sort");
+        let titles: Vec<_> = by_title
+            .iter()
+            .filter_map(|row| row.title.as_deref())
+            .collect();
+        assert_eq!(titles, ["One", "Solo", "Two"]);
+        let by_artist = list_tracks_capped(&db, 10, TrackSort::Artist).expect("artist sort");
+        assert_eq!(by_artist[0].artist.as_deref(), Some("Nova Rae"));
+        assert_eq!(by_artist[2].artist.as_deref(), Some("Solo Act"));
+
+        let albums_by_artist = list_albums(&db, AlbumSort::Artist).expect("album artist sort");
+        assert_eq!(albums_by_artist[0].artist.as_deref(), Some("Nova Rae"));
+        let artists_by_songs = list_artists(&db, ArtistSort::Songs).expect("artist song sort");
+        assert_eq!(artists_by_songs[0].name, "Nova Rae");
+        assert_eq!(artists_by_songs[0].track_count, 2);
+    }
+
+    #[test]
+    fn folders_group_direct_children_only() {
+        let mut db = open_memory().expect("in-memory opens");
+        for (path, title) in [
+            ("/music/Night Tapes/one.flac", "One"),
+            ("/music/Night Tapes/two.flac", "Two"),
+            ("/music/Only/solo.flac", "Solo"),
+            ("/music/Night Tapes/Live/three.flac", "Three"),
+        ] {
+            upsert_track(
+                &mut db,
+                &NewTrack {
+                    path: path.to_owned(),
+                    stable_key: title.to_owned(),
+                    title: Some(title.to_owned()),
+                    artist: Some("Nova Rae".to_owned()),
+                    album: Some("Night Tapes".to_owned()),
+                    ..Default::default()
+                },
+            )
+            .expect("upsert works");
+        }
+        let folders = list_track_folders(&db).expect("folders list");
+        let names: Vec<_> = folders.iter().map(|row| row.name.as_str()).collect();
+        assert_eq!(names, ["Live", "Night Tapes", "Only"]);
+        let tapes = folders
+            .iter()
+            .find(|row| row.name == "Night Tapes")
+            .expect("album folder");
+        assert_eq!(tapes.track_count, 2, "nested Live tracks stay in Live");
+        let in_tapes =
+            list_tracks_in_folder(&db, &tapes.path, 10, TrackSort::Title).expect("folder tracks");
+        let titles: Vec<_> = in_tapes
+            .iter()
+            .filter_map(|row| row.title.as_deref())
+            .collect();
+        assert_eq!(titles, ["One", "Two"]);
+        let live = folders
+            .iter()
+            .find(|row| row.name == "Live")
+            .expect("nested folder");
+        let in_live =
+            list_tracks_in_folder(&db, &live.path, 10, TrackSort::Title).expect("nested tracks");
+        assert_eq!(in_live.len(), 1);
+        assert_eq!(in_live[0].title.as_deref(), Some("Three"));
     }
 
     #[test]
@@ -1296,6 +1611,37 @@ mod tests {
                 .expect("unknown artist lists")
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn date_sort_puts_newest_first_and_unknown_last() {
+        let mut db = open_memory().expect("in-memory opens");
+        for (path, title, album, year) in [
+            ("/music/old.flac", "Old", "Old Album", Some(2010)),
+            ("/music/new.flac", "New", "New Album", Some(2024)),
+            ("/music/none.flac", "None", "None Album", None),
+        ] {
+            upsert_track(
+                &mut db,
+                &NewTrack {
+                    path: path.to_owned(),
+                    stable_key: title.to_owned(),
+                    title: Some(title.to_owned()),
+                    album: Some(album.to_owned()),
+                    year,
+                    ..Default::default()
+                },
+            )
+            .expect("upsert works");
+        }
+        let rows = list_tracks_capped(&db, 10, TrackSort::Date).expect("date sort");
+        let titles: Vec<_> = rows.iter().filter_map(|row| row.title.as_deref()).collect();
+        assert_eq!(titles, ["New", "Old", "None"]);
+        let albums = list_albums(&db, AlbumSort::Date).expect("album date sort");
+        assert_eq!(albums[0].year, Some(2024));
+        assert_eq!(TrackSort::from_key("nope"), TrackSort::Title);
+        assert_eq!(AlbumSort::from_key("date").as_key(), "date");
+        assert_eq!(ArtistSort::from_key("songs").as_key(), "songs");
     }
 
     #[test]

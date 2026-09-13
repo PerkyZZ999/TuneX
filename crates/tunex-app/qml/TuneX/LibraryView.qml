@@ -2,11 +2,11 @@ import QtQuick
 import TuneX
 
 // LibraryView (S2 W-016): browse the indexed library — Songs list, Albums
-// grid, Artists grid. Models load from the index on completion; a missing
-// index shows the empty state (never an error). Album cards drill into the
-// songs tab filtered to that album; artist drill-down arrives in a later
-// slice. Scan triggering, progress, and artwork warming arrived with W-017, which
-// re-calls these same refresh() entry points when a scan completes.
+// grid, Artists grid, Folders list. Models load from the index on completion;
+// a missing index shows the empty state (never an error). Album cards drill
+// into the songs tab; folder rows drill into tracks in that directory.
+// V1-basic sort chips drive Rust ORDER BY (session-stable). Scanned-folder
+// add/remove lives in Settings → Library.
 Item {
     id: root
 
@@ -16,8 +16,15 @@ Item {
     // Album drill-down: -1 means the full songs tab.
     property int albumId: -1
     property string albumTitle: ""
+    property string folderPath: ""
+    property string folderTitle: ""
     property string tab: "songs"
-    readonly property bool drilled: root.albumId >= 0
+    property string songsSort: "title"
+    property string albumsSort: "title"
+    property string artistsSort: "name"
+    readonly property bool albumDrilled: root.albumId >= 0
+    readonly property bool folderDrilled: root.folderPath !== ""
+    readonly property bool drilled: root.albumDrilled || root.folderDrilled
     // View counts (the models expose rows, not a count property).
     readonly property bool libraryEmpty: songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
     // Fluid artwork columns shared by both grids (160–220px cards).
@@ -34,7 +41,35 @@ Item {
             return qsTr("Albums");
         if (key === "artists")
             return qsTr("Artists");
+
+        if (key === "folders")
+            return qsTr("Folders");
+
         return qsTr("Songs");
+    }
+
+    function sortSongs(key) {
+        root.songsSort = key;
+        songs.setSort(key);
+    }
+
+    function sortAlbums(key) {
+        root.albumsSort = key;
+        albums.setSort(key);
+    }
+
+    function sortArtists(key) {
+        root.artistsSort = key;
+        artists.setSort(key);
+    }
+
+    function openSongMenu(at) {
+        if (at < 0 || at >= songsView.count)
+            return;
+
+        songsView.currentIndex = at;
+        trackMenu.trackId = songs.trackIdAt(at);
+        trackMenu.popup();
     }
 
     function drillIntoAlbum(id, title) {
@@ -52,26 +87,48 @@ Item {
     function leaveDrillKeepTab() {
         root.albumId = -1;
         root.albumTitle = "";
-        songs.refresh();
+        songs.refreshSongs();
+    }
+
+    function drillIntoFolder(path, name) {
+        root.folderPath = path;
+        root.folderTitle = name;
+        songs.refreshFolder(path);
+    }
+
+    function leaveFolderDrill() {
+        root.folderPath = "";
+        root.folderTitle = "";
+        songs.refreshSongs();
+        root.tab = "folders";
+    }
+
+    function leaveFolderDrillKeepTab() {
+        root.folderPath = "";
+        root.folderTitle = "";
+        songs.refreshSongs();
     }
 
     function refresh() {
         artists.refresh();
         albums.refresh();
         songs.refresh();
+        folders.refresh();
     }
 
     onTabChanged: {
-        // A drill hides its Back button off the songs tab: unwind it when
-        // the tab leaves (results resubmit; the target tab shows them).
-        if (root.tab !== "songs" && root.drilled)
+        if (root.tab !== "songs" && root.albumDrilled)
             root.leaveDrillKeepTab();
+
+        if (root.tab !== "folders" && root.folderDrilled)
+            root.leaveFolderDrillKeepTab();
     }
     anchors.fill: parent
     Component.onCompleted: {
         artists.refresh();
         albums.refresh();
         songs.refresh();
+        folders.refresh();
     }
 
     ArtistListModel {
@@ -99,6 +156,10 @@ Item {
         id: songs
     }
 
+    FolderListModel {
+        id: folders
+    }
+
     TrackMenu {
         id: trackMenu
 
@@ -107,12 +168,16 @@ Item {
     }
 
     Column {
-        anchors.fill: parent
+        id: header
+
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
         anchors.margins: Theme.spaceLg
         spacing: Theme.spaceMd
 
-        // Header: tab strip (three Hick-compliant text choices) plus a
-        // shortcut into Settings → Library for scanned-folder management.
+        // Header: tab strip (Songs / Albums / Artists / Folders browse) plus
+        // a shortcut into Settings → Library for scanned-folder management.
         Item {
             id: tabRow
 
@@ -126,7 +191,7 @@ Item {
                 Repeater {
                     // Keys only, so the model stays a typed string list; the
                     // translated label comes from `root.tabLabel`.
-                    model: ["songs", "albums", "artists"]
+                    model: ["songs", "albums", "artists", "folders"]
 
                     Chip {
                         required property string modelData
@@ -145,7 +210,95 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 primary: false
                 text: qsTr("Music folders")
+                Accessible.name: qsTr("Manage music folders")
                 onClicked: root.settingsRequested(false)
+            }
+        }
+
+        // V1-basic sort: one selected chip per view; order is applied in Rust.
+        Row {
+            id: sortRow
+
+            readonly property bool showSongsSort: (root.tab === "songs" && !root.albumDrilled) || (root.tab === "folders" && root.folderDrilled)
+            readonly property bool showAlbumsSort: root.tab === "albums"
+            readonly property bool showArtistsSort: root.tab === "artists"
+
+            visible: !root.libraryEmpty && (showSongsSort || showAlbumsSort || showArtistsSort)
+            width: parent.width
+            height: visible ? implicitHeight : 0
+            spacing: Theme.spaceXs
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Sort")
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontCaption
+                font.weight: Font.DemiBold
+                color: Theme.muted
+            }
+
+            Chip {
+                visible: sortRow.showSongsSort
+                label: qsTr("Title")
+                selected: root.songsSort === "title"
+                onActivated: root.sortSongs("title")
+            }
+
+            Chip {
+                visible: sortRow.showSongsSort
+                label: qsTr("Artist")
+                selected: root.songsSort === "artist"
+                onActivated: root.sortSongs("artist")
+            }
+
+            Chip {
+                visible: sortRow.showSongsSort
+                label: qsTr("Album")
+                selected: root.songsSort === "album"
+                onActivated: root.sortSongs("album")
+            }
+
+            Chip {
+                visible: sortRow.showSongsSort
+                label: qsTr("Date")
+                selected: root.songsSort === "date"
+                onActivated: root.sortSongs("date")
+            }
+
+            Chip {
+                visible: sortRow.showAlbumsSort
+                label: qsTr("Title")
+                selected: root.albumsSort === "title"
+                onActivated: root.sortAlbums("title")
+            }
+
+            Chip {
+                visible: sortRow.showAlbumsSort
+                label: qsTr("Artist")
+                selected: root.albumsSort === "artist"
+                onActivated: root.sortAlbums("artist")
+            }
+
+            Chip {
+                visible: sortRow.showAlbumsSort
+                label: qsTr("Date")
+                selected: root.albumsSort === "date"
+                onActivated: root.sortAlbums("date")
+            }
+
+            Chip {
+                visible: sortRow.showArtistsSort
+                label: qsTr("Name")
+                selected: root.artistsSort === "name"
+                onActivated: root.sortArtists("name")
+            }
+
+            Chip {
+                visible: sortRow.showArtistsSort
+                label: qsTr("Songs")
+                selected: root.artistsSort === "songs"
+                onActivated: root.sortArtists("songs")
             }
         }
 
@@ -156,7 +309,7 @@ Item {
         Row {
             id: drillRow
 
-            visible: root.drilled && root.tab === "songs" && !root.libraryEmpty
+            visible: root.albumDrilled && root.tab === "songs" && !root.libraryEmpty
             width: parent.width
             height: visible ? implicitHeight : 0
             clip: true
@@ -204,11 +357,70 @@ Item {
             }
         }
 
+        Row {
+            id: folderDrillRow
+
+            visible: root.folderDrilled && root.tab === "folders" && !root.libraryEmpty
+            width: parent.width
+            height: visible ? implicitHeight : 0
+            clip: true
+            spacing: Theme.spaceSm
+
+            PrimaryButton {
+                id: folderBack
+
+                primary: false
+                text: qsTr("Back to folders")
+                onClicked: root.leaveFolderDrill()
+            }
+
+            PrimaryButton {
+                id: playFolderButton
+
+                text: qsTr("Play folder")
+                Accessible.name: qsTr("Play this folder now")
+                onClicked: {
+                    root.queue.clearQueue();
+                    root.queue.enqueueFolder(root.folderPath, root.songsSort);
+                    root.queue.playAt(0);
+                }
+            }
+
+            PrimaryButton {
+                id: queueFolderButton
+
+                primary: false
+                text: qsTr("Queue folder")
+                Accessible.name: qsTr("Queue this folder in Up Next")
+                onClicked: root.queue.enqueueFolder(root.folderPath, root.songsSort)
+            }
+
+            Text {
+                width: parent.width - folderBack.width - playFolderButton.width - queueFolderButton.width - Theme.spaceSm * 3
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideRight
+                text: root.folderTitle
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontTitle
+                font.weight: Font.DemiBold
+                color: Theme.foreground
+            }
+        }
+
+        }
+
         Item {
             id: content
 
-            width: parent.width
-            height: parent.height - tabRow.height - drillRow.height - Theme.spaceMd * 2
+            anchors.top: header.bottom
+            anchors.topMargin: Theme.spaceMd
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: Theme.spaceLg
+            anchors.rightMargin: Theme.spaceLg
+            anchors.bottomMargin: Theme.spaceLg
 
             EmptyState {
                 visible: root.libraryEmpty
@@ -223,15 +435,15 @@ Item {
             ListView {
                 id: songsView
 
-                visible: root.tab === "songs" && !root.libraryEmpty
+                visible: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
                 anchors.fill: parent
                 model: songs
-                focus: root.tab === "songs" && !root.libraryEmpty
+                focus: ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
                 activeFocusOnTab: true
                 clip: true
                 highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 Accessible.role: Accessible.List
-                Accessible.name: root.drilled ? root.albumTitle : qsTr("Songs")
+                Accessible.name: root.albumDrilled ? root.albumTitle : (root.folderDrilled ? root.folderTitle : qsTr("Songs"))
                 Keys.onReturnPressed: {
                     const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                     if (at < songsView.count && songs.isPlayableAt(at))
@@ -241,6 +453,12 @@ Item {
                     const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                     if (at < songsView.count && songs.isPlayableAt(at))
                         root.queue.playTrackNow(songs.trackIdAt(at));
+                }
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                        root.openSongMenu(songsView.currentIndex >= 0 ? songsView.currentIndex : 0);
+                        event.accepted = true;
+                    }
                 }
 
                 highlight: Rectangle {
@@ -274,7 +492,7 @@ Item {
                 footer: Item {
                     id: songsFooter
 
-                    readonly property bool shown: !root.drilled && songsView.count >= 500
+                    readonly property bool shown: !root.albumDrilled && !root.folderDrilled && songsView.count >= 500
 
                     width: songsView.width
                     height: songsFooter.shown ? capNotice.implicitHeight + Theme.spaceMd : 0
@@ -370,6 +588,115 @@ Item {
                     onActivated: name => root.artistRequested(name)
                 }
             }
+
+            // Folders tab: browse indexed tracks by parent directory.
+            ListView {
+                id: foldersView
+
+                visible: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
+                anchors.fill: parent
+                model: folders
+                focus: root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
+                activeFocusOnTab: true
+                clip: true
+                highlightMoveDuration: Appearance.duration(Theme.motionHover)
+                Accessible.role: Accessible.List
+                Accessible.name: qsTr("Folders")
+                Keys.onReturnPressed: {
+                    const at = foldersView.currentIndex >= 0 ? foldersView.currentIndex : 0;
+                    if (at < foldersView.count)
+                        root.drillIntoFolder(folders.pathAt(at), folders.nameAt(at));
+                }
+                Keys.onEnterPressed: {
+                    const at = foldersView.currentIndex >= 0 ? foldersView.currentIndex : 0;
+                    if (at < foldersView.count)
+                        root.drillIntoFolder(folders.pathAt(at), folders.nameAt(at));
+                }
+
+                highlight: Rectangle {
+                    color: Theme.selected
+                    radius: Theme.radiusSm
+                }
+
+                delegate: Item {
+                    id: folderRow
+
+                    // Plain (not required) properties: `required` construction-
+                    // time initialization races the cxx-qt delegate context
+                    // and locks role bindings to their defaults (W-018).
+                    readonly property string countLine: model.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(model.trackCount)
+
+                    width: ListView.view.width
+                    height: 56
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: model.name + ", " + folderRow.countLine
+                    Accessible.onPressAction: root.drillIntoFolder(model.path, model.name)
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: Theme.radiusSm
+                        color: folderMouse.containsMouse || folderRow.activeFocus ? Theme.hover : "transparent"
+
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Appearance.duration(Theme.motionHover)
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: folderMouse
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            foldersView.currentIndex = index;
+                            root.drillIntoFolder(model.path, model.name);
+                        }
+                    }
+
+                    Icon {
+                        id: folderGlyph
+
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spaceMd
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "folder"
+                        iconSize: 20
+                        stroke: Theme.muted
+                    }
+
+                    Column {
+                        anchors.left: folderGlyph.right
+                        anchors.leftMargin: Theme.spaceMd
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spaceMd
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: model.name
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                            color: Theme.foreground
+                        }
+
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: folderRow.countLine + " · " + model.path
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBodySm
+                            color: Theme.muted
+                        }
+                    }
+                }
+            }
         }
-    }
 }

@@ -185,7 +185,8 @@ mod tests {
     #[test]
     fn enqueue_album_orders_disc_tracks_and_skips_missing() {
         let (db, dir) = scratch_db("album");
-        let albums = tunex_library::list_albums(&db).expect("albums list");
+        let albums =
+            tunex_library::list_albums(&db, tunex_library::AlbumSort::Title).expect("albums list");
         let tapes = albums
             .iter()
             .find(|album| album.title == "Night Tapes")

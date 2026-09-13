@@ -152,7 +152,7 @@ Item {
         }
 
         GlassMenuItem {
-            text: qsTr("Add to Up Next")
+            text: qsTr("Queue in Up Next")
             enabled: entryMenu.rowPlayable
             onTriggered: root.queue.enqueueTrack(entryMenu.rowTrackId)
         }
@@ -452,6 +452,19 @@ Item {
                         const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
                         if (at < entriesView.count && entries.isPlayableAt(at))
                             root.queue.playTrackNow(entries.trackIdAt(at));
+                    }
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                            const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
+                            if (at < entriesView.count) {
+                                entriesView.currentIndex = at;
+                                entryMenu.rowIndex = at;
+                                entryMenu.rowTrackId = entries.trackIdAt(at);
+                                entryMenu.rowPlayable = entries.isPlayableAt(at);
+                                entryMenu.popup();
+                                event.accepted = true;
+                            }
+                        }
                     }
                     Keys.onDeletePressed: {
                         if (entriesView.currentIndex >= 0 && entriesView.currentIndex < entriesView.count) {

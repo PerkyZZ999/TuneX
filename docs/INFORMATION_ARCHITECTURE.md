@@ -14,7 +14,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
     - Albums `AlbumListView` → Album detail `AlbumDetailView`
     - Songs `SongListView`
     - Genres `GenreListView` (V1: simple list → filtered songs; no destination pages per scope)
-    - Folders `FolderListView` (browse by folder; add/remove roots live in Settings → Library)
+    - Folders `FolderListView` (browse tracks by parent folder; add/remove roots live in Settings → Library)
   - Playlists `PlaylistListView` → Playlist detail `PlaylistDetailView`
   - Favorites `FavoritesView` (playlist-like smart view over local favorites)
   - Queue `QueuePanel` (right drawer overlay, not a nav destination)
@@ -50,7 +50,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 1. Header: art, name, play + shuffle actions, key meta (albums count / year / duration). 2. Track list (virtualized rows). 3. More-by context (other albums by artist) on album view.
 
 ### SongListView / FolderListView / GenreListView
-1. Filter/sort bar (text filter V1; full sorting V1-basic per scope). 2. Virtualized TrackList. 3. Folder browse is a library destination; add/remove roots, rescan, and watcher status live in Settings → Library. Missing-file states stay on the track rows.
+1. Filter/sort bar (text filter V1; V1-basic sort on Songs/Albums/Artists: title/name, artist, album, date). 2. Virtualized TrackList. 3. Folder view: directory list → tracks in that folder (library-root add/remove, rescan, and watcher status live in Settings → Library, not this view). Missing-file states stay on the track rows.
 
 ### PlaylistDetailView
 1. Header: mosaic art, name, play/shuffle, edit actions. 2. Ordered TrackList with remove/reorder affordances. 3. Missing-track rows preserved as dimmed (never silently dropped).
@@ -140,7 +140,7 @@ Every secondary layer below has exactly one explicit affordance and is keyboard/
 
 | Hidden layer | Revealed by | Context |
 |--------------|-------------|---------|
-| Row actions (play, play-next, add-to-playlist, remove) | Hover/focus on row; always-visible ⋯ on touch | All TrackLists |
+| Row actions (play, play-next, queue in Up Next, add-to-playlist, remove) | Hover/focus on row; always-visible ⋯; right-click / Menu / Shift+F10 | All TrackLists |
 | Up Next queue | Queue toggle in persistent player | Global (drawer/overlay by width) |
 | Now Playing expanded | Mini-player click or shortcut | Global overlay, same state |
 | Full result lists | "See all" per search group | SearchView |

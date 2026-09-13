@@ -3,9 +3,10 @@ import TuneX
 
 // TrackRow (S2 W-016, actions in S3 W-022): one song row — number,
 // title/artist, duration, missing badge, now-playing marker. Solid text on
-// the opaque view background (never glass). Click (or keyboard press) plays
-// the row now; the always-visible ⋯ button opens the container-owned row
-// menu (Up Next rows get move/remove, library rows get queue actions).
+// the opaque view background (never glass). Left-click (or keyboard press)
+// plays the row now; right-click, the Menu key, Shift+F10, or the always-
+// visible ⋯ button opens the container-owned row menu (queueing is
+// "Queue in Up Next", never the click).
 // Edge-anchored layout: the middle column fills whatever the fixed edges
 // leave, so no spacing is hand-counted and nothing depends on sibling
 // creation order.
@@ -38,6 +39,13 @@ Item {
     Accessible.onPressAction: {
         if (!root.dangling && !root.missing)
             root.playRequested(root.trackId, root.rowIndex, root.dangling);
+    }
+    Keys.onMenuPressed: root.menuRequested(root.trackId, root.rowIndex, root.dangling)
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)) {
+            root.menuRequested(root.trackId, root.rowIndex, root.dangling);
+            event.accepted = true;
+        }
     }
 
     // Hover/focus surface (DESIGN.md `track-row` → `track-row-hover`): the
@@ -77,8 +85,14 @@ Item {
         anchors.fill: parent
         enabled: !root.dangling && !root.missing
         hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.playRequested(root.trackId, root.rowIndex, root.dangling)
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton)
+                root.menuRequested(root.trackId, root.rowIndex, root.dangling);
+            else
+                root.playRequested(root.trackId, root.rowIndex, root.dangling);
+        }
     }
 
     Text {

@@ -2,7 +2,7 @@ import QtQuick
 import TuneX
 
 // TrackMenu (S3 W-022, playlist items in W-024, glass in S6 W-038): row
-// actions for library and search song lists — play now, play next, add to
+// actions for library and search song lists — play now, play next, queue in
 // Up Next, add to a playlist (or a fresh auto-named one). One instance per
 // view, retargeted per row (`trackId` then `popup()`); the queue and detail
 // views own their own menus with move/remove actions instead.
@@ -17,16 +17,19 @@ GlassMenu {
 
     GlassMenuItem {
         text: qsTr("Play now")
+        Accessible.name: qsTr("Play now")
         onTriggered: root.queue.playTrackNow(root.trackId)
     }
 
     GlassMenuItem {
         text: qsTr("Play next")
+        Accessible.name: qsTr("Play next")
         onTriggered: root.queue.playTrackNext(root.trackId)
     }
 
     GlassMenuItem {
-        text: qsTr("Add to Up Next")
+        text: qsTr("Queue in Up Next")
+        Accessible.name: qsTr("Queue in Up Next")
         onTriggered: root.queue.enqueueTrack(root.trackId)
     }
 
