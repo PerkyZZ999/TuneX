@@ -101,17 +101,17 @@
 - **Validation method:** manual
 
 ### R-014 — Keyboard
-- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, standard text editing.
+- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, list/grid arrows and j/k, Enter to play or open, type-to-select in Songs, standard text editing. Settings → Shortcuts is a complete reference list of real bindings (not a rebind UI).
 - **Priority:** must
 - **Acceptance:**
-  - [x] All bindings work focused in library/search/player; list documented
+  - [x] All bindings work focused in library/search/player; list documented (W-029, W-050)
 - **Validation method:** manual
 
 ### R-015 — Settings
-- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance/accent, animation pref, audio default, shortcuts, close-to-tray.
+- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance, animation pref, audio default, shortcuts, close-to-tray, window geometry, last library tab and sort chips.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] Change → restart → retained
+  - [x] Change → restart → retained (window size/position, library tab, sort chips: W-048)
   - [x] Settings list-detail (Library / Playback / Appearance / Shortcuts) binds to real config (W-046)
   - [x] Close-to-tray defaults on, persists, and hides the window only when a tray host is present; Quit is on the tray card (W-046)
 - **Validation method:** manual + test

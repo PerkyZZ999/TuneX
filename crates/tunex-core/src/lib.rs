@@ -15,7 +15,7 @@ pub mod error;
 pub mod playback;
 
 pub use config::{
-    AppearanceConfig, TunexConfig, WindowConfig, config_dir, config_file, data_dir,
+    AppearanceConfig, TunexConfig, ViewConfig, WindowConfig, config_dir, config_file, data_dir,
     library_db_path, load_from, save_to, update,
 };
 pub use error::{Error, Result};

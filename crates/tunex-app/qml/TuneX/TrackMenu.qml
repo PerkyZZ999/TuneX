@@ -11,7 +11,10 @@ GlassMenu {
 
     required property QueueModel queue
     required property PlaylistModel playlists
+    required property LibraryManager library
     property int trackId: -1
+
+    signal indexChanged
 
     onAboutToShow: root.playlists.refresh()
 
@@ -56,6 +59,23 @@ GlassMenu {
                 if (id >= 0)
                     root.playlists.addTrack(id, root.trackId);
             }
+        }
+    }
+
+    GlassMenuSeparator {}
+
+    GlassMenuItem {
+        text: qsTr("Show in folder")
+        Accessible.name: qsTr("Show in folder")
+        onTriggered: root.library.revealTrack(root.trackId)
+    }
+
+    GlassMenuItem {
+        text: qsTr("Remove from library")
+        Accessible.name: qsTr("Remove from library")
+        onTriggered: {
+            root.library.removeTrack(root.trackId);
+            root.indexChanged();
         }
     }
 }

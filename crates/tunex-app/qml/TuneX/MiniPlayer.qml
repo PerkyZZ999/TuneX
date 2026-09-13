@@ -4,8 +4,8 @@ import TuneX
 // MiniPlayer (S4 W-026, icon transport in S6 W-038): opaque 64px bottom
 // transport for windows below 1280px (DESIGN.md: opaque, never glass).
 // Hidden until the first play; idle after that shows honest "Nothing
-// playing" copy. Progress is read-only; scrub lives on the Now Playing
-// overlay. Volume and mute write through QueueModel.
+// playing" copy. Progress scrubs through QueueModel.seekMs. Volume and
+// mute write through QueueModel.
 Rectangle {
     id: root
 
@@ -32,7 +32,6 @@ Rectangle {
     }
     readonly property string positionText: root.formatTime(root.positionMs)
     readonly property string durationText: root.durationMs > 0 ? root.formatTime(root.durationMs) : "—"
-    readonly property real progress: root.durationMs > 0 ? Math.min(1, root.positionMs / root.durationMs) : 0
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
 
     signal queueToggleRequested
@@ -55,6 +54,8 @@ Rectangle {
         root.muted = root.queue.isMuted();
         if (!volumeSlider.pressed)
             volumeSlider.value = root.queue.volumePct();
+        if (!seekSlider.pressed)
+            seekSlider.value = root.positionMs;
     }
 
     color: Theme.surface
@@ -171,8 +172,6 @@ Rectangle {
         anchors.rightMargin: Theme.spaceMd
         anchors.verticalCenter: parent.verticalCenter
         height: Theme.targetMin
-        Accessible.role: Accessible.StaticText
-        Accessible.name: qsTr("Playback position %1 of %2").arg(root.positionText).arg(root.durationText)
 
         Text {
             id: positionLabel
@@ -204,23 +203,19 @@ Rectangle {
             color: Theme.muted
         }
 
-        Rectangle {
+        ProgressSlider {
+            id: seekSlider
+
             anchors.left: positionLabel.right
             anchors.leftMargin: Theme.spaceSm
             anchors.right: durationLabel.left
             anchors.rightMargin: Theme.spaceSm
             anchors.verticalCenter: parent.verticalCenter
-            height: Theme.progressTrack
-            radius: Theme.radiusXs
-            color: Theme.hover
-            Accessible.ignored: true
-
-            Rectangle {
-                width: parent.width * root.progress
-                height: parent.height
-                radius: Theme.radiusXs
-                color: Theme.accentSecondary
-            }
+            from: 0
+            to: Math.max(1, root.durationMs)
+            enabled: root.durationMs > 0 && root.hasCurrent
+            Accessible.name: qsTr("Playback position %1 of %2").arg(root.positionText).arg(root.durationText)
+            onMoved: root.queue.seekMs(Math.round(value))
         }
     }
 

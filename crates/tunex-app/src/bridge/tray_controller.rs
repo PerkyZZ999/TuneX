@@ -51,6 +51,64 @@ impl TrayControllerRust {
     fn hide_on_close(&self) -> bool {
         tray::should_hide_on_close(self.close_to_tray(), tray::is_available())
     }
+
+    fn window_width(&self) -> i32 {
+        i32::try_from(
+            tunex_core::load_from(&self.config_path)
+                .unwrap_or_default()
+                .window
+                .restored_width(),
+        )
+        .unwrap_or(i32::MAX)
+    }
+
+    fn window_height(&self) -> i32 {
+        i32::try_from(
+            tunex_core::load_from(&self.config_path)
+                .unwrap_or_default()
+                .window
+                .restored_height(),
+        )
+        .unwrap_or(i32::MAX)
+    }
+
+    fn has_window_position(&self) -> bool {
+        let window = tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .window;
+        window.x.is_some() && window.y.is_some()
+    }
+
+    fn window_x(&self) -> i32 {
+        tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .window
+            .x
+            .unwrap_or(0)
+    }
+
+    fn window_y(&self) -> i32 {
+        tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .window
+            .y
+            .unwrap_or(0)
+    }
+
+    fn set_window_geometry(&self, x: i32, y: i32, width: i32, height: i32) {
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.window.x = Some(x);
+            config.window.y = Some(y);
+            config.window.width = u32::try_from(width.max(0)).unwrap_or(0);
+            config.window.height = u32::try_from(height.max(0)).unwrap_or(0);
+        }) {
+            tracing::warn!(
+                name = "tray.window_geometry_persist_failed",
+                error = %err,
+                "window geometry not saved"
+            );
+        }
+    }
 }
 
 impl qobject::TrayController {
@@ -94,6 +152,36 @@ impl qobject::TrayController {
     pub fn hide_on_close(&self) -> bool {
         self.rust().hide_on_close()
     }
+
+    /// Restored window width (default or last saved, clamped).
+    pub fn window_width(&self) -> i32 {
+        self.rust().window_width()
+    }
+
+    /// Restored window height (default or last saved, clamped).
+    pub fn window_height(&self) -> i32 {
+        self.rust().window_height()
+    }
+
+    /// Whether a previous session saved an x/y position.
+    pub fn has_window_position(&self) -> bool {
+        self.rust().has_window_position()
+    }
+
+    /// Last saved window x (0 when unset).
+    pub fn window_x(&self) -> i32 {
+        self.rust().window_x()
+    }
+
+    /// Last saved window y (0 when unset).
+    pub fn window_y(&self) -> i32 {
+        self.rust().window_y()
+    }
+
+    /// Persist window geometry (QML debounces).
+    pub fn set_window_geometry(self: Pin<&mut Self>, x: i32, y: i32, width: i32, height: i32) {
+        self.rust().set_window_geometry(x, y, width, height);
+    }
 }
 
 #[cfg(test)]
@@ -124,6 +212,24 @@ mod tests {
         assert!(!loaded.window.close_to_tray);
         // No tray host in unit tests, so close still quits.
         assert!(!ctl.hide_on_close());
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn window_geometry_persists() {
+        let (ctl, dir) = scratch_controller("geom");
+        assert_eq!(ctl.window_width(), 1280);
+        assert_eq!(ctl.window_height(), 800);
+        assert!(!ctl.has_window_position());
+        ctl.set_window_geometry(48, 64, 1100, 760);
+        assert!(ctl.has_window_position());
+        assert_eq!(ctl.window_x(), 48);
+        assert_eq!(ctl.window_y(), 64);
+        assert_eq!(ctl.window_width(), 1100);
+        assert_eq!(ctl.window_height(), 760);
+        let loaded = tunex_core::load_from(&ctl.config_path).expect("reload works");
+        assert_eq!(loaded.window.width, 1100);
+        assert_eq!(loaded.window.x, Some(48));
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

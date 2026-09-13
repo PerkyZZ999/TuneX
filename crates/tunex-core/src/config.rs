@@ -53,14 +53,78 @@ pub struct WindowConfig {
     /// session reachable. Closing still quits when no tray host is present,
     /// so a missing tray never leaves a headless process.
     pub close_to_tray: bool,
+    /// Last window width in pixels. `0` means “never saved” (use default).
+    #[serde(default)]
+    pub width: u32,
+    /// Last window height in pixels. `0` means “never saved” (use default).
+    #[serde(default)]
+    pub height: u32,
+    /// Last window x, when the session saved a position.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x: Option<i32>,
+    /// Last window y, when the session saved a position.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y: Option<i32>,
 }
 
 impl Default for WindowConfig {
     fn default() -> Self {
         Self {
             close_to_tray: true,
+            width: 0,
+            height: 0,
+            x: None,
+            y: None,
         }
     }
+}
+
+impl WindowConfig {
+    /// Shell minimum (DESIGN.md). Saved sizes clamp up to this.
+    pub const MIN_WIDTH: u32 = 960;
+    /// Shell minimum (DESIGN.md). Saved sizes clamp up to this.
+    pub const MIN_HEIGHT: u32 = 640;
+    /// First-run default width.
+    pub const DEFAULT_WIDTH: u32 = 1280;
+    /// First-run default height.
+    pub const DEFAULT_HEIGHT: u32 = 800;
+
+    /// Width to restore: default when unset, otherwise at least the minimum.
+    #[must_use]
+    pub fn restored_width(&self) -> u32 {
+        if self.width == 0 {
+            Self::DEFAULT_WIDTH
+        } else {
+            self.width.max(Self::MIN_WIDTH)
+        }
+    }
+
+    /// Height to restore: default when unset, otherwise at least the minimum.
+    #[must_use]
+    pub fn restored_height(&self) -> u32 {
+        if self.height == 0 {
+            Self::DEFAULT_HEIGHT
+        } else {
+            self.height.max(Self::MIN_HEIGHT)
+        }
+    }
+}
+
+/// Last-used browse prefs (library tab and sort chips).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ViewConfig {
+    /// Last Your Library tab (`songs` / `albums` / `artists` / `folders`).
+    pub library_tab: String,
+    /// Songs-tab sort key (`title` / `artist` / `album` / `date`).
+    pub songs_sort: String,
+    /// Albums-tab sort key (`title` / `artist` / `date`).
+    pub albums_sort: String,
+    /// Artists-tab sort key (`name` / `songs`).
+    pub artists_sort: String,
+    /// Recent search queries, newest first, capped by the search view.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_searches: Vec<String>,
 }
 
 /// Application settings. Sections land slice by slice; see SPEC §30.
@@ -75,8 +139,10 @@ pub struct TunexConfig {
     pub playback: PlaybackConfig,
     /// Appearance and accessibility.
     pub appearance: AppearanceConfig,
-    /// Window close and tray behavior.
+    /// Window close, tray, and geometry.
     pub window: WindowConfig,
+    /// Last library tab and sort chips.
+    pub view: ViewConfig,
 }
 
 impl Default for TunexConfig {
@@ -87,6 +153,7 @@ impl Default for TunexConfig {
             playback: PlaybackConfig::default(),
             appearance: AppearanceConfig::default(),
             window: WindowConfig::default(),
+            view: ViewConfig::default(),
         }
     }
 }
@@ -95,6 +162,12 @@ impl TunexConfig {
     /// Clamp invariants that deserialization alone cannot express.
     fn normalize(&mut self) {
         self.volume = self.volume.clamp(0.0, 1.0);
+        if self.window.width > 0 {
+            self.window.width = self.window.width.max(WindowConfig::MIN_WIDTH);
+        }
+        if self.window.height > 0 {
+            self.window.height = self.window.height.max(WindowConfig::MIN_HEIGHT);
+        }
     }
 }
 
@@ -229,6 +302,17 @@ mod tests {
             },
             window: WindowConfig {
                 close_to_tray: false,
+                width: 1100,
+                height: 760,
+                x: Some(40),
+                y: Some(80),
+            },
+            view: ViewConfig {
+                library_tab: "albums".to_owned(),
+                songs_sort: "artist".to_owned(),
+                albums_sort: "date".to_owned(),
+                artists_sort: "songs".to_owned(),
+                recent_searches: vec!["nova".to_owned()],
             },
         };
         save_to(&path, &config).expect("save works");
@@ -313,5 +397,48 @@ mod tests {
             data_dir().ends_with("tunex"),
             "data dir carries the app leaf"
         );
+    }
+
+    #[test]
+    fn window_geometry_clamps_and_defaults() {
+        let unset = WindowConfig::default();
+        assert_eq!(unset.restored_width(), WindowConfig::DEFAULT_WIDTH);
+        assert_eq!(unset.restored_height(), WindowConfig::DEFAULT_HEIGHT);
+        let tiny = WindowConfig {
+            close_to_tray: true,
+            width: 12,
+            height: 12,
+            x: Some(0),
+            y: Some(0),
+        };
+        assert_eq!(tiny.restored_width(), WindowConfig::MIN_WIDTH);
+        assert_eq!(tiny.restored_height(), WindowConfig::MIN_HEIGHT);
+        let dir = scratch_dir("geom-clamp");
+        let path = dir.join("config.toml");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::write(&path, "[window]\nwidth = 100\nheight = 50\n").expect("setup works");
+        let loaded = load_from(&path).expect("legacy-small sizes load");
+        assert_eq!(loaded.window.width, WindowConfig::MIN_WIDTH);
+        assert_eq!(loaded.window.height, WindowConfig::MIN_HEIGHT);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn view_prefs_round_trip_and_legacy_files_default() {
+        let dir = scratch_dir("view-prefs");
+        let path = dir.join("config.toml");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::write(&path, "volume = 0.5\n").expect("setup works");
+        let loaded = load_from(&path).expect("legacy file loads");
+        assert_eq!(loaded.view, ViewConfig::default());
+        update(&path, |config| {
+            config.view.library_tab = "folders".to_owned();
+            config.view.songs_sort = "date".to_owned();
+        })
+        .expect("patch works");
+        let back = load_from(&path).expect("reload works");
+        assert_eq!(back.view.library_tab, "folders");
+        assert_eq!(back.view.songs_sort, "date");
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

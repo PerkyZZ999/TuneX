@@ -97,4 +97,86 @@ impl qobject::LibraryManager {
     pub fn is_watching(&self) -> bool {
         self.rust().core.is_watching()
     }
+
+    /// Last Your Library tab (`songs` / `albums` / `artists` / `folders`).
+    pub fn library_tab(&self) -> QString {
+        QString::from(self.rust().core.view_prefs().library_tab.as_str())
+    }
+
+    /// Persist the last Your Library tab.
+    pub fn set_library_tab(self: Pin<&mut Self>, tab: &QString) {
+        let tab = String::from(tab);
+        if let Err(err) = self
+            .rust()
+            .core
+            .set_view_prefs(|view| view.library_tab = tab)
+        {
+            tracing::warn!(name = "library.tab_persist_failed", error = %err, "tab not saved");
+        }
+    }
+
+    /// Last songs-tab sort key.
+    pub fn songs_sort(&self) -> QString {
+        QString::from(self.rust().core.view_prefs().songs_sort.as_str())
+    }
+
+    /// Persist the songs-tab sort key.
+    pub fn set_songs_sort(self: Pin<&mut Self>, key: &QString) {
+        let key = String::from(key);
+        if let Err(err) = self
+            .rust()
+            .core
+            .set_view_prefs(|view| view.songs_sort = key)
+        {
+            tracing::warn!(name = "library.sort_persist_failed", error = %err, "sort not saved");
+        }
+    }
+
+    /// Last albums-tab sort key.
+    pub fn albums_sort(&self) -> QString {
+        QString::from(self.rust().core.view_prefs().albums_sort.as_str())
+    }
+
+    /// Persist the albums-tab sort key.
+    pub fn set_albums_sort(self: Pin<&mut Self>, key: &QString) {
+        let key = String::from(key);
+        if let Err(err) = self
+            .rust()
+            .core
+            .set_view_prefs(|view| view.albums_sort = key)
+        {
+            tracing::warn!(name = "library.sort_persist_failed", error = %err, "sort not saved");
+        }
+    }
+
+    /// Last artists-tab sort key.
+    pub fn artists_sort(&self) -> QString {
+        QString::from(self.rust().core.view_prefs().artists_sort.as_str())
+    }
+
+    /// Persist the artists-tab sort key.
+    pub fn set_artists_sort(self: Pin<&mut Self>, key: &QString) {
+        let key = String::from(key);
+        if let Err(err) = self
+            .rust()
+            .core
+            .set_view_prefs(|view| view.artists_sort = key)
+        {
+            tracing::warn!(name = "library.sort_persist_failed", error = %err, "sort not saved");
+        }
+    }
+
+    /// Open the parent directory of an indexed track in the file manager.
+    pub fn reveal_track(self: Pin<&mut Self>, track_id: i32) {
+        if let Err(err) = self.rust().core.reveal_track(i64::from(track_id)) {
+            tracing::warn!(name = "library.reveal_failed", error = %err, "folder not opened");
+        }
+    }
+
+    /// Delete one index row. Playlist links stay dangling.
+    pub fn remove_track(self: Pin<&mut Self>, track_id: i32) {
+        if let Err(err) = self.rust().core.remove_track(i64::from(track_id)) {
+            tracing::warn!(name = "library.remove_track_failed", error = %err, "row kept");
+        }
+    }
 }

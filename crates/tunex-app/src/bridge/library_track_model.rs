@@ -88,6 +88,14 @@ impl LibraryTrackModelRust {
             .map_or(-1, |entry| entry.0)
     }
 
+    /// Title at `row` (empty when out of range), for type-to-select.
+    fn title_at(&self, row: i32) -> QString {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.tracks.get(index))
+            .map_or_else(QString::default, |entry| entry.1.clone())
+    }
+
     /// Current row count.
     fn row_count(&self) -> i32 {
         i32::try_from(self.tracks.len()).unwrap_or(i32::MAX)
@@ -332,6 +340,11 @@ impl qobject::LibraryTrackModel {
         self.rust().track_id_at(row)
     }
 
+    /// Title at `row` (empty when out of range).
+    pub fn title_at(&self, row: i32) -> QString {
+        self.rust().title_at(row)
+    }
+
     /// Whether the row at `row` can play (present and on disk).
     pub fn is_playable_at(&self, row: i32) -> bool {
         self.rust().is_playable_at(row)
@@ -526,6 +539,15 @@ mod tests {
         assert_eq!(model.track_id_at(1), 9);
         assert_eq!(model.track_id_at(99), -1);
         assert_eq!(model.track_id_at(-1), -1);
+    }
+
+    #[test]
+    fn title_at_resolves_rows_or_empty() {
+        let model = model_with_two_songs();
+        assert_eq!(model.title_at(0), QString::from("Midnight"));
+        assert_eq!(model.title_at(1), QString::from("Solace"));
+        assert_eq!(model.title_at(99), QString::default());
+        assert_eq!(model.title_at(-1), QString::default());
     }
 
     #[test]

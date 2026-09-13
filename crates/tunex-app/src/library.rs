@@ -21,8 +21,8 @@ use std::time::Duration;
 use tokio::sync::mpsc as tokio_mpsc;
 use tunex_core::{Error, Result, TunexConfig, load_from, save_to};
 use tunex_library::{
-    DEBOUNCE_WINDOW, LibraryWatcher, ScanStats, open_file, remove_library_root,
-    scan_folder_with_callback, watch_roots,
+    DEBOUNCE_WINDOW, LibraryWatcher, ScanStats, delete_track, open_file, remove_library_root,
+    scan_folder_with_callback, track_by_id, watch_roots,
 };
 
 /// Mutable orchestration state, shared with the scan worker.
@@ -334,6 +334,100 @@ impl LibraryCore {
         self.watcher.is_some()
     }
 
+    /// Config file this core persists folders and view prefs into.
+    #[must_use]
+    pub fn config_path(&self) -> &Path {
+        &self.config_path
+    }
+
+    /// Library index path (missing-file reveal/remove).
+    #[must_use]
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
+    }
+
+    /// Parent directory of an indexed track, for the file manager.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Database`] when the index cannot be opened and
+    /// [`Error::Config`] when the row is unknown.
+    pub fn track_parent_dir(&self, id: i64) -> Result<PathBuf> {
+        if !self.db_path.is_file() {
+            return Err(Error::Config("library index is not ready".to_owned()));
+        }
+        let db = open_file(&self.db_path)?;
+        let Some(track) = track_by_id(&db, id)? else {
+            return Err(Error::Config(format!("track {id} is not in the library")));
+        };
+        Ok(parent_dir_for_path(&track.path))
+    }
+
+    /// Open the parent directory of an indexed track in the file manager.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Io`] when `xdg-open` cannot be spawned and
+    /// [`Error::Database`] / [`Error::Config`] from [`Self::track_parent_dir`].
+    pub fn reveal_track(&self, id: i64) -> Result<()> {
+        let parent = match self.track_parent_dir(id) {
+            Ok(parent) => {
+                lock_state(&self.state).last_error = None;
+                parent
+            }
+            Err(err) => {
+                lock_state(&self.state).last_error = Some(err.to_string());
+                return Err(err);
+            }
+        };
+        if let Err(source) = std::process::Command::new("xdg-open").arg(&parent).spawn() {
+            let err = Error::Io {
+                path: parent,
+                source,
+            };
+            lock_state(&self.state).last_error = Some(err.to_string());
+            return Err(err);
+        }
+        Ok(())
+    }
+
+    /// Delete one index row. Playlist links stay dangling (D-009).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Database`] when the delete fails.
+    pub fn remove_track(&self, id: i64) -> Result<()> {
+        if !self.db_path.is_file() {
+            return Ok(());
+        }
+        let db = open_file(&self.db_path)?;
+        match delete_track(&db, id) {
+            Ok(_) => {
+                lock_state(&self.state).last_error = None;
+                Ok(())
+            }
+            Err(err) => {
+                lock_state(&self.state).last_error = Some(err.to_string());
+                Err(err)
+            }
+        }
+    }
+
+    /// Last-used library tab and sort chips.
+    #[must_use]
+    pub fn view_prefs(&self) -> tunex_core::ViewConfig {
+        load_from(&self.config_path).unwrap_or_default().view
+    }
+
+    /// Persist last-used library tab and sort chips.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Io`] or [`Error::Config`] when the file cannot be written.
+    pub fn set_view_prefs(&self, apply: impl FnOnce(&mut tunex_core::ViewConfig)) -> Result<()> {
+        tunex_core::update(&self.config_path, |config| apply(&mut config.view))
+    }
+
     /// (Re)start the watcher over the current folders. Failures degrade to
     /// no watching (manual rescans still work) with a warning, never a crash.
     fn restart_watcher(&mut self) {
@@ -370,6 +464,17 @@ fn canonical_folder(path: &Path) -> Result<PathBuf> {
         path: path.to_path_buf(),
         source,
     })
+}
+
+/// Parent directory of a track path (the file manager target). A path with
+/// no parent (Unix `/`) falls back to itself.
+#[must_use]
+pub fn parent_dir_for_path(path: &str) -> PathBuf {
+    let file = Path::new(path);
+    file.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(file)
+        .to_path_buf()
 }
 
 /// Scan every root on the worker thread, streaming snapshots; the final
@@ -591,6 +696,53 @@ mod tests {
             2,
             "watch-triggered rescan indexes the new file"
         );
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn parent_dir_for_path_strips_the_file() {
+        assert_eq!(
+            parent_dir_for_path("/music/album/track.flac"),
+            PathBuf::from("/music/album")
+        );
+        assert_eq!(parent_dir_for_path("/lonely.flac"), PathBuf::from("/"));
+    }
+
+    #[test]
+    fn remove_track_deletes_the_index_row() {
+        let (config, db, dir) = scratch("remove-track");
+        let music = seed_music(&dir);
+        let mut core = LibraryCore::with_paths(config, db.clone());
+        core.startup();
+        core.add_folder(&music).expect("add works");
+        run_until_idle(&mut core);
+        let reopened = open_file(&db).expect("db reopens");
+        let id = tunex_library::list_tracks(&reopened).expect("list works")[0].id;
+        drop(reopened);
+        core.remove_track(id).expect("remove works");
+        let after = open_file(&db).expect("db reopens");
+        assert!(
+            tunex_library::list_tracks(&after)
+                .expect("list works")
+                .is_empty()
+        );
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn view_prefs_persist() {
+        let (config, db, dir) = scratch("view-prefs");
+        let core = LibraryCore::with_paths(config.clone(), db);
+        core.set_view_prefs(|view| {
+            view.library_tab = "albums".to_owned();
+            view.songs_sort = "date".to_owned();
+        })
+        .expect("persist works");
+        let loaded = core.view_prefs();
+        assert_eq!(loaded.library_tab, "albums");
+        assert_eq!(loaded.songs_sort, "date");
+        let revived = LibraryCore::with_paths(config, dir.join("other.db"));
+        assert_eq!(revived.view_prefs().library_tab, "albums");
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

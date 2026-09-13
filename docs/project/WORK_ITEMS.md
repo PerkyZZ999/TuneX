@@ -1,11 +1,17 @@
-# Work items (current slice: S7 — Tray + Settings)
+# Work items (current slice: S8 — Session memory and player UX)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 in progress (W-046, W-047).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051).
 
 ## Current slice
-S7 — System tray, Settings page, type-scale tighten, scanned-folder management in Settings, density pass. **In progress 2026-09-13** (W-046, W-047). Does not reopen S6. Locked decisions unchanged (D-002: tray is StatusNotifierItem over zbus, not Qt Widgets).
+S8 — Persist window + view prefs, compact-chrome scrub, keyboard completeness, missing-file reveal/remove, first-run hero. **Done 2026-09-13** (W-048–W-051). Does not reopen S7. Sleep timer and stop-after-album stay out.
 
-**Done condition:** Linux tray icon (SNI) with compact now-playing controls; Settings list-detail matches DESIGN.md; close-to-tray persisted and honored; scanned-folder add/remove lives only in Settings → Library; type scale and chrome one step denser via DESIGN.md + Theme; gates green.
+**Done condition:** Window geometry and library tab/sort survive restart; MiniPlayer and Up Next seek; arrows/j-k/Enter/type-to-select; Settings → Shortcuts matches real bindings; missing files can be revealed or removed; hero stays disabled until the first album exists.
+
+## Queue (S8)
+- [x] W-048 — Persist window geometry (min 960×640) and last library tab + sort chips in additive TOML; restore on startup; debounce geometry writes (R-015). Verified: `WindowConfig` width/height/x/y + `ViewConfig` tab/sort keys; clamp on load; `TrayController`/`LibraryManager` slots; App restores then saves after a 400 ms quiet window.
+- [x] W-049 — Scrub on MiniPlayer and QueuePanel via existing `QueueModel.seekMs`; missing-file “Show in folder” (Rust `xdg-open` of the parent) and “Remove from library” (index row delete, playlists dangle per D-009) on `TrackMenu` (R-011, R-NFR-05).
+- [x] W-050 — Keyboard: arrows and j/k move list/grid currentIndex; Enter plays or opens; Songs type-to-select (prefix, 400 ms reset); Settings → Shortcuts is a complete accurate map (R-014). Not L-007 rebind.
+- [x] W-051 — First-run hero primary stays disabled “Scanning…” until the first album row exists, then “Play Something”; overlay motion already on the 200 ms budget through `Appearance.duration()`; compact/HiDPI token tweaks deferred unless a clip is found.
 
 ## Queue (S7)
 - [x] W-047 — Density pass: smaller, crisper chrome without dropping the 12px caption floor or 44px hit targets (R-018). Verified: `docs/DESIGN.md` + `Theme.qml` stepped type (display 32→28, headline 22→18, title 16→14, body 14→13), spacing (`lg`/`xl`/`xxl`), and shell geometry (rail 216, panel 288, mini-player 64, track rows 48, art 280 / play 52). Hardcoded 56/64/76/320 sizes in QML now read Theme tokens. 44px targets and the 40px dense-row exception stay. Caption floor remains 12px. Gates recorded in VALIDATION.md.

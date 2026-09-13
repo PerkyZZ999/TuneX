@@ -296,6 +296,11 @@ pub mod qobject {
         #[cxx_name = "sortKey"]
         fn sort_key(self: &ArtistListModel) -> QString;
 
+        /// Display name at `row` (empty when out of range). Exposed as `nameAt`.
+        #[qinvokable]
+        #[cxx_name = "nameAt"]
+        fn name_at(self: &ArtistListModel, row: i32) -> QString;
+
         /// Row count override for `QAbstractListModel`. The macro-generated
         /// glue forwards `parent`, so it must not be underscore-prefixed here
         /// (the `impl` below still ignores it explicitly).
@@ -368,6 +373,16 @@ pub mod qobject {
         #[cxx_name = "sortKey"]
         fn sort_key(self: &AlbumListModel) -> QString;
 
+        /// Database album id at `row` (-1 when out of range). Exposed as `albumIdAt`.
+        #[qinvokable]
+        #[cxx_name = "albumIdAt"]
+        fn album_id_at(self: &AlbumListModel, row: i32) -> i32;
+
+        /// Title at `row` (empty when out of range). Exposed as `titleAt`.
+        #[qinvokable]
+        #[cxx_name = "titleAt"]
+        fn title_at(self: &AlbumListModel, row: i32) -> QString;
+
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
         #[cxx_override]
@@ -431,6 +446,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "trackIdAt"]
         fn track_id_at(self: &LibraryTrackModel, row: i32) -> i32;
+        /// Title at `row` (empty when out of range), for type-to-select.
+        /// Exposed to QML as `titleAt`.
+        #[qinvokable]
+        #[cxx_name = "titleAt"]
+        fn title_at(self: &LibraryTrackModel, row: i32) -> QString;
         /// Whether the row at `row` can play (present and on disk).
         /// Exposed to QML as `isPlayableAt`.
         #[qinvokable]
@@ -1214,6 +1234,56 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "isWatching"]
         fn is_watching(self: &LibraryManager) -> bool;
+
+        /// Last Your Library tab. Exposed as `libraryTab`.
+        #[qinvokable]
+        #[cxx_name = "libraryTab"]
+        fn library_tab(self: &LibraryManager) -> QString;
+
+        /// Persist the last Your Library tab. Exposed as `setLibraryTab`.
+        #[qinvokable]
+        #[cxx_name = "setLibraryTab"]
+        fn set_library_tab(self: Pin<&mut LibraryManager>, tab: &QString);
+
+        /// Last songs-tab sort key. Exposed as `songsSort`.
+        #[qinvokable]
+        #[cxx_name = "songsSort"]
+        fn songs_sort(self: &LibraryManager) -> QString;
+
+        /// Persist the songs-tab sort key. Exposed as `setSongsSort`.
+        #[qinvokable]
+        #[cxx_name = "setSongsSort"]
+        fn set_songs_sort(self: Pin<&mut LibraryManager>, key: &QString);
+
+        /// Last albums-tab sort key. Exposed as `albumsSort`.
+        #[qinvokable]
+        #[cxx_name = "albumsSort"]
+        fn albums_sort(self: &LibraryManager) -> QString;
+
+        /// Persist the albums-tab sort key. Exposed as `setAlbumsSort`.
+        #[qinvokable]
+        #[cxx_name = "setAlbumsSort"]
+        fn set_albums_sort(self: Pin<&mut LibraryManager>, key: &QString);
+
+        /// Last artists-tab sort key. Exposed as `artistsSort`.
+        #[qinvokable]
+        #[cxx_name = "artistsSort"]
+        fn artists_sort(self: &LibraryManager) -> QString;
+
+        /// Persist the artists-tab sort key. Exposed as `setArtistsSort`.
+        #[qinvokable]
+        #[cxx_name = "setArtistsSort"]
+        fn set_artists_sort(self: Pin<&mut LibraryManager>, key: &QString);
+
+        /// Open the parent directory of an indexed track. Exposed as `revealTrack`.
+        #[qinvokable]
+        #[cxx_name = "revealTrack"]
+        fn reveal_track(self: Pin<&mut LibraryManager>, track_id: i32);
+
+        /// Delete one index row. Exposed as `removeTrack`.
+        #[qinvokable]
+        #[cxx_name = "removeTrack"]
+        fn remove_track(self: Pin<&mut LibraryManager>, track_id: i32);
     }
 
     extern "RustQt" {
@@ -1276,5 +1346,41 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "hideOnClose"]
         fn hide_on_close(self: &TrayController) -> bool;
+
+        /// Restored window width. Exposed as `windowWidth`.
+        #[qinvokable]
+        #[cxx_name = "windowWidth"]
+        fn window_width(self: &TrayController) -> i32;
+
+        /// Restored window height. Exposed as `windowHeight`.
+        #[qinvokable]
+        #[cxx_name = "windowHeight"]
+        fn window_height(self: &TrayController) -> i32;
+
+        /// Whether a previous session saved x/y. Exposed as `hasWindowPosition`.
+        #[qinvokable]
+        #[cxx_name = "hasWindowPosition"]
+        fn has_window_position(self: &TrayController) -> bool;
+
+        /// Last saved window x. Exposed as `windowX`.
+        #[qinvokable]
+        #[cxx_name = "windowX"]
+        fn window_x(self: &TrayController) -> i32;
+
+        /// Last saved window y. Exposed as `windowY`.
+        #[qinvokable]
+        #[cxx_name = "windowY"]
+        fn window_y(self: &TrayController) -> i32;
+
+        /// Persist window geometry. Exposed as `setWindowGeometry`.
+        #[qinvokable]
+        #[cxx_name = "setWindowGeometry"]
+        fn set_window_geometry(
+            self: Pin<&mut TrayController>,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+        );
     }
 }

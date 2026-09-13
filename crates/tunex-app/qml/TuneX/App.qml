@@ -16,6 +16,7 @@ Window {
     property string section: "home"
     property bool playerActive: false
     property bool nowPlayingOpen: false
+    property bool sessionReady: false
     readonly property bool canGoBack: historyAt > 0
     readonly property bool canGoForward: historyAt < history.length - 1
     readonly property bool wideShell: root.width >= Theme.shellWide
@@ -119,10 +120,28 @@ Window {
         if (trayPopup.visible)
             trayPopup.sync();
         library.poll();
+        homeView.syncStatus();
         if (library.takeFinished()) {
             homeView.refresh();
             libraryView.refresh();
         }
+    }
+
+    function restoreSession() {
+        root.width = Math.max(Theme.windowMinWidth, tray.windowWidth());
+        root.height = Math.max(Theme.windowMinHeight, tray.windowHeight());
+        if (tray.hasWindowPosition()) {
+            root.x = tray.windowX();
+            root.y = tray.windowY();
+        }
+        libraryView.applyRestoredPrefs();
+        root.sessionReady = true;
+    }
+
+    function persistGeometry() {
+        if (!root.sessionReady)
+            return;
+        tray.setWindowGeometry(root.x, root.y, root.width, root.height);
     }
 
     minimumWidth: Theme.windowMinWidth
@@ -175,12 +194,18 @@ Window {
     Component.onCompleted: {
         library.startup();
         playlistModel.refresh();
+        root.restoreSession();
     }
     onWidthChanged: {
         if (root.wideShell && queueDrawer.opened)
             queueDrawer.close();
+        geometrySave.restart();
     }
+    onHeightChanged: geometrySave.restart()
+    onXChanged: geometrySave.restart()
+    onYChanged: geometrySave.restart()
     onClosing: close => {
+        root.persistGeometry();
         if (tray.hideOnClose()) {
             close.accepted = false;
             root.visible = false;
@@ -288,6 +313,13 @@ Window {
 
     TrayController {
         id: tray
+    }
+
+    Timer {
+        id: geometrySave
+
+        interval: 400
+        onTriggered: root.persistGeometry()
     }
 
     Timer {
@@ -741,6 +773,7 @@ Window {
                                 query: searchField.text
                                 queue: queueModel
                                 playlists: playlistModel
+                                library: library
                                 onFocusFieldRequested: searchField.forceActiveFocus()
                                 onClearRequested: {
                                     searchField.text = "";

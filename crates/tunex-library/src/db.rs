@@ -1015,6 +1015,20 @@ pub fn set_missing(db: &Connection, id: i64, missing: bool) -> Result<()> {
     Ok(())
 }
 
+/// Delete one indexed track by row id. Playlist links keep the id and
+/// resolve as dangling (D-009). FTS rows cascade through `tracks_ad`.
+/// Returns whether a row was removed.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the delete fails.
+pub fn delete_track(db: &Connection, id: i64) -> Result<bool> {
+    let removed = db
+        .execute("DELETE FROM tracks WHERE id = ?1", [id])
+        .map_err(|err| db_error(&err))?;
+    Ok(removed > 0)
+}
+
 /// Remove a library root and garbage-collect its track rows (SPEC retention:
 /// remove root → stop watch + GC orphans). Referencing playlists and history
 /// keep dangling ids — rows are deleted, never rewritten. Returns the number
@@ -1387,6 +1401,31 @@ mod tests {
         returned.stable_key = "k3".to_owned();
         upsert_track(&mut db, &returned).expect("re-upsert works");
         assert!(!list_tracks(&db).expect("list works")[0].missing);
+    }
+
+    #[test]
+    fn delete_track_drops_the_index_row_and_search_hit() {
+        let mut db = open_memory().expect("in-memory opens");
+        let mut track = new_track("/music/gone.flac");
+        track.title = Some("Gone".to_owned());
+        upsert_track(&mut db, &track).expect("upsert works");
+        let id = list_tracks(&db).expect("list works")[0].id;
+        assert_eq!(
+            search_track_ids(&db, "gone").expect("search works").len(),
+            1
+        );
+        assert!(delete_track(&db, id).expect("delete works"));
+        assert!(list_tracks(&db).expect("list works").is_empty());
+        assert!(
+            search_track_ids(&db, "gone")
+                .expect("search after delete")
+                .is_empty(),
+            "FTS cascade must drop the hit"
+        );
+        assert!(
+            !delete_track(&db, id).expect("second delete is a no-op"),
+            "missing ids return false"
+        );
     }
 
     #[test]

@@ -60,6 +60,15 @@ impl ArtistListModelRust {
         i32::try_from(self.artists.len()).unwrap_or(i32::MAX)
     }
 
+    /// Display name at `row` (empty when out of range).
+    fn name_at(&self, row: i32) -> QString {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.artists.get(index))
+            .map(|entry| entry.0.clone())
+            .unwrap_or_default()
+    }
+
     /// Data for one row/role; invalid variant when out of range or the role
     /// is unknown.
     fn row_data(&self, row: usize, role: qobject::ArtistRoles) -> QVariant {
@@ -170,6 +179,11 @@ impl qobject::ArtistListModel {
     /// Current artists-tab sort key. Exposed as `sortKey`.
     pub fn sort_key(&self) -> QString {
         QString::from(self.rust().sort.as_key())
+    }
+
+    /// Display name at `row` (empty when out of range).
+    pub fn name_at(&self, row: i32) -> QString {
+        self.rust().name_at(row)
     }
 
     /// Drop all rows; emits model reset so views rebuild.

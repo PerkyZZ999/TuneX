@@ -22,6 +22,7 @@ Item {
     property string songsSort: "title"
     property string albumsSort: "title"
     property string artistsSort: "name"
+    property string typePrefix: ""
     readonly property bool albumDrilled: root.albumId >= 0
     readonly property bool folderDrilled: root.folderPath !== ""
     readonly property bool drilled: root.albumDrilled || root.folderDrilled
@@ -31,8 +32,8 @@ Item {
     readonly property int gridCell: Math.max(Theme.gridMin, Math.floor(content.width / Math.max(1, Math.floor(content.width / Theme.gridTarget))))
 
     signal settingsRequested(bool pickFolder)
-    // An artist card was activated: V1 has no artist detail view, so the
-    // shell plays that artist's tracks.
+    // An artist card was activated: V1 plays that artist until S9 opens
+    // an artist detail view.
     signal artistRequested(string name)
 
     // Display name for one tab key (the tab strip models keys, not labels).
@@ -51,16 +52,59 @@ Item {
     function sortSongs(key) {
         root.songsSort = key;
         songs.setSort(key);
+        root.library.setSongsSort(key);
     }
 
     function sortAlbums(key) {
         root.albumsSort = key;
         albums.setSort(key);
+        root.library.setAlbumsSort(key);
     }
 
     function sortArtists(key) {
         root.artistsSort = key;
         artists.setSort(key);
+        root.library.setArtistsSort(key);
+    }
+
+    function applyRestoredPrefs() {
+        const tab = root.library.libraryTab();
+        if (tab === "albums" || tab === "artists" || tab === "folders" || tab === "songs")
+            root.tab = tab;
+
+        const songsKey = root.library.songsSort();
+        if (songsKey !== "")
+            root.sortSongs(songsKey);
+
+        const albumsKey = root.library.albumsSort();
+        if (albumsKey !== "")
+            root.sortAlbums(albumsKey);
+
+        const artistsKey = root.library.artistsSort();
+        if (artistsKey !== "")
+            root.sortArtists(artistsKey);
+    }
+
+    function moveList(view, delta) {
+        if (view.count <= 0)
+            return;
+
+        const at = view.currentIndex < 0 ? 0 : view.currentIndex + delta;
+        view.currentIndex = Math.max(0, Math.min(view.count - 1, at));
+        view.positionViewAtIndex(view.currentIndex, ListView.Contain);
+    }
+
+    function typeToSelect(text) {
+        root.typePrefix += text.toLowerCase();
+        typeReset.restart();
+        const n = songsView.count;
+        for (let i = 0; i < n; i++) {
+            if (songs.titleAt(i).toLowerCase().startsWith(root.typePrefix)) {
+                songsView.currentIndex = i;
+                songsView.positionViewAtIndex(i, ListView.Contain);
+                return;
+            }
+        }
     }
 
     function openSongMenu(at) {
@@ -122,6 +166,9 @@ Item {
 
         if (root.tab !== "folders" && root.folderDrilled)
             root.leaveFolderDrillKeepTab();
+
+        if (root.tab === "songs" || root.tab === "albums" || root.tab === "artists" || root.tab === "folders")
+            root.library.setLibraryTab(root.tab);
     }
     anchors.fill: parent
     Component.onCompleted: {
@@ -165,6 +212,15 @@ Item {
 
         queue: root.queue
         playlists: root.playlists
+        library: root.library
+        onIndexChanged: root.refresh()
+    }
+
+    Timer {
+        id: typeReset
+
+        interval: 400
+        onTriggered: root.typePrefix = ""
     }
 
     Column {
@@ -457,6 +513,21 @@ Item {
                 if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
                     root.openSongMenu(songsView.currentIndex >= 0 ? songsView.currentIndex : 0);
                     event.accepted = true;
+                    return;
+                }
+                if (event.key === Qt.Key_J && root.typePrefix === "") {
+                    root.moveList(songsView, 1);
+                    event.accepted = true;
+                    return;
+                }
+                if (event.key === Qt.Key_K && root.typePrefix === "") {
+                    root.moveList(songsView, -1);
+                    event.accepted = true;
+                    return;
+                }
+                if (event.text.length === 1 && event.text >= " " && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+                    root.typeToSelect(event.text);
+                    event.accepted = true;
                 }
             }
 
@@ -527,6 +598,25 @@ Item {
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             Accessible.role: Accessible.List
             Accessible.name: qsTr("Albums")
+            Keys.onReturnPressed: {
+                const at = albumsView.currentIndex >= 0 ? albumsView.currentIndex : 0;
+                if (at < albumsView.count)
+                    root.drillIntoAlbum(albums.albumIdAt(at), albums.titleAt(at));
+            }
+            Keys.onEnterPressed: {
+                const at = albumsView.currentIndex >= 0 ? albumsView.currentIndex : 0;
+                if (at < albumsView.count)
+                    root.drillIntoAlbum(albums.albumIdAt(at), albums.titleAt(at));
+            }
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_J) {
+                    root.moveList(albumsView, 1);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_K) {
+                    root.moveList(albumsView, -1);
+                    event.accepted = true;
+                }
+            }
 
             highlight: Rectangle {
                 color: "transparent"
@@ -572,6 +662,25 @@ Item {
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             Accessible.role: Accessible.List
             Accessible.name: qsTr("Artists")
+            Keys.onReturnPressed: {
+                const at = artistsView.currentIndex >= 0 ? artistsView.currentIndex : 0;
+                if (at < artistsView.count)
+                    root.artistRequested(artists.nameAt(at));
+            }
+            Keys.onEnterPressed: {
+                const at = artistsView.currentIndex >= 0 ? artistsView.currentIndex : 0;
+                if (at < artistsView.count)
+                    root.artistRequested(artists.nameAt(at));
+            }
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_J) {
+                    root.moveList(artistsView, 1);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_K) {
+                    root.moveList(artistsView, -1);
+                    event.accepted = true;
+                }
+            }
 
             highlight: Rectangle {
                 color: "transparent"
@@ -610,6 +719,15 @@ Item {
                 const at = foldersView.currentIndex >= 0 ? foldersView.currentIndex : 0;
                 if (at < foldersView.count)
                     root.drillIntoFolder(folders.pathAt(at), folders.nameAt(at));
+            }
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_J) {
+                    root.moveList(foldersView, 1);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_K) {
+                    root.moveList(foldersView, -1);
+                    event.accepted = true;
+                }
             }
 
             highlight: Rectangle {

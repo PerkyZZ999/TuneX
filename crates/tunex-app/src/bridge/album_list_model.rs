@@ -89,6 +89,22 @@ impl AlbumListModelRust {
         i32::try_from(self.albums.len()).unwrap_or(i32::MAX)
     }
 
+    /// Database album id at `row` (-1 when out of range).
+    fn album_id_at(&self, row: i32) -> i32 {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.albums.get(index))
+            .map_or(-1, |album| album.album_id)
+    }
+
+    /// Title at `row` (empty when out of range).
+    fn title_at(&self, row: i32) -> QString {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.albums.get(index))
+            .map_or_else(QString::default, |album| album.title.clone())
+    }
+
     /// Data for one row/role; invalid variant when out of range or the role
     /// is unknown.
     fn row_data(&self, row: usize, role: qobject::AlbumRoles) -> QVariant {
@@ -261,6 +277,16 @@ impl qobject::AlbumListModel {
     /// Current albums-tab sort key. Exposed as `sortKey`.
     pub fn sort_key(&self) -> QString {
         QString::from(self.rust().sort.as_key())
+    }
+
+    /// Database album id at `row` (-1 when out of range).
+    pub fn album_id_at(&self, row: i32) -> i32 {
+        self.rust().album_id_at(row)
+    }
+
+    /// Title at `row` (empty when out of range).
+    pub fn title_at(&self, row: i32) -> QString {
+        self.rust().title_at(row)
     }
 
     /// Drop all rows; emits model reset so views rebuild.

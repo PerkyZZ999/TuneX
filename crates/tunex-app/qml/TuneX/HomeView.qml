@@ -11,6 +11,7 @@ Item {
     required property LibraryManager library
     property string chipKey: "all"
     property bool canContinue: false
+    property bool scanning: false
     // The rail counts even while hidden; a delegate-less counter view would
     // not (QQmlDelegateModel reports 0 rows without a delegate).
     readonly property bool libraryEmpty: albumRail.count === 0
@@ -32,9 +33,13 @@ Item {
     signal playlistOpened(int playlistId, string name)
 
     function greetingStatus() {
-        if (root.library.isScanning())
+        if (root.scanning)
             return root.library.statusText();
         return "";
+    }
+
+    function syncStatus() {
+        root.scanning = root.library.isScanning();
     }
 
     function playSomething() {
@@ -55,6 +60,7 @@ Item {
     }
 
     function refresh() {
+        root.syncStatus();
         albums.refresh();
         songs.refresh();
         playlists.refresh();
@@ -120,6 +126,7 @@ Item {
                 width: parent.width
                 libraryEmpty: root.libraryEmpty
                 canContinue: root.canContinue
+                scanning: root.scanning
                 statusLine: root.greetingStatus()
                 onPlayRequested: root.playSomething()
                 onAddFolderRequested: root.settingsRequested(true)

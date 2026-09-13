@@ -488,3 +488,11 @@
 - **Evidence:** One-step density tighten without dropping the 12px caption floor or 44px hit targets. Type: display 28 / headline 18 / title 14 / body 13 / captions 12. Chrome: rail 216, panel 288, mini-player 64, top bar 48, track rows 48, hero 280, Now Playing art 280, play disc 52, card meta 56. Spacing `lg`/`xl`/`xxl` stepped down on the 4px grid. Hardcoded 56/64/76/320 sizes in QML now bind Theme tokens (`trackRowHeight`, `cardMetaHeight`, `miniPlayerHeight`, `heroHeight`, `gridMin`/`gridTarget`). Traceability: R-018 → S7 → W-047 → this entry.
 - **Waiver:** none
 - **Follow-up:** Rebuild the pacman package so the daily-driver install matches; owner tests density on the real library.
+
+### 2026-09-13 — S8 W-048–W-051 session memory and player UX
+- **Slice:** S8
+- **Result:** pass (code + unit tests)
+- **Evidence:** Additive TOML `[window]` geometry (width/height/x/y, clamp min 960×640) and `[view]` last library tab + sort chips restore on startup; geometry writes debounce 400 ms. MiniPlayer and QueuePanel `ProgressSlider` call `QueueModel.seekMs` and ignore poll while dragged. Keyboard: arrows (native), j/k, Enter play/open, Songs type-to-select (prefix, 400 ms reset). Settings → Shortcuts lists the real map (not L-007 rebind). Missing-file “Show in folder” is a Rust `xdg-open` of the parent; “Remove from library” deletes the index row (playlists dangle). First-run hero stays disabled “Scanning…” until the first album exists. Overlay 200 ms already goes through `Appearance.duration()`. HiDPI/compact token tweaks not needed. Tests: window geometry persist/clamp, view prefs, `delete_track` + FTS cascade, `titleAt`, `remove_track`. `scripts/qml-lint.sh` 38/38 ✓. Traceability: R-014 + R-015 → S8 → W-048–W-051 → this entry.
+- **Waiver:** none
+- **Follow-up:** S9 album/artist landing pages. AUR publish stays a human confirmation.
+

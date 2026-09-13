@@ -62,7 +62,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 1. Large artwork (crossfading). 2. Title/artist (+ favorite). 3. Progress + times. 4. Transport + shuffle/repeat + volume. Nothing else — this view is the music, full-bleed.
 
 ### SettingsView
-1. Library (music folders add/remove/rescan, watcher status). 2. Playback (gapless note, volume, shuffle/repeat, close-to-tray). 3. Appearance (dark locked V1, accent, blur, motion). 4. Shortcuts (reference list).
+1. Library (music folders add/remove/rescan, watcher status). 2. Playback (gapless note, volume, shuffle/repeat, close-to-tray). 3. Appearance (dark locked V1, accent, blur, motion). 4. Shortcuts (complete reference list of real bindings; not a rebind UI).
 
 ## User Flows
 

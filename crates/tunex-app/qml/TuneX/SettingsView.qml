@@ -25,8 +25,8 @@ Item {
     property bool reduceMotionOn: false
     property bool reduceTransparencyOn: false
     readonly property list<string> sections: ["library", "playback", "appearance", "shortcuts"]
-    readonly property list<string> shortcutKeys: [qsTr("Space"), qsTr("Media keys"), qsTr("/ or Ctrl+K"), qsTr("Esc"), qsTr("Alt+Left / Alt+Right")]
-    readonly property list<string> shortcutActions: [qsTr("Play / pause"), qsTr("Play, next, previous, volume"), qsTr("Search"), qsTr("Close Now Playing, then search, then back"), qsTr("Back / forward")]
+    readonly property list<string> shortcutKeys: [qsTr("Space"), qsTr("Media Play / Pause / Next / Previous"), qsTr("Volume Up / Down / Mute"), qsTr("/ or Ctrl+K"), qsTr("Esc"), qsTr("Alt+Left / Alt+Right"), qsTr("↑ ↓ ← →"), qsTr("j / k"), qsTr("Enter"), qsTr("Type in Songs")]
+    readonly property list<string> shortcutActions: [qsTr("Play / pause"), qsTr("Play, next, previous"), qsTr("Volume and mute"), qsTr("Search"), qsTr("Close Now Playing, then search, then back"), qsTr("Back / forward"), qsTr("Move list and grid cursor"), qsTr("Move list and grid cursor"), qsTr("Play the current song, or open the current album"), qsTr("Jump to the first title with that prefix (400 ms reset)")]
     readonly property string repeatLabel: {
         if (root.repeatModeValue === 1)
             return qsTr("All tracks");

@@ -14,6 +14,7 @@ Item {
 
     required property QueueModel queue
     required property PlaylistModel playlists
+    required property LibraryManager library
     // Raw query text, bound from the shell search field.
     property string query: ""
     property string tab: "songs"
@@ -136,6 +137,8 @@ Item {
 
         queue: root.queue
         playlists: root.playlists
+        library: root.library
+        onIndexChanged: root.submitAll()
     }
 
     Timer {

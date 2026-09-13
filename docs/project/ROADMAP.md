@@ -40,7 +40,13 @@
 - **Acceptance:** StatusNotifierItem tray with compact now-playing controls; Settings list-detail (library paths, playback, appearance, shortcuts, close-to-tray) matches DESIGN.md; scanned-folder add/remove only in Settings; type scale and chrome one step denser via tokens; window-close honors close-to-tray when a tray host is present.
 - **Requirements:** R-002 (Settings surface), R-015, R-018 (type scale)
 - **Validation:** `cargo test` config/tray persist + hide-on-close; `scripts/qml-lint.sh`; `design.md lint`; CMake when Qt floor allows
-- **Status:** in progress (W-046, W-047, 2026-09-13)
+- **Status:** done (W-046, W-047, 2026-09-13)
+
+## Slice S8 — Session memory and player UX (post-V1)
+- **Acceptance:** Window geometry and library tab/sort persist; MiniPlayer and Up Next scrub; list/grid keyboard (arrows, j/k, Enter, Songs type-to-select); Settings → Shortcuts is a complete map; missing-file reveal/remove; first-run hero waits for the first album.
+- **Requirements:** R-014, R-015
+- **Validation:** `cargo test` config/geometry/view prefs + delete_track; `scripts/qml-lint.sh`
+- **Status:** done (W-048–W-051, 2026-09-13)
 
 ## Traceability (req → slices)
-- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2, R-008→S3, R-009→S1, R-010→S1+S3, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4, R-015→S2+S4+S7, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7.
+- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2, R-008→S3, R-009→S1, R-010→S1+S3, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7.

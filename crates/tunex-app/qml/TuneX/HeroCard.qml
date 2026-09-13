@@ -13,6 +13,7 @@ Item {
 
     property bool libraryEmpty: true
     property bool canContinue: false
+    property bool scanning: false
     property string statusLine: ""
     readonly property string greeting: {
         const hour = new Date().getHours();
@@ -24,7 +25,11 @@ Item {
 
         return qsTr("Good evening");
     }
+    readonly property bool waitingForLibrary: root.libraryEmpty && root.scanning
     readonly property string actionLabel: {
+        if (root.waitingForLibrary)
+            return qsTr("Scanning…");
+
         if (root.libraryEmpty)
             return qsTr("Add music folder");
 
@@ -197,8 +202,9 @@ Item {
                 spacing: Theme.spaceSm
 
                 PrimaryButton {
-                    glyph: root.libraryEmpty ? "folder" : "play"
+                    glyph: root.waitingForLibrary ? "" : (root.libraryEmpty ? "folder" : "play")
                     text: root.actionLabel
+                    enabled: !root.waitingForLibrary
                     Accessible.name: root.actionLabel
                     onClicked: {
                         if (root.libraryEmpty)
