@@ -150,13 +150,13 @@ Rectangle {
         }
 
         GlassMenuItem {
-            text: qsTr("Move up")
-            onTriggered: root.queue.moveItem(rowMenu.rowIndex, rowMenu.rowIndex - 1)
+            text: qsTr("Play next")
+            onTriggered: root.queue.playNextAt(rowMenu.rowIndex)
         }
 
         GlassMenuItem {
-            text: qsTr("Move down")
-            onTriggered: root.queue.moveItem(rowMenu.rowIndex, rowMenu.rowIndex + 1)
+            text: qsTr("Move to end")
+            onTriggered: root.queue.moveToEnd(rowMenu.rowIndex)
         }
 
         GlassMenuItem {
@@ -551,6 +551,9 @@ Rectangle {
                     artist: model.artist
                     durationMs: model.durationMs
                     isCurrent: model.isCurrent
+                    isPlaying: model.isCurrent && root.transportState === 2
+                    missing: model.missing
+                    reorderable: true
                     onPlayRequested: (trackId, rowIndex) => {
                         queueList.currentIndex = rowIndex;
                         queueList.forceActiveFocus();
@@ -560,6 +563,10 @@ Rectangle {
                         queueList.currentIndex = rowIndex;
                         rowMenu.rowIndex = rowIndex;
                         rowMenu.popup();
+                    }
+                    onReorderRequested: (from, to) => {
+                        queueList.currentIndex = to;
+                        root.queue.moveItem(from, to);
                     }
                 }
             }

@@ -190,6 +190,48 @@ impl PlaybackController {
         Ok(())
     }
 
+    /// Restore a full queue paused at `cursor`/`position`. Missing files stay
+    /// in the list as dangling rows and never auto-play.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Player`] when the current file exists but cannot load.
+    pub fn restore_queue(
+        &mut self,
+        items: Vec<QueueItem>,
+        cursor: usize,
+        position: Duration,
+    ) -> Result<()> {
+        {
+            let mut queue = lock_queue(&self.queue);
+            queue.clear();
+            for item in items {
+                queue.push_back(item);
+            }
+            if !queue.is_empty() {
+                let at = cursor.min(queue.len().saturating_sub(1));
+                queue.jump(at);
+            }
+        }
+        let Some(current) = self.current_item() else {
+            return Ok(());
+        };
+        if local_path_missing(&current.uri) {
+            return Ok(());
+        }
+        self.engine.load_uri(&current.uri)?;
+        self.engine.pause()?;
+        if position.is_zero() {
+            self.pending_restore = None;
+        } else {
+            self.pending_restore = Some(position);
+            self.restore_started = Some(Instant::now());
+            self.last_restore_seek = None;
+            let _ = self.engine.seek(position);
+        }
+        Ok(())
+    }
+
     /// Play the entry at `index` now (Up Next direct play). Out-of-range
     /// indices are ignored; missing files error explicitly without moving
     /// the cursor.
@@ -216,6 +258,17 @@ impl PlaybackController {
     /// Move an entry, keeping the cursor on the same track.
     pub fn move_item(&mut self, from: usize, to: usize) {
         lock_queue(&self.queue).move_item(from, to);
+    }
+
+    /// Move an already-queued entry so it plays next.
+    pub fn play_next_at(&mut self, index: usize) {
+        lock_queue(&self.queue).play_next_at(index);
+    }
+
+    /// Snapshot of every queued item in order.
+    #[must_use]
+    pub fn queue_items(&self) -> Vec<QueueItem> {
+        lock_queue(&self.queue).items()
     }
 
     /// Empty the queue (the loaded track keeps playing; the next advance

@@ -637,6 +637,8 @@ pub mod qobject {
         IsCurrent,
         /// Library row id (-1 for ad-hoc entries).
         TrackId,
+        /// File is missing from disk (kept as a dangling Up Next row).
+        Missing,
     }
 
     extern "RustQt" {
@@ -753,6 +755,16 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "moveItem"]
         fn move_item(self: Pin<&mut QueueModel>, from: i32, to: i32);
+
+        /// Move an already-queued entry so it plays next. Exposed as `playNextAt`.
+        #[qinvokable]
+        #[cxx_name = "playNextAt"]
+        fn play_next_at(self: Pin<&mut QueueModel>, index: i32);
+
+        /// Move an entry to the end of Up Next. Exposed as `moveToEnd`.
+        #[qinvokable]
+        #[cxx_name = "moveToEnd"]
+        fn move_to_end(self: Pin<&mut QueueModel>, index: i32);
 
         /// Empty the queue (the loaded track keeps playing).
         /// Exposed to QML as `clearQueue`.

@@ -54,5 +54,11 @@
 - **Validation:** `cargo test` album/artist/facet queries + recent searches; `scripts/qml-lint.sh`
 - **Status:** done (W-052–W-055, 2026-09-13)
 
+## Slice S10 — Queue as an instrument (post-V1)
+- **Acceptance:** Drag-reorder Up Next onto `moveItem`; queue-row menu Play next / Move to end / Remove; playing-row equalizer tick (static when reduce-motion); ordered URIs + cursor persist in SQLite and restore paused without auto-play; missing files stay dangling.
+- **Requirements:** R-010 (promoted L-012 + L-003 named UX)
+- **Validation:** `cargo test` queue persist/restore + play_next_at; `scripts/qml-lint.sh`
+- **Status:** done (W-056–W-057, 2026-09-13)
+
 ## Traceability (req → slices)
-- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9.
+- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9.

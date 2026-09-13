@@ -24,13 +24,14 @@ pub use artwork::{
 };
 
 pub use db::{
-    AlbumRow, AlbumSort, ArtistRow, ArtistSort, FacetRow, FolderRow, NewTrack, TrackIdentity,
-    TrackRow, TrackSort, UNKNOWN_FACET, add_root, album_by_id, album_duration_ms, artist_by_name,
-    delete_track, list_albums, list_albums_for_artist, list_artists, list_composers, list_genres,
-    list_track_folders, list_tracks, list_tracks_capped, list_tracks_for_artist,
-    list_tracks_for_composer, list_tracks_for_genre, list_tracks_in_album, list_tracks_in_folder,
-    open_file, open_memory, remove_library_root, rename_track, schema_version, search_track_ids,
-    set_missing, track_by_id, track_by_path, track_identities, upsert_track,
+    AlbumRow, AlbumSort, ArtistRow, ArtistSort, FacetRow, FolderRow, NewTrack, SavedQueue,
+    SavedQueueItem, TrackIdentity, TrackRow, TrackSort, UNKNOWN_FACET, add_root, album_by_id,
+    album_duration_ms, artist_by_name, delete_track, list_albums, list_albums_for_artist,
+    list_artists, list_composers, list_genres, list_track_folders, list_tracks, list_tracks_capped,
+    list_tracks_for_artist, list_tracks_for_composer, list_tracks_for_genre, list_tracks_in_album,
+    list_tracks_in_folder, load_playback_queue, open_file, open_memory, remove_library_root,
+    rename_track, save_playback_queue, schema_version, search_track_ids, set_missing, track_by_id,
+    track_by_path, track_identities, upsert_track,
 };
 pub use metadata::{EmbeddedArtwork, FileMetadata, read_metadata};
 pub use playlist::{

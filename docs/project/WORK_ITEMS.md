@@ -1,11 +1,15 @@
-# Work items (current slice: S9 — Browse depth)
+# Work items (current slice: S10 — Queue as an instrument)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057).
 
 ## Current slice
-S9 — Album and artist landing pages, genre/composer browse, search recents + Tab groups. **Done 2026-09-13** (W-052–W-055). Does not reopen S8. Sleep timer and stop-after-album stay out.
+S10 — Queue drag-reorder, play-next clarity, playing equalizer, queue-across-restart. **Done 2026-09-13** (W-056–W-057). Does not reopen S9.
 
-**Done condition:** Album/artist cards open landing pages (Play is the header primary); Genres and Composers list Unknown-grouped facets then songs; Search remembers the last 10 queries and Tab cycles result groups.
+**Done condition:** Up Next rows drag-reorder onto `moveItem`; menu is Play next / Move to end / Remove; playing row shows an equalizer tick (static under reduce-motion); restart restores the ordered queue paused.
+
+## Queue (S10)
+- [x] W-056 — Drag-reorder rows onto `moveItem` (same model diff path as insert/remove); queue-row menu Play next / Move to end / Remove; playing-row equalizer tick, static bars when `reduce_motion` (R-010, L-003 named UX).
+- [x] W-057 — Persist ordered URIs + cursor in SQLite (`playback_queue` schema v6); restore paused like last-track; missing files stay dangling; no auto-play (R-010, promoted L-012).
 
 ## Queue (S9)
 - [x] W-052 — Album landing page: large art header, one primary Play, meta, virtualized tracks, more-by-this-artist row; history stack grid → detail → back (R-007, R-019).

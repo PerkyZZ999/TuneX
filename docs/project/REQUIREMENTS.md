@@ -82,11 +82,13 @@
 - **Validation method:** manual + test
 
 ### R-010 — Queue + modes
-- **Description:** Independent queue: add/remove/reorder/clear/play-next/play-now/shuffle/repeat; gapless via about-to-finish; survives navigation (not restart in V1).
+- **Description:** Independent queue: add/remove/reorder (including drag)/clear/play-next/play-now/shuffle/repeat; gapless via about-to-finish; survives navigation and restart (paused restore, missing files stay as dangling rows, no auto-play).
 - **Priority:** must
 - **Acceptance:**
   - [x] Queue ops reflect instantly; gapless transition has no audible gap on album fixture
-- **Validation method:** manual
+  - [x] Drag-reorder and Play next / Move to end / Remove on Up Next rows (W-056)
+  - [x] Queue ordered URIs + cursor persist in SQLite and restore paused (W-057, promoted L-012)
+- **Validation method:** manual + test
 
 ### R-011 — Volume / mute / position
 - **Description:** Volume/mute via pipeline; best-effort last-track+position restore.
@@ -155,7 +157,7 @@
 - **R-NFR-06 Perf (aspirational, M6 only):** 1.5s cold 50k, search p95 <50ms, 60fps scroll, <50ms controls, >500 files/min. Desired, not V1-blocking.
 
 ## Later (out of V1)
-- L-001 ReplayGain, L-002 crossfade, L-003 advanced queue, L-004 smart playlists, L-005 metadata editing, L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm, L-012 queue-across-restart, L-013 output-device picker.
+- L-001 ReplayGain, L-002 crossfade, L-003 advanced queue (beyond named Play next / drag), L-004 smart playlists, L-005 metadata editing, L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm, L-013 output-device picker.
 
 ## Non-goals
 - Streaming/accounts/cloud, social, podcasts, video, mobile, DAW/editor, store, AI, advanced DSP — per BRIEF.

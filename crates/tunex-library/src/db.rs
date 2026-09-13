@@ -12,8 +12,8 @@ use rusqlite::{Connection, Row};
 use rusqlite_migration::{M, Migrations};
 use tunex_core::{Error, Result};
 
-/// Current schema version (v5: covering indexes for the grouped joins).
-pub const SCHEMA_VERSION: usize = 5;
+/// Current schema version (v6: persisted Up Next snapshot).
+pub const SCHEMA_VERSION: usize = 6;
 
 /// v1 DDL, frozen: roots + tracks skeleton (landed in S1, never edited).
 const V1_SCHEMA: &str = "CREATE TABLE library_roots(
@@ -135,6 +135,23 @@ const V5_SCHEMA: &str = "
         CREATE INDEX idx_tracks_album_id ON tracks(album_id);
         CREATE INDEX idx_tracks_artist_id ON tracks(artist_id);";
 
+/// v6 DDL: ordered Up Next snapshot so the queue survives restart (L-012).
+const V6_SCHEMA: &str = "
+        CREATE TABLE playback_queue (
+            position INTEGER PRIMARY KEY,
+            uri TEXT NOT NULL,
+            track_id INTEGER,
+            title TEXT NOT NULL,
+            artist TEXT,
+            album TEXT,
+            duration_ms INTEGER
+        );
+        CREATE TABLE playback_queue_meta (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            cursor INTEGER NOT NULL DEFAULT 0,
+            position_ms INTEGER NOT NULL DEFAULT 0
+        );";
+
 /// Versioned migrations, oldest first. Append-only: never edit a landed
 /// migration, always add a new one.
 fn migrations() -> Migrations<'static> {
@@ -144,6 +161,7 @@ fn migrations() -> Migrations<'static> {
         M::up(V3_SCHEMA),
         M::up(V4_SCHEMA),
         M::up(V5_SCHEMA),
+        M::up(V6_SCHEMA),
     ])
 }
 
@@ -1462,6 +1480,131 @@ pub(crate) fn artists_by_names(db: &Connection, names: &[String]) -> Result<Vec<
         .map_err(|err| db_error(&err))
 }
 
+/// One persisted Up Next row (URI plus display fields).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedQueueItem {
+    /// Playback URI (`file://` for local tracks).
+    pub uri: String,
+    /// Library row id when the item came from the index.
+    pub track_id: Option<i64>,
+    /// Display title.
+    pub title: String,
+    /// Display artist, when tagged.
+    pub artist: Option<String>,
+    /// Display album, when tagged.
+    pub album: Option<String>,
+    /// Tagged duration, when known.
+    pub duration_ms: Option<i64>,
+}
+
+/// Saved Up Next: ordered items, cursor, and paused position.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SavedQueue {
+    /// Items in play order.
+    pub items: Vec<SavedQueueItem>,
+    /// Cursor into `items` (0 when empty).
+    pub cursor: usize,
+    /// Paused position of the current item, milliseconds.
+    pub position_ms: u64,
+}
+
+/// Replace the persisted Up Next snapshot.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the write fails.
+pub fn save_playback_queue(
+    db: &mut Connection,
+    items: &[SavedQueueItem],
+    cursor: usize,
+    position_ms: u64,
+) -> Result<()> {
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    transaction
+        .execute("DELETE FROM playback_queue", [])
+        .map_err(|err| db_error(&err))?;
+    {
+        let mut insert = transaction
+            .prepare(
+                "INSERT INTO playback_queue(position, uri, track_id, title, artist, album, duration_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )
+            .map_err(|err| db_error(&err))?;
+        for (position, item) in items.iter().enumerate() {
+            insert
+                .execute(rusqlite::params![
+                    i64::try_from(position).unwrap_or(i64::MAX),
+                    item.uri,
+                    item.track_id,
+                    item.title,
+                    item.artist,
+                    item.album,
+                    item.duration_ms,
+                ])
+                .map_err(|err| db_error(&err))?;
+        }
+    }
+    transaction
+        .execute(
+            "INSERT INTO playback_queue_meta(id, cursor, position_ms) VALUES (1, ?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET cursor = excluded.cursor, position_ms = excluded.position_ms",
+            rusqlite::params![
+                i64::try_from(cursor).unwrap_or(0),
+                i64::try_from(position_ms).unwrap_or(0),
+            ],
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction.commit().map_err(|err| db_error(&err))?;
+    Ok(())
+}
+
+/// Load the persisted Up Next snapshot (empty when never saved).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn load_playback_queue(db: &Connection) -> Result<SavedQueue> {
+    let mut statement = db
+        .prepare(
+            "SELECT uri, track_id, title, artist, album, duration_ms
+             FROM playback_queue ORDER BY position",
+        )
+        .map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(SavedQueueItem {
+                uri: row.get(0)?,
+                track_id: row.get(1)?,
+                title: row.get(2)?,
+                artist: row.get(3)?,
+                album: row.get(4)?,
+                duration_ms: row.get(5)?,
+            })
+        })
+        .map_err(|err| db_error(&err))?;
+    let items = rows
+        .collect::<rusqlite::Result<Vec<SavedQueueItem>>>()
+        .map_err(|err| db_error(&err))?;
+    let meta: rusqlite::Result<(i64, i64)> = db.query_row(
+        "SELECT cursor, position_ms FROM playback_queue_meta WHERE id = 1",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    );
+    let (cursor, position_ms) = match meta {
+        Ok((cursor, position_ms)) => (
+            usize::try_from(cursor).unwrap_or(0),
+            u64::try_from(position_ms).unwrap_or(0),
+        ),
+        Err(rusqlite::Error::QueryReturnedNoRows) => (0, 0),
+        Err(err) => return Err(db_error(&err)),
+    };
+    Ok(SavedQueue {
+        items,
+        cursor,
+        position_ms,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1475,10 +1618,10 @@ mod tests {
     }
 
     #[test]
-    fn fresh_database_reports_schema_v5() {
+    fn fresh_database_reports_schema_v6() {
         let db = open_memory().expect("in-memory opens");
         assert_eq!(schema_version(&db).expect("version reads"), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 5);
+        assert_eq!(SCHEMA_VERSION, 6);
     }
 
     #[test]
@@ -1515,10 +1658,11 @@ mod tests {
             M::up(super::V3_SCHEMA),
             M::up(super::V4_SCHEMA),
             M::up(super::V5_SCHEMA),
+            M::up(super::V6_SCHEMA),
         ])
         .to_latest(&mut db)
-        .expect("v3+v4+v5 migrate");
-        assert_eq!(schema_version(&db).expect("version reads"), 5);
+        .expect("v3+v4+v5+v6 migrate");
+        assert_eq!(schema_version(&db).expect("version reads"), 6);
         let tracks = list_tracks(&db).expect("list works");
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].title.as_deref(), Some("Old"));
@@ -1544,6 +1688,37 @@ mod tests {
             .expect("index list reads");
         assert!(indexes.iter().any(|name| name == "idx_tracks_album_id"));
         assert!(indexes.iter().any(|name| name == "idx_tracks_artist_id"));
+    }
+
+    #[test]
+    fn playback_queue_round_trips() {
+        let mut db = open_memory().expect("in-memory opens");
+        let items = vec![
+            SavedQueueItem {
+                uri: "file:///a.flac".to_owned(),
+                track_id: Some(1),
+                title: "A".to_owned(),
+                artist: Some("Nova".to_owned()),
+                album: Some("Tapes".to_owned()),
+                duration_ms: Some(1200),
+            },
+            SavedQueueItem {
+                uri: "file:///b.flac".to_owned(),
+                track_id: None,
+                title: "B".to_owned(),
+                artist: None,
+                album: None,
+                duration_ms: None,
+            },
+        ];
+        save_playback_queue(&mut db, &items, 1, 1500).expect("save");
+        let loaded = load_playback_queue(&db).expect("load");
+        assert_eq!(loaded.cursor, 1);
+        assert_eq!(loaded.position_ms, 1500);
+        assert_eq!(loaded.items, items);
+        save_playback_queue(&mut db, &[], 0, 0).expect("clear");
+        let empty = load_playback_queue(&db).expect("empty");
+        assert!(empty.items.is_empty());
     }
 
     #[test]

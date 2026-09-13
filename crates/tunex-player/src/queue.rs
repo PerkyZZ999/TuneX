@@ -242,6 +242,28 @@ impl Queue {
         }
     }
 
+    /// Move an entry so it plays next (immediately after the cursor).
+    pub fn play_next_at(&mut self, from: usize) {
+        if from >= self.items.len() {
+            return;
+        }
+        let Some(current) = self.current else {
+            self.move_item(from, 0);
+            return;
+        };
+        if from == current {
+            return;
+        }
+        let dest = if from < current { current } else { current + 1 };
+        self.move_item(from, dest.min(self.items.len().saturating_sub(1)));
+    }
+
+    /// Snapshot of every queued item in order.
+    #[must_use]
+    pub fn items(&self) -> Vec<QueueItem> {
+        self.items.iter().cloned().collect()
+    }
+
     /// Empty the queue and reset cursor, history, and shuffle state.
     pub fn clear(&mut self) {
         self.items.clear();
@@ -584,6 +606,23 @@ mod tests {
         // Order is now [B, A, C]; linear advance continues after B.
         assert_eq!(queue.next(), Advance::Item(1));
         assert_eq!(queue.current().map(|item| item.title.as_str()), Some("A"));
+    }
+
+    #[test]
+    fn play_next_at_lands_after_the_cursor() {
+        let mut queue = three_track_queue();
+        assert_eq!(queue.next(), Advance::Item(0));
+        queue.play_next_at(2);
+        assert_eq!(
+            queue
+                .items()
+                .iter()
+                .map(|item| item.title.as_str())
+                .collect::<Vec<_>>(),
+            ["A", "C", "B"]
+        );
+        assert_eq!(queue.next(), Advance::Item(1));
+        assert_eq!(queue.current().map(|item| item.title.as_str()), Some("C"));
     }
 
     #[test]

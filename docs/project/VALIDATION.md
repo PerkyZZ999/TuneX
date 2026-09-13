@@ -503,3 +503,10 @@
 - **Waiver:** none
 - **Follow-up:** S10 queue as an instrument. AUR publish stays a human confirmation.
 
+### 2026-09-13 — S10 W-056–W-057 queue as an instrument
+- **Slice:** S10
+- **Result:** pass (code + unit tests)
+- **Evidence:** Up Next drag-reorder calls `QueueModel.moveItem` (insert/remove diffs unchanged). Queue-row menu: Play now / Play next / Move to end / Remove. Playing row equalizer tick; `reduce_motion` keeps static bars. Schema v6 `playback_queue` + meta (cursor, position_ms); restore paused, missing files kept as dangling rows, no auto-play. Last-track TOML path remains the empty-queue fallback. Tests: `play_next_at_lands_after_the_cursor`, `playback_queue_round_trips`, `saved_queue_restores_paused_without_autoplay`. `scripts/qml-lint.sh` 40/40 ✓. `rust-tc doctor` ✓ (264 tests). Traceability: R-010 → S10 → W-056–W-057 → this entry.
+- **Waiver:** none
+- **Follow-up:** S11 playback enrichment. AUR publish stays a human confirmation.
+

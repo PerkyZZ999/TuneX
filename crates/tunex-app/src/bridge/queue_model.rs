@@ -47,6 +47,7 @@ impl std::fmt::Debug for qobject::QueueRoles {
             repr if repr == qobject::QueueRoles::DurationMs.repr => "DurationMs",
             repr if repr == qobject::QueueRoles::IsCurrent.repr => "IsCurrent",
             repr if repr == qobject::QueueRoles::TrackId.repr => "TrackId",
+            repr if repr == qobject::QueueRoles::Missing.repr => "Missing",
             _ => "Unknown",
         };
         write!(f, "QueueRoles::{name}")
@@ -54,7 +55,7 @@ impl std::fmt::Debug for qobject::QueueRoles {
 }
 
 /// Queue row: display strings plus duration, now-playing flag, row identity.
-type QueueRow = (QString, QString, QString, i32, bool, i32);
+type QueueRow = (QString, QString, QString, i32, bool, i32, bool);
 
 /// How the row list moved since the view last heard about it.
 ///
@@ -190,7 +191,8 @@ impl QueueModelRust {
     /// Data for one row/role; invalid variant when out of range or the role
     /// is unknown.
     fn row_data(&self, row: usize, role: qobject::QueueRoles) -> QVariant {
-        if let Some((title, artist, album, duration_ms, is_current, track_id)) = self.rows.get(row)
+        if let Some((title, artist, album, duration_ms, is_current, track_id, missing)) =
+            self.rows.get(row)
         {
             return match role {
                 qobject::QueueRoles::Title => QVariant::from(title),
@@ -199,6 +201,7 @@ impl QueueModelRust {
                 qobject::QueueRoles::DurationMs => QVariant::from(duration_ms),
                 qobject::QueueRoles::IsCurrent => QVariant::from(is_current),
                 qobject::QueueRoles::TrackId => QVariant::from(track_id),
+                qobject::QueueRoles::Missing => QVariant::from(missing),
                 _ => QVariant::default(),
             };
         }
@@ -217,7 +220,7 @@ impl QueueModelRust {
                     controller.set_shuffle(config.playback.shuffle);
                     controller.set_repeat(config.playback.repeat_mode);
                     self.controller = Some(controller);
-                    self.restore_last_track(&config);
+                    self.restore_session(&config);
                 }
                 Err(err) => {
                     tracing::warn!(name = "queue.engine_failed", error = %err, "audio unavailable");
@@ -249,12 +252,14 @@ impl QueueModelRust {
                     item.track_id
                         .and_then(|id| i32::try_from(id).ok())
                         .unwrap_or(-1),
+                    queue_uri_missing(&item.uri),
                 ));
             }
         }
         self.rows = rows;
         self.last_len = controller.queue_len();
         self.last_cursor = cursor;
+        self.persist_queue();
     }
 
     /// Drain controller events and refresh rows when the queue shape (length
@@ -309,6 +314,64 @@ impl QueueModelRust {
             }
         }
         self.last_notified_uri = current_uri;
+    }
+
+    /// Restore the SQLite queue when present, otherwise the last-track path.
+    fn restore_session(&mut self, config: &tunex_core::TunexConfig) {
+        if self.restore_saved_queue() {
+            return;
+        }
+        self.restore_last_track(config);
+    }
+
+    /// Restore the ordered queue from the index (paused, never auto-play).
+    fn restore_saved_queue(&mut self) -> bool {
+        if !self.index_path.is_file() {
+            return false;
+        }
+        let Ok(db) = tunex_library::open_file(&self.index_path) else {
+            return false;
+        };
+        let Ok(saved) = tunex_library::load_playback_queue(&db) else {
+            return false;
+        };
+        if saved.items.is_empty() {
+            return false;
+        }
+        let items: Vec<tunex_player::QueueItem> =
+            saved.items.into_iter().map(saved_to_item).collect();
+        let position = Duration::from_millis(saved.position_ms);
+        let Some(controller) = self.controller.as_mut() else {
+            return false;
+        };
+        if let Err(err) = controller.restore_queue(items, saved.cursor, position) {
+            tracing::debug!(
+                name = "queue.restore_skipped",
+                error = %err,
+                "saved queue not restored"
+            );
+            return false;
+        }
+        self.last_notified_uri = self
+            .controller
+            .as_ref()
+            .and_then(PlaybackController::current_item)
+            .map(|item| item.uri);
+        if let Some(item) = self
+            .controller
+            .as_ref()
+            .and_then(PlaybackController::current_item)
+        {
+            item.uri.clone_into(&mut self.saved_uri);
+        }
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "UI position is i32 milliseconds"
+        )]
+        let saved_ms = saved.position_ms.min(i32::MAX as u64) as i32;
+        self.saved_position_ms = saved_ms;
+        self.saved_at = Some(Instant::now());
+        true
     }
 
     /// Best-effort last-track restore: load paused at the saved position when
@@ -497,6 +560,39 @@ impl QueueModelRust {
         if let (Ok(from), Ok(to)) = (usize::try_from(from), usize::try_from(to)) {
             if let Some(controller) = &mut self.controller {
                 controller.move_item(from, to);
+            }
+        }
+        self.sync_rows();
+    }
+
+    /// Move an entry to play next (ignored out of range).
+    fn do_play_next_at(&mut self, index: i32) {
+        if !self.ensure_controller() {
+            return;
+        }
+        if let Ok(at) = usize::try_from(index) {
+            if let Some(controller) = &mut self.controller {
+                controller.play_next_at(at);
+            }
+        }
+        self.sync_rows();
+    }
+
+    /// Move an entry to the end (ignored out of range).
+    fn do_move_to_end(&mut self, index: i32) {
+        if !self.ensure_controller() {
+            return;
+        }
+        if let Ok(at) = usize::try_from(index) {
+            let last = self
+                .controller
+                .as_ref()
+                .map_or(0, PlaybackController::queue_len);
+            if last == 0 {
+                return;
+            }
+            if let Some(controller) = &mut self.controller {
+                controller.move_item(at, last.saturating_sub(1));
             }
         }
         self.sync_rows();
@@ -964,9 +1060,40 @@ impl QueueModelRust {
             return;
         }
         self.write_audio_config();
+        self.persist_queue();
         self.saved_uri = item.uri;
         self.saved_position_ms = position;
         self.saved_at = Some(Instant::now());
+    }
+
+    /// Write ordered URIs + cursor to the library index (not TOML).
+    fn persist_queue(&self) {
+        let Some(controller) = &self.controller else {
+            return;
+        };
+        if controller.restore_pending() {
+            return;
+        }
+        if !self.index_path.is_file() {
+            return;
+        }
+        let items: Vec<tunex_library::SavedQueueItem> = controller
+            .queue_items()
+            .into_iter()
+            .map(item_to_saved)
+            .collect();
+        let cursor = controller.current_index().unwrap_or(0);
+        let position_ms = u64::try_from(self.position_ms().max(0)).unwrap_or(0);
+        let Ok(mut db) = tunex_library::open_file(&self.index_path) else {
+            return;
+        };
+        if let Err(err) = tunex_library::save_playback_queue(&mut db, &items, cursor, position_ms) {
+            tracing::warn!(
+                name = "queue.persist_failed",
+                error = %err,
+                "up next not saved"
+            );
+        }
     }
 
     /// Cursor position (-1 when idle).
@@ -1309,6 +1436,18 @@ impl qobject::QueueModel {
         self.as_mut().apply_rows();
     }
 
+    /// Move an already-queued entry so it plays next.
+    pub fn play_next_at(mut self: Pin<&mut Self>, index: i32) {
+        self.as_mut().rust_mut().do_play_next_at(index);
+        self.as_mut().apply_rows();
+    }
+
+    /// Move an entry to the end of Up Next.
+    pub fn move_to_end(mut self: Pin<&mut Self>, index: i32) {
+        self.as_mut().rust_mut().do_move_to_end(index);
+        self.as_mut().apply_rows();
+    }
+
     /// Empty the queue (the loaded track keeps playing).
     pub fn clear_queue(mut self: Pin<&mut Self>) {
         self.as_mut().rust_mut().do_clear_queue();
@@ -1561,7 +1700,47 @@ impl qobject::QueueModel {
             qobject::QueueRoles::TrackId.repr,
             QByteArray::from("trackId"),
         );
+        roles.insert(
+            qobject::QueueRoles::Missing.repr,
+            QByteArray::from("missing"),
+        );
         roles
+    }
+}
+
+fn queue_uri_missing(uri: &str) -> bool {
+    tunex_player::uri_to_path(uri).is_none_or(|path| !path.is_file())
+}
+
+fn saved_to_item(row: tunex_library::SavedQueueItem) -> tunex_player::QueueItem {
+    let mut item = tunex_player::QueueItem::new(&row.uri, &row.title);
+    if let Some(track_id) = row.track_id {
+        item = item.with_track_id(track_id);
+    }
+    if let Some(artist) = row.artist {
+        item = item.with_artist(artist);
+    }
+    if let Some(album) = row.album {
+        item = item.with_album(album);
+    }
+    if let Some(duration_ms) = row.duration_ms.filter(|ms| *ms > 0) {
+        item = item.with_duration(Duration::from_millis(
+            u64::try_from(duration_ms).unwrap_or(0),
+        ));
+    }
+    item
+}
+
+fn item_to_saved(item: tunex_player::QueueItem) -> tunex_library::SavedQueueItem {
+    tunex_library::SavedQueueItem {
+        uri: item.uri,
+        track_id: item.track_id,
+        title: item.title,
+        artist: item.artist,
+        album: item.album,
+        duration_ms: item
+            .duration
+            .and_then(|duration| i64::try_from(duration.as_millis()).ok()),
     }
 }
 
@@ -1611,6 +1790,7 @@ mod tests {
             1_000,
             current,
             track_id,
+            false,
         )
     }
 
@@ -1669,6 +1849,7 @@ mod tests {
             273_000,
             true,
             7,
+            false,
         ));
         assert_eq!(model.row_count(), 1);
         assert_ne!(model.row_data(0, QueueRoles::Title), QVariant::default());
@@ -1826,6 +2007,7 @@ mod tests {
             273_000,
             true,
             7,
+            false,
         ));
         assert_eq!(model.current_title(), QString::from("Midnight"));
         assert_eq!(model.current_artist(), QString::from("Nova Rae"));
@@ -1934,6 +2116,45 @@ mod tests {
         let loaded = tunex_core::load_from(&model.config_path).expect("session saved");
         let uri = loaded.playback.last_uri.expect("last uri written");
         assert!(uri.contains("sine.wav"), "unexpected last uri: {uri}");
+    }
+
+    #[test]
+    fn saved_queue_restores_paused_without_autoplay() {
+        let (mut model, guard, id) = model_with_playable_track("queue-restore-full");
+        model.do_play_track_now(id);
+        model.do_pause();
+        let saved = {
+            let db = tunex_library::open_file(&model.index_path).expect("index opens");
+            tunex_library::load_playback_queue(&db).expect("queue saved")
+        };
+        assert_eq!(saved.items.len(), 1);
+        let config_path = model.config_path.clone();
+        let index_path = model.index_path.clone();
+        drop(model);
+
+        let mut restored = QueueModelRust {
+            index_path,
+            config_path,
+            ..Default::default()
+        };
+        restored.poll_queue();
+        assert_eq!(restored.row_count(), 1);
+        assert!(restored.error_message().is_none());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let _ = restored.poll_queue();
+            let state = restored.playback_state();
+            assert_ne!(state, 2, "restore must not auto-play");
+            if state == 1 || state == 3 {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "restore did not reach paused/loading"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        drop(guard);
     }
 
     #[test]

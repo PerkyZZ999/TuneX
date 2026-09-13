@@ -25,12 +25,15 @@ Item {
     property bool missing: false
     property bool dangling: false
     property bool isCurrent: false
+    property bool isPlaying: false
+    property bool reorderable: false
     // m:ss, em dash when unknown. Numbers need no translation.
     readonly property string durationText: root.durationMs > 0 ? Math.floor(root.durationMs / 60000) + ":" + String(Math.floor(root.durationMs / 1000) % 60).padStart(2, "0") : "—"
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
 
     signal playRequested(int trackId, int rowIndex, bool dangling)
     signal menuRequested(int trackId, int rowIndex, bool dangling)
+    signal reorderRequested(int from, int to)
 
     width: ListView.view.width
     height: Theme.trackRowHeight
@@ -78,6 +81,52 @@ Item {
         color: Theme.accent
     }
 
+    Row {
+        id: equalizer
+
+        visible: root.isCurrent
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.spaceMd
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 2
+        width: 14
+        height: 12
+
+        Repeater {
+            model: 3
+
+            Rectangle {
+                required property int index
+
+                width: 3
+                radius: 1
+                color: Theme.accent
+                height: {
+                    if (Appearance.reduceMotion || !root.isPlaying)
+                        return index === 1 ? 12 : 6;
+                    return 6;
+                }
+
+                SequentialAnimation on height {
+                    running: root.isPlaying && !Appearance.reduceMotion
+                    loops: Animation.Infinite
+
+                    NumberAnimation {
+                        to: equalizer.height
+                        duration: Appearance.duration(Theme.motionHover) + index * 40
+                        easing.type: Easing.InOutQuad
+                    }
+
+                    NumberAnimation {
+                        to: 4
+                        duration: Appearance.duration(Theme.motionHover) + 80 - index * 20
+                        easing.type: Easing.InOutQuad
+                    }
+                }
+            }
+        }
+    }
+
     // Whole-row click plays now; the ⋯ button sits above in z-order.
     MouseArea {
         id: rowArea
@@ -87,11 +136,25 @@ Item {
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: mouse => {
-            if (mouse.button === Qt.RightButton)
+        drag.target: root.reorderable ? root : undefined
+        drag.axis: Drag.YAxis
+        drag.threshold: 12
+        onReleased: mouse => {
+            if (mouse.button === Qt.RightButton) {
                 root.menuRequested(root.trackId, root.rowIndex, root.dangling);
-            else
-                root.playRequested(root.trackId, root.rowIndex, root.dangling);
+                return;
+            }
+            if (root.reorderable && rowArea.drag.active) {
+                const view = root.ListView.view;
+                if (view) {
+                    const point = root.mapToItem(view.contentItem, root.width / 2, root.height / 2);
+                    const to = view.indexAt(point.x, point.y);
+                    if (to >= 0 && to !== root.rowIndex)
+                        root.reorderRequested(root.rowIndex, to);
+                }
+                return;
+            }
+            root.playRequested(root.trackId, root.rowIndex, root.dangling);
         }
     }
 
@@ -102,6 +165,7 @@ Item {
         width: 32
         horizontalAlignment: Text.AlignRight
         text: root.numberText
+        visible: !root.isCurrent
         textFormat: Text.PlainText
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBodySm
