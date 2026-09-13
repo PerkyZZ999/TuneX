@@ -15,6 +15,7 @@ pub mod playlist_list_model;
 pub mod playlist_track_model;
 pub mod queue_model;
 pub mod track_list_model;
+pub mod tray_controller;
 
 #[cfg(test)]
 pub mod test_support {

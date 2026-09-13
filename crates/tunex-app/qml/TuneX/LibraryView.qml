@@ -23,7 +23,7 @@ Item {
     // Fluid artwork columns shared by both grids (160–220px cards).
     readonly property int gridCell: Math.max(160, Math.floor(content.width / Math.max(1, Math.floor(content.width / 190))))
 
-    signal foldersRequested
+    signal settingsRequested(bool pickFolder)
     // An artist card was activated: V1 has no artist detail view, so the
     // shell plays that artist's tracks.
     signal artistRequested(string name)
@@ -32,10 +32,8 @@ Item {
     function tabLabel(key) {
         if (key === "albums")
             return qsTr("Albums");
-
         if (key === "artists")
             return qsTr("Artists");
-
         return qsTr("Songs");
     }
 
@@ -113,8 +111,8 @@ Item {
         anchors.margins: Theme.spaceLg
         spacing: Theme.spaceMd
 
-        // Header: tab strip (three Hick-compliant text choices) plus the
-        // folders entry on the trailing edge.
+        // Header: tab strip (three Hick-compliant text choices) plus a
+        // shortcut into Settings → Library for scanned-folder management.
         Item {
             id: tabRow
 
@@ -147,7 +145,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 primary: false
                 text: qsTr("Music folders")
-                onClicked: root.foldersRequested()
+                onClicked: root.settingsRequested(false)
             }
         }
 
@@ -218,7 +216,7 @@ Item {
                 title: qsTr("No music yet")
                 note: qsTr("Add a music folder and your artists, albums, and songs will appear here.")
                 actionLabel: qsTr("Add music folder")
-                onActionRequested: root.foldersRequested()
+                onActionRequested: root.settingsRequested(true)
             }
 
             // Songs tab: virtualized list over the capped songs query.

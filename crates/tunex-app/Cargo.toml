@@ -25,6 +25,7 @@ tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tunex-core.workspace = true
+zbus.workspace = true
 tunex-library.workspace = true
 tunex-player.workspace = true
 

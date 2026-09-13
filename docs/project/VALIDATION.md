@@ -467,3 +467,10 @@
   Gates: 236 tests ✓, `rust-tc doctor` ✓, `sonar` ✓ QG OK (coverage 81.9%, new_coverage 81.9%, 0 violations, 0 bugs, 0 code smells), `scripts/qml-lint.sh` 36/36 ✓, CMake build ✓, `design.md lint` 0 errors (pre-existing unused `focus` token warning). Traceability: R-018 + R-NFR-06 + SPEC §39 → S6 → W-038–W-045 → this entry.
 - **Waiver:** none
 - **Follow-up:** Phase 7 Release (AUR publish is a human confirmation). Maintainer follow-ups unchanged from S5, no code risk: true `extra-x86_64-build` (needs root), true X11-Plasma visual pass, toast pixels under a real notification daemon.
+
+### 2026-09-13 — W-046 tray + Settings (S7)
+- **Slice:** S7
+- **Result:** pass (code + unit tests; Plasma tray pixels deferred — no StatusNotifierWatcher in this environment)
+- **Evidence:** `tunex-app::tray` StatusNotifierItem on a detached session-bus thread (D-002: not QSystemTrayIcon/Widgets). Host tooltip = title/artist on hover; Activate/ContextMenu → `TrayPopup` (play/pause, previous, next, now-playing, Show TuneX when hidden, Quit, Esc, 44px targets, Lucide, DESIGN.md). `WindowConfig.close_to_tray` defaults **true**, persists via `tunex-core::update`, hide-on-close is setting AND live tray host. Settings list-detail (Library / Playback / Appearance / Shortcuts) binds `LibraryManager` / `QueueModel` / `TrayController`. Scanned-folder add/remove/rescan only in Settings → Library; `FoldersDrawer` removed; Home/Library Add-folder CTAs open that section (native `FolderDialog`); sidebar Folders is not the management surface. Type scale −2px in `docs/DESIGN.md` + `Theme.qml` (body 16→14; caption 12px floor). Tests: close-to-tray default/legacy/off round-trip, hide-on-close matrix, tooltip copy, `TrayController` persist. Gates in the same change.
+- **Waiver:** none
+- **Follow-up:** KWin/Plasma visual proof of tray hover tooltip + popup + hide-to-tray (needs a StatusNotifierWatcher). Folder *browse* rail destination is a separate change.

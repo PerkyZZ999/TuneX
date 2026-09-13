@@ -1091,6 +1091,7 @@ Settings should include:
 - animation preference
 - audio output preference
 - keyboard shortcuts
+- keep running in the tray when the window closes
 
 User data and cache should follow appropriate XDG locations.
 

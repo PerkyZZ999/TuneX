@@ -881,6 +881,32 @@ impl QueueModelRust {
             .reduce_motion
     }
 
+    /// Persist the opaque-surface preference.
+    fn set_reduce_transparency(&self, enabled: bool) {
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.appearance.reduce_transparency = enabled;
+        }) {
+            tracing::warn!(
+                name = "queue.appearance_persist_failed",
+                error = %err,
+                "reduce-transparency not saved"
+            );
+        }
+    }
+
+    /// Persist the instant-motion preference.
+    fn set_reduce_motion(&self, enabled: bool) {
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.appearance.reduce_motion = enabled;
+        }) {
+            tracing::warn!(
+                name = "queue.appearance_persist_failed",
+                error = %err,
+                "reduce-motion not saved"
+            );
+        }
+    }
+
     /// Write volume, mute, shuffle/repeat, and last-track into settings.
     fn write_audio_config(&self) {
         let Some(controller) = &self.controller else {
@@ -1355,6 +1381,16 @@ impl qobject::QueueModel {
         self.rust().reduce_motion()
     }
 
+    /// Persist the opaque-surface preference.
+    pub fn set_reduce_transparency(self: Pin<&mut Self>, enabled: bool) {
+        self.rust().set_reduce_transparency(enabled);
+    }
+
+    /// Persist the instant-motion preference.
+    pub fn set_reduce_motion(self: Pin<&mut Self>, enabled: bool) {
+        self.rust().set_reduce_motion(enabled);
+    }
+
     /// Cursor position (-1 when idle).
     pub fn current_index(&self) -> i32 {
         self.rust().current_index()
@@ -1778,6 +1814,18 @@ mod tests {
         tunex_core::save_to(&model.config_path, &config).expect("appearance saved");
         assert!(model.reduce_transparency());
         assert!(model.reduce_motion());
+    }
+
+    #[test]
+    fn appearance_flags_persist_from_setters() {
+        let (model, _guard) = model_with_seeded_library("queue-appear-set");
+        model.set_reduce_motion(true);
+        model.set_reduce_transparency(true);
+        assert!(model.reduce_motion());
+        assert!(model.reduce_transparency());
+        let loaded = tunex_core::load_from(&model.config_path).expect("appearance saved");
+        assert!(loaded.appearance.reduce_motion);
+        assert!(loaded.appearance.reduce_transparency);
     }
 
     #[test]

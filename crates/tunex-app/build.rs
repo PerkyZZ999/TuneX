@@ -41,7 +41,6 @@ fn main() {
                 "qml/TuneX/ArtistCard.qml",
                 "qml/TuneX/PlaylistCard.qml",
                 "qml/TuneX/EmptyState.qml",
-                "qml/TuneX/FoldersDrawer.qml",
                 "qml/TuneX/SearchView.qml",
                 "qml/TuneX/QueuePanel.qml",
                 "qml/TuneX/MiniPlayer.qml",
@@ -58,6 +57,9 @@ fn main() {
                 "qml/TuneX/GlassMenuItem.qml",
                 "qml/TuneX/GlassMenuSeparator.qml",
                 "qml/TuneX/GlassDialog.qml",
+                "qml/TuneX/SettingsView.qml",
+                "qml/TuneX/SettingsToggle.qml",
+                "qml/TuneX/TrayPopup.qml",
             ])
             .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true))
             .qml_file(QmlFile::from("qml/TuneX/Appearance.qml").singleton(true))

@@ -15,7 +15,8 @@ pub mod error;
 pub mod playback;
 
 pub use config::{
-    TunexConfig, config_dir, config_file, data_dir, library_db_path, load_from, save_to,
+    AppearanceConfig, TunexConfig, WindowConfig, config_dir, config_file, data_dir,
+    library_db_path, load_from, save_to, update,
 };
 pub use error::{Error, Result};
 pub use playback::{PlaybackState, PlayerEvent, RepeatMode};

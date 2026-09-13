@@ -32,6 +32,7 @@ rusqlite = "0.40.2"
 rusqlite_migration = "2.5.0"
 lofty = "0.24.0"
 mpris-server = { version = "0.10.0", features = ["tokio"] }
+zbus = "5.19.0"
 notify = "8.2.0"
 blake3 = "1.8.7"
 image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png", "webp"] }

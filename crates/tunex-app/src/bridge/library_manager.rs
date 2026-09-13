@@ -92,4 +92,9 @@ impl qobject::LibraryManager {
             .error_text()
             .map_or_else(QString::default, |err| QString::from(err.as_str()))
     }
+
+    /// Whether the filesystem watcher is currently active.
+    pub fn is_watching(&self) -> bool {
+        self.rust().core.is_watching()
+    }
 }

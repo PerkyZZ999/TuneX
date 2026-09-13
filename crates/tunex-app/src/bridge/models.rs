@@ -43,6 +43,7 @@ use super::playlist_list_model::PlaylistModelRust;
 use super::playlist_track_model::PlaylistTrackModelRust;
 use super::queue_model::QueueModelRust;
 use super::track_list_model::TrackListModelRust;
+use super::tray_controller::TrayControllerRust;
 
 /// CXX-Qt bridge for the browse models; mirrors the upstream
 /// `custom_base_class` pattern (`#[inherit]` model signals,
@@ -645,6 +646,16 @@ pub mod qobject {
         #[cxx_name = "reduceMotion"]
         fn reduce_motion(self: &QueueModel) -> bool;
 
+        /// Persist the opaque-surface preference. Exposed as `setReduceTransparency`.
+        #[qinvokable]
+        #[cxx_name = "setReduceTransparency"]
+        fn set_reduce_transparency(self: Pin<&mut QueueModel>, enabled: bool);
+
+        /// Persist the instant-motion preference. Exposed as `setReduceMotion`.
+        #[qinvokable]
+        #[cxx_name = "setReduceMotion"]
+        fn set_reduce_motion(self: Pin<&mut QueueModel>, enabled: bool);
+
         /// Cursor position (-1 when idle). Exposed as `currentIndex`.
         #[qinvokable]
         #[cxx_name = "currentIndex"]
@@ -1082,5 +1093,73 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "errorText"]
         fn error_text(self: &LibraryManager) -> QString;
+
+        /// Whether the filesystem watcher is currently active.
+        /// Exposed to QML as `isWatching`.
+        #[qinvokable]
+        #[cxx_name = "isWatching"]
+        fn is_watching(self: &LibraryManager) -> bool;
+    }
+
+    extern "RustQt" {
+        #[qobject]
+        #[qml_element]
+        type TrayController = super::TrayControllerRust;
+    }
+
+    unsafe extern "RustQt" {
+        /// Compact glass popup next to the tray icon.
+        #[qsignal]
+        #[cxx_name = "popupRequested"]
+        fn popup_requested(self: Pin<&mut TrayController>, x: i32, y: i32);
+
+        /// Right-click menu next to the tray icon.
+        #[qsignal]
+        #[cxx_name = "menuRequested"]
+        fn menu_requested(self: Pin<&mut TrayController>, x: i32, y: i32);
+
+        /// Middle-click play/pause from the tray host.
+        #[qsignal]
+        #[cxx_name = "playPauseRequested"]
+        fn play_pause_requested(self: Pin<&mut TrayController>);
+    }
+
+    extern "RustQt" {
+        /// Drain tray-host events onto QML signals.
+        #[qinvokable]
+        fn poll(self: Pin<&mut TrayController>);
+
+        /// Push now-playing copy into the SNI tooltip.
+        /// Exposed to QML as `setNowPlaying`.
+        #[qinvokable]
+        #[cxx_name = "setNowPlaying"]
+        fn set_now_playing(
+            self: Pin<&mut TrayController>,
+            title: &QString,
+            artist: &QString,
+            playing: bool,
+        );
+
+        /// Whether a tray host accepted the icon.
+        /// Exposed to QML as `isAvailable`.
+        #[qinvokable]
+        #[cxx_name = "isAvailable"]
+        fn is_available(self: &TrayController) -> bool;
+
+        /// Persisted close-to-tray preference. Exposed as `closeToTray`.
+        #[qinvokable]
+        #[cxx_name = "closeToTray"]
+        fn close_to_tray(self: &TrayController) -> bool;
+
+        /// Persist close-to-tray. Exposed as `setCloseToTray`.
+        #[qinvokable]
+        #[cxx_name = "setCloseToTray"]
+        fn set_close_to_tray(self: Pin<&mut TrayController>, enabled: bool);
+
+        /// Whether this close should hide instead of quit.
+        /// Exposed to QML as `hideOnClose`.
+        #[qinvokable]
+        #[cxx_name = "hideOnClose"]
+        fn hide_on_close(self: &TrayController) -> bool;
     }
 }

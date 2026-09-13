@@ -14,7 +14,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
     - Albums `AlbumListView` → Album detail `AlbumDetailView`
     - Songs `SongListView`
     - Genres `GenreListView` (V1: simple list → filtered songs; no destination pages per scope)
-    - Folders `FolderListView` (add/remove roots, per-folder browse)
+    - Folders `FolderListView` (browse by folder; add/remove roots live in Settings → Library)
   - Playlists `PlaylistListView` → Playlist detail `PlaylistDetailView`
   - Favorites `FavoritesView` (playlist-like smart view over local favorites)
   - Queue `QueuePanel` (right drawer overlay, not a nav destination)
@@ -50,7 +50,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 1. Header: art, name, play + shuffle actions, key meta (albums count / year / duration). 2. Track list (virtualized rows). 3. More-by context (other albums by artist) on album view.
 
 ### SongListView / FolderListView / GenreListView
-1. Filter/sort bar (text filter V1; full sorting V1-basic per scope). 2. Virtualized TrackList. 3. Folder view additionally: root pickers + scan progress + missing-file states.
+1. Filter/sort bar (text filter V1; full sorting V1-basic per scope). 2. Virtualized TrackList. 3. Folder browse is a library destination; add/remove roots, rescan, and watcher status live in Settings → Library. Missing-file states stay on the track rows.
 
 ### PlaylistDetailView
 1. Header: mosaic art, name, play/shuffle, edit actions. 2. Ordered TrackList with remove/reorder affordances. 3. Missing-track rows preserved as dimmed (never silently dropped).
@@ -62,13 +62,13 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 1. Large artwork (crossfading). 2. Title/artist (+ favorite). 3. Progress + times. 4. Transport + shuffle/repeat + volume. Nothing else — this view is the music, full-bleed.
 
 ### SettingsView
-1. Library (roots, rescan, watcher status). 2. Playback (gapless note, volume, restore behavior). 3. Appearance (dark locked V1, accent, blur, motion). 4. Shortcuts (reference list).
+1. Library (music folders add/remove/rescan, watcher status). 2. Playback (gapless note, volume, shuffle/repeat, close-to-tray). 3. Appearance (dark locked V1, accent, blur, motion). 4. Shortcuts (reference list).
 
 ## User Flows
 
 ### First run → music in <30s
 1. Launch → empty-state Home ("No music yet") with single Add-folder action.
-2. Native folder dialog → root added → scan starts with live counts + %.
+2. Action opens Settings → Library; native folder dialog → root added → scan starts with live counts + %.
 3. First artwork lands → hero action becomes "Play Something".
 4. Press play → persistent player appears (right panel at full width, mini-player bar below), playback starts; browsing continues uninterrupted.
 
@@ -121,7 +121,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 | MiniPlayer | Narrow widths (panel hidden) | Bottom transport bar; hidden pre-first-play (empty state instead) |
 | NowPlayingView + QueuePanel | Overlay everywhere | Same state object as the persistent player; drawer vs. full overlay by width |
 | GlassPanel dialog/menu | Menus, dialogs, Now Playing backdrop | Never used for plain list rows |
-| EmptyState | Home, Search, Playlists, Folders | Per-context action (add folder / clear search / create playlist) |
+| EmptyState | Home, Search, Playlists, Settings Library | Per-context action (add folder in Settings / clear search / create playlist) |
 | Settings section frame | All SettingsView sections | Identical list-detail scaffold |
 
 ## Content Growth Plan

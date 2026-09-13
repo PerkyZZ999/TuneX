@@ -43,6 +43,26 @@ pub struct AppearanceConfig {
     pub reduce_transparency: bool,
 }
 
+/// Window and desktop-shell settings.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WindowConfig {
+    /// Hide to the tray instead of quitting when the window closes.
+    ///
+    /// Default is on: this is a playback app, and the tray keeps the
+    /// session reachable. Closing still quits when no tray host is present,
+    /// so a missing tray never leaves a headless process.
+    pub close_to_tray: bool,
+}
+
+impl Default for WindowConfig {
+    fn default() -> Self {
+        Self {
+            close_to_tray: true,
+        }
+    }
+}
+
 /// Application settings. Sections land slice by slice; see SPEC §30.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -55,6 +75,8 @@ pub struct TunexConfig {
     pub playback: PlaybackConfig,
     /// Appearance and accessibility.
     pub appearance: AppearanceConfig,
+    /// Window close and tray behavior.
+    pub window: WindowConfig,
 }
 
 impl Default for TunexConfig {
@@ -64,6 +86,7 @@ impl Default for TunexConfig {
             volume: 1.0,
             playback: PlaybackConfig::default(),
             appearance: AppearanceConfig::default(),
+            window: WindowConfig::default(),
         }
     }
 }
@@ -138,6 +161,18 @@ pub fn load_from(path: &Path) -> Result<TunexConfig> {
     Ok(config)
 }
 
+/// Load, patch, and persist settings in one step. Missing files start from
+/// defaults, so the first write still creates `config.toml`.
+///
+/// # Errors
+///
+/// Returns [`Error::Io`] or [`Error::Config`] from [`load_from`] / [`save_to`].
+pub fn update(path: &Path, apply: impl FnOnce(&mut TunexConfig)) -> Result<()> {
+    let mut config = load_from(path)?;
+    apply(&mut config);
+    save_to(path, &config)
+}
+
 /// Persist settings to `path`, creating parent directories as needed.
 ///
 /// # Errors
@@ -191,6 +226,9 @@ mod tests {
             appearance: AppearanceConfig {
                 reduce_motion: true,
                 reduce_transparency: false,
+            },
+            window: WindowConfig {
+                close_to_tray: false,
             },
         };
         save_to(&path, &config).expect("save works");
@@ -246,6 +284,25 @@ mod tests {
         std::fs::write(&path, "volume = [unclosed\n").expect("setup works");
         let err = load_from(&path).expect_err("corrupt files must be visible");
         assert!(matches!(err, Error::Config(_)));
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn close_to_tray_defaults_on_and_round_trips_off() {
+        assert!(
+            TunexConfig::default().window.close_to_tray,
+            "V1 default keeps playback in the tray"
+        );
+        let dir = scratch_dir("close-to-tray");
+        let path = dir.join("config.toml");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        // Older files without a [window] section pick up the default.
+        std::fs::write(&path, "volume = 0.5\n").expect("setup works");
+        let loaded = load_from(&path).expect("legacy file loads");
+        assert!(loaded.window.close_to_tray);
+        update(&path, |config| config.window.close_to_tray = false).expect("patch works");
+        let back = load_from(&path).expect("reload works");
+        assert!(!back.window.close_to_tray);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

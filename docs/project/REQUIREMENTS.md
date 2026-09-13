@@ -11,11 +11,12 @@
 - **Validation method:** manual + build
 
 ### R-002 — Library folders
-- **Description:** Add/remove library root folders via native dialog; persisted.
+- **Description:** Add/remove library root folders via native dialog; persisted. V1 management surface is Settings → Library (not the sidebar Folders item).
 - **Priority:** must
 - **Acceptance:**
   - [ ] Add 1+ dirs, restart → roots preserved; remove stops watching
   - [ ] Symlink escaping root rejected
+  - [x] Add/remove/rescan live in Settings → Library; Home/Library empty-state “Add folder” opens that section (W-046)
 - **Validation method:** manual + test
 
 ### R-003 — Background scanning
@@ -104,11 +105,13 @@
 - **Validation method:** manual
 
 ### R-015 — Settings
-- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance/accent, animation pref, audio default, shortcuts.
+- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance/accent, animation pref, audio default, shortcuts, close-to-tray.
 - **Priority:** must
 - **Acceptance:**
   - [ ] Change → restart → retained
-- **Validation method:** manual
+  - [x] Settings list-detail (Library / Playback / Appearance / Shortcuts) binds to real config (W-046)
+  - [x] Close-to-tray defaults on, persists, and hides the window only when a tray host is present; Quit is on the tray card (W-046)
+- **Validation method:** manual + test
 
 ### R-016 — Installable PKGBUILD / AUR (MVP locked 2026-09-09)
 - **Description:** Arch PKGBUILD/AUR primary artifact with pacman depends (Qt6, GStreamer + plugins, SQLite). Flatpak deferred post-V1.

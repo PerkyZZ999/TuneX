@@ -1,9 +1,14 @@
-# Work items (current slice: S6 done — Visual polish + perf pass)
+# Work items (current slice: S7 — Tray + Settings)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 in progress (W-046).
 
 ## Current slice
-S6 — Visual polish + perf pass (M6). **Done 2026-09-13** (W-038–W-045). Glass hierarchy per SPEC §21, motion in budget, artwork pipeline, measured M6 numbers, charcoal identity. S6 gate PASS, no loop-back. S5 acceptance archived in VALIDATION.md.
+S7 — System tray, Settings page, type-scale tighten, scanned-folder management in Settings. **In progress 2026-09-13** (W-046). Does not reopen S6. Locked decisions unchanged (D-002: tray is StatusNotifierItem over zbus, not Qt Widgets).
+
+**Done condition:** Linux tray icon (SNI) with compact now-playing controls; Settings list-detail matches DESIGN.md; close-to-tray persisted and honored; scanned-folder add/remove lives only in Settings → Library; type scale ~2px smaller via DESIGN.md + Theme; gates green.
+
+## Queue (S7)
+- [x] W-046 — Tray icon + Settings refine + close-to-tray + type-scale −2px + scanned folders in Settings (R-002, R-015, R-018). Verified in code: `tunex-app::tray` serves `org.kde.StatusNotifierItem` on a detached thread (same shape as MPRIS/notify); host tooltip carries title/artist on hover; Activate/ContextMenu open `TrayPopup` (play/pause, previous, next, now-playing, Show/Quit, Esc, 44px targets, Lucide glyphs, DESIGN.md surfaces). Close-to-tray defaults **on**, persists in `[window] close_to_tray`, and hide-on-close requires a live tray host so a missing watcher never leaves a headless process. Settings is the IA list-detail (Library / Playback / Appearance / Shortcuts) bound to `LibraryManager` / `QueueModel` / `TrayController` — no lorem. Scanned-folder add/remove/rescan moved here; `FoldersDrawer` removed; Home/Library “Add folder” CTAs open Settings → Library (native `FolderDialog`); the sidebar Folders item is **not** the management surface (Folder browse is a separate rail destination). Type scale reduced ~2px in `docs/DESIGN.md` tokens and `Theme.qml` (body 16→14; caption stays 12px floor). Gates recorded in VALIDATION.md.
 
 **Pre-S6 visual contract (2026-09-10):** the shell was refactored to follow `docs/mockup.png` + `DESIGN_BRIEF.md` adaptation (real models only) *before* S6 polish. W-038–W-042 start from that shell; do not treat the prior glass WIP as a completed W-038.
 

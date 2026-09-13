@@ -53,11 +53,13 @@ Greenfield UI — no code, no tokens, no components exist yet (verified 2026-09-
 | GlassPanel / GlassSurface dialog + menu | New | Dialogs and context menus only; rows stay opaque |
 | EmptyState (no library / no results / missing files) | New | Explicit, actionable (add folder, rescan, reveal in files) |
 | ScanProgress indicator | New | Counts + % in library view; non-blocking |
-| Settings views | New | Sections per SPEC §30; blur/motion toggles live here |
+| SettingsView | New | List-detail: Library (music folders), Playback, Appearance, Shortcuts |
+| SettingsToggle | New | 44px row switch; whole row is the target |
+| TrayPopup | New | Compact tray card: now-playing + transport; Quit / Show TuneX |
 
 ## Key Interactions
 
-- **Play in under 30 seconds (first run):** empty state → Add folder (native dialog) → live scan counts → first artwork appears → Play Something shuffles something immediately. Scanning never blocks browsing.
+- **Play in under 30 seconds (first run):** empty state → Add folder opens Settings → Library (native dialog) → live scan counts → first artwork appears → Play Something shuffles something immediately. Scanning never blocks browsing.
 - **Transport feedback:** play/pause icon morphs instantly on press (<50ms), before the pipeline confirms; artwork crossfades ~180ms on track change; progress thumb grows on hover for grab-ability.
 - **Search as you type:** keystroke → debounced query → grouped results (Songs / Albums / Artists) replace content in place; Escape clears and returns focus to the list; stale results never overwrite newer ones.
 - **Queue as instrument:** "Play next" / "Add to Up Next" from any row menu; drag or keyboard-reorder in Up Next; the playing row is always marked; clearing the queue never stops the current track.
