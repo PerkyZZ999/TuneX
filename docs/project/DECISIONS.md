@@ -56,18 +56,18 @@
 - **Confirmed by / date:** user, 2026-09-09
 - **Supersedes / superseded by:** —
 
-## D-005 — GStreamer playbin3 + PipeWire default
+## D-005 — GStreamer playbin3 + PipeWire output picker
 - **Status:** locked
 - **Date:** 2026-09-09
 - **Owner:** user
 - **Context:** Need codecs/seek/gapless without hand-rolled engine.
-- **Decision:** playbin3 + about-to-finish preload; volume/tag tap reserved for ReplayGain; PipeWire default output in V1 (no picker UI).
+- **Decision:** playbin3 + about-to-finish preload; volume/tag tap used for ReplayGain and a short crossfade envelope; PipeWire default output with an optional device picker (empty id = System). Changing device must not drop the queue.
 - **Rationale:** Mature gapless path; PipeWire via GStreamer sinks.
-- **Evidence:** SPEC §3.4–3.5, §12.1.
-- **Consequences:** GStreamer + plugins are hard pacman deps in PKGBUILD; device picker deferred.
+- **Evidence:** SPEC §3.4–3.5, §12.1; S11 W-058–W-060.
+- **Consequences:** GStreamer + plugins are hard pacman deps in PKGBUILD; Settings → Playback lists sinks from `GstDeviceMonitor`.
 - **Alternatives:** Rodio/Symphonia direct (rejected: codec burden), QtMultimedia (rejected: control/licensing).
 - **Reopen criteria:** Proven gapless failure across target codecs with no pipeline fix.
-- **Confirmed by / date:** user, 2026-09-09
+- **Confirmed by / date:** user, 2026-09-09; picker added 2026-09-13 (post-V1, same lock).
 - **Supersedes / superseded by:** —
 
 ## D-006 — SQLite WAL + rusqlite_migration + FTS5

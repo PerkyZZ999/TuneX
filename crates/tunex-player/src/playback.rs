@@ -21,9 +21,12 @@ use std::{
 };
 
 use tokio::sync::mpsc;
-use tunex_core::{Error, PlaybackState, PlayerEvent, RepeatMode, Result};
+use tunex_core::{Error, PlaybackState, PlayerEvent, RepeatMode, ReplayGainMode, Result};
 
-use super::{Advance, NextUriProvider, PlayerEngine, Queue, QueueItem, Rewind};
+use super::{
+    Advance, NextUriProvider, PlayerEngine, Queue, QueueItem, Rewind, output::sink_for_device,
+    read_replaygain_uri,
+};
 
 /// Give playbin time to leave STOPPED before treating restore as failed.
 const RESTORE_SEEK_DEADLINE: Duration = Duration::from_secs(5);
@@ -31,6 +34,14 @@ const RESTORE_SEEK_DEADLINE: Duration = Duration::from_secs(5);
 const RESTORE_SEEK_RETRY: Duration = Duration::from_millis(80);
 /// Position close enough to the saved restore target counts as landed.
 const RESTORE_SEEK_SLACK: Duration = Duration::from_millis(100);
+
+/// Volume envelope on a single decoder (not a second pipeline).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Fade {
+    Idle,
+    Out { started: Instant },
+    In { started: Instant },
+}
 
 /// Lock the queue, recovering from a poisoned mutex.
 ///
@@ -77,6 +88,10 @@ pub struct PlaybackController {
     pending_restore: Option<Duration>,
     restore_started: Option<Instant>,
     last_restore_seek: Option<Instant>,
+    crossfade: Duration,
+    fade: Fade,
+    fade_index: Option<usize>,
+    rg_uri: Option<String>,
 }
 
 impl std::fmt::Debug for PlaybackController {
@@ -110,6 +125,10 @@ impl PlaybackController {
             pending_restore: None,
             restore_started: None,
             last_restore_seek: None,
+            crossfade: Duration::ZERO,
+            fade: Fade::Idle,
+            fade_index: None,
+            rg_uri: None,
         })
     }
 
@@ -445,6 +464,72 @@ impl PlaybackController {
         self.engine.muted()
     }
 
+    /// `ReplayGain` mode (off / track / album).
+    pub fn set_replaygain_mode(&mut self, mode: ReplayGainMode) {
+        self.engine.set_replaygain_mode(mode);
+        if let Some(item) = self.current_item() {
+            self.engine
+                .set_replaygain_tags(read_replaygain_uri(&item.uri));
+        }
+    }
+
+    /// Linear `ReplayGain` multiplier currently applied.
+    #[must_use]
+    pub fn replaygain_linear(&self) -> f64 {
+        self.engine.replaygain_linear()
+    }
+
+    /// Crossfade length. `0` is today's gapless cut. Visual reduce-motion does
+    /// not disable this envelope.
+    pub fn set_crossfade(&mut self, duration: Duration) {
+        self.crossfade = duration.min(Duration::from_secs(12));
+        if self.crossfade.is_zero() {
+            self.fade = Fade::Idle;
+            self.engine.set_crossfade_volume(1.0);
+        }
+    }
+
+    /// Current crossfade setting.
+    #[must_use]
+    pub fn crossfade(&self) -> Duration {
+        self.crossfade
+    }
+
+    /// Current crossfade envelope (tests).
+    #[must_use]
+    pub fn crossfade_volume(&self) -> f64 {
+        self.engine.crossfade_volume()
+    }
+
+    /// Switch the `PipeWire`/`GStreamer` sink. The queue is left intact.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Player`] when the device cannot be opened or the
+    /// current track cannot be reloaded onto the new sink.
+    pub fn set_output_device(&mut self, id: &str) -> Result<()> {
+        let terminal = sink_for_device(id)?;
+        let uri = self.engine.queued_uri();
+        let position = self.engine.position();
+        let state = self.engine.state();
+        if uri.is_some() {
+            let _ = self.engine.pause();
+        }
+        self.engine.set_audio_sink(&terminal);
+        let Some(uri) = uri else {
+            return Ok(());
+        };
+        self.engine.load_uri(&uri)?;
+        if let Some(position) = position {
+            let _ = self.engine.seek(position);
+        }
+        match state {
+            PlaybackState::Playing => self.engine.play(),
+            PlaybackState::Paused | PlaybackState::Loading => self.engine.pause(),
+            PlaybackState::Stopped => Ok(()),
+        }
+    }
+
     /// Current playback position, when the pipeline can report one.
     #[must_use]
     pub fn position(&self) -> Option<Duration> {
@@ -503,7 +588,69 @@ impl PlaybackController {
             }
         }
         self.retry_restore_seek();
+        self.refresh_replaygain();
+        self.tick_crossfade();
         out
+    }
+
+    fn refresh_replaygain(&mut self) {
+        let uri = self.engine.queued_uri();
+        if uri == self.rg_uri {
+            return;
+        }
+        self.rg_uri.clone_from(&uri);
+        let Some(uri) = uri else {
+            return;
+        };
+        self.engine.set_replaygain_tags(read_replaygain_uri(&uri));
+    }
+
+    fn tick_crossfade(&mut self) {
+        if self.crossfade.is_zero() {
+            if !matches!(self.fade, Fade::Idle) {
+                self.fade = Fade::Idle;
+                self.engine.set_crossfade_volume(1.0);
+            }
+            self.fade_index = self.current_index();
+            return;
+        }
+        let index = self.current_index();
+        if index != self.fade_index {
+            if self.fade_index.is_some() && index.is_some() {
+                self.fade = Fade::In {
+                    started: Instant::now(),
+                };
+                self.engine.set_crossfade_volume(0.0);
+            }
+            self.fade_index = index;
+        }
+        if self.engine.state() == PlaybackState::Playing
+            && matches!(self.fade, Fade::Idle)
+            && let (Some(position), Some(duration)) =
+                (self.engine.position(), self.engine.duration())
+        {
+            let remaining = duration.saturating_sub(position);
+            if remaining > Duration::ZERO && remaining <= self.crossfade {
+                self.fade = Fade::Out {
+                    started: Instant::now(),
+                };
+            }
+        }
+        match self.fade {
+            Fade::Idle => {}
+            Fade::Out { started } => {
+                let t = fade_progress(started.elapsed(), self.crossfade);
+                self.engine.set_crossfade_volume(1.0 - t);
+            }
+            Fade::In { started } => {
+                let t = fade_progress(started.elapsed(), self.crossfade);
+                self.engine.set_crossfade_volume(t);
+                if t >= 1.0 {
+                    self.engine.set_crossfade_volume(1.0);
+                    self.fade = Fade::Idle;
+                }
+            }
+        }
     }
 
     /// Re-issue the restore seek once the pipeline has prerolled. The first
@@ -541,6 +688,7 @@ impl PlaybackController {
     fn load_and_play(&mut self, uri: &str) -> Result<()> {
         self.pending_restore = None;
         self.engine.load_uri(uri)?;
+        self.engine.set_replaygain_tags(read_replaygain_uri(uri));
         self.engine.play()
     }
 
@@ -606,6 +754,13 @@ impl PlaybackController {
             }
         }
     }
+}
+
+fn fade_progress(elapsed: Duration, total: Duration) -> f64 {
+    if total.is_zero() {
+        return 1.0;
+    }
+    (elapsed.as_secs_f64() / total.as_secs_f64()).clamp(0.0, 1.0)
 }
 
 /// Outcome of attempting one resolved queue pick.
@@ -1079,5 +1234,44 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn output_device_change_keeps_the_queue() {
+        let mut controller = test_controller(false);
+        controller.enqueue(fixture_item("sine.wav"));
+        controller.enqueue(fixture_item("sine.flac"));
+        controller.play().expect("play starts");
+        let _ = controller.poll();
+        assert_eq!(controller.queue_len(), 2);
+        controller
+            .set_output_device("")
+            .expect("system sink reloads");
+        assert_eq!(controller.queue_len(), 2);
+        assert!(controller.current_index().is_some());
+    }
+
+    #[test]
+    fn replaygain_missing_tags_stay_at_unity() {
+        let mut controller = test_controller(false);
+        controller.set_replaygain_mode(ReplayGainMode::Track);
+        controller.enqueue(fixture_item("sine.wav"));
+        controller.play().expect("play starts");
+        let _ = controller.poll();
+        assert!(
+            (controller.replaygain_linear() - 1.0).abs() < f64::EPSILON,
+            "untagged fixture is unity, got {}",
+            controller.replaygain_linear()
+        );
+    }
+
+    #[test]
+    fn crossfade_zero_keeps_unity_envelope() {
+        let mut controller = test_controller(false);
+        controller.set_crossfade(Duration::ZERO);
+        controller.enqueue(fixture_item("sine.wav"));
+        controller.play().expect("play starts");
+        let _ = controller.poll();
+        assert!((controller.crossfade_volume() - 1.0).abs() < f64::EPSILON);
     }
 }

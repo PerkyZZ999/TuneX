@@ -9,6 +9,7 @@ description = "TuneX player engine: GStreamer playbin3 abstraction, queue, shuff
 
 [dependencies]
 gstreamer.workspace = true
+lofty.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tunex-core.workspace = true

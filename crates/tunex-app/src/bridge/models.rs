@@ -884,6 +884,56 @@ pub mod qobject {
         #[cxx_name = "setReduceMotion"]
         fn set_reduce_motion(self: Pin<&mut QueueModel>, enabled: bool);
 
+        /// `ReplayGain` mode: 0 off, 1 track, 2 album. Exposed as `replayGainMode`.
+        #[qinvokable]
+        #[cxx_name = "replayGainMode"]
+        fn replaygain_mode(self: &QueueModel) -> i32;
+
+        /// Cycle `ReplayGain` off → track → album. Exposed as `cycleReplayGain`.
+        #[qinvokable]
+        #[cxx_name = "cycleReplayGain"]
+        fn cycle_replaygain(self: Pin<&mut QueueModel>) -> i32;
+
+        /// Crossfade length in seconds (0–12). Exposed as `crossfadeSecs`.
+        #[qinvokable]
+        #[cxx_name = "crossfadeSecs"]
+        fn crossfade_secs(self: &QueueModel) -> i32;
+
+        /// Set crossfade length in seconds. Exposed as `setCrossfadeSecs`.
+        #[qinvokable]
+        #[cxx_name = "setCrossfadeSecs"]
+        fn set_crossfade_secs(self: Pin<&mut QueueModel>, secs: i32);
+
+        /// Current output device id (empty = System). Exposed as `outputDevice`.
+        #[qinvokable]
+        #[cxx_name = "outputDevice"]
+        fn output_device(self: &QueueModel) -> QString;
+
+        /// Refresh the device list on a worker. Exposed as `refreshOutputs`.
+        #[qinvokable]
+        #[cxx_name = "refreshOutputs"]
+        fn refresh_outputs(self: Pin<&mut QueueModel>);
+
+        /// How many output devices are listed. Exposed as `outputCount`.
+        #[qinvokable]
+        #[cxx_name = "outputCount"]
+        fn output_count(self: &QueueModel) -> i32;
+
+        /// Device id at `index`. Exposed as `outputIdAt`.
+        #[qinvokable]
+        #[cxx_name = "outputIdAt"]
+        fn output_id_at(self: &QueueModel, index: i32) -> QString;
+
+        /// Device label at `index`. Exposed as `outputLabelAt`.
+        #[qinvokable]
+        #[cxx_name = "outputLabelAt"]
+        fn output_label_at(self: &QueueModel, index: i32) -> QString;
+
+        /// Cycle the output device. Exposed as `cycleOutput`.
+        #[qinvokable]
+        #[cxx_name = "cycleOutput"]
+        fn cycle_output(self: Pin<&mut QueueModel>) -> i32;
+
         /// Cursor position (-1 when idle). Exposed as `currentIndex`.
         #[qinvokable]
         #[cxx_name = "currentIndex"]

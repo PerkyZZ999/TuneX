@@ -510,3 +510,10 @@
 - **Waiver:** none
 - **Follow-up:** S11 playback enrichment. AUR publish stays a human confirmation.
 
+### 2026-09-13 — S11 W-058–W-060 playback enrichment
+- **Slice:** S11
+- **Result:** pass (code + unit tests)
+- **Evidence:** ReplayGain off/track/album from lofty + GStreamer tags on a `volume` element downstream of playbin user volume; missing tags stay unity. Crossfade 0–12 s is a volume envelope on the existing about-to-finish handoff (not a second decoder); reduce-motion does not disable it. Output picker lists `Audio/Sink` devices (System default); changing device reloads the current URI onto a new sink without clearing Up Next. Settings → Playback exposes all three. D-005 updated. Tests: `replaygain_multiplier`, `replaygain_off_stays_at_unity`, `output_device_change_keeps_the_queue`, `replaygain_crossfade_and_output_persist`. `scripts/qml-lint.sh` 40/40 ✓. `rust-tc doctor` ✓ (278 tests). Traceability: R-020 → S11 → W-058–W-060 → this entry.
+- **Waiver:** none
+- **Follow-up:** S12 library authorship. AUR publish stays a human confirmation.
+

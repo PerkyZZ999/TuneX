@@ -12,7 +12,7 @@ Fast Rust engine + beautiful Qt Quick shell. QML renders; Rust decides. `tunex-a
 | tunex-player | PlayerEngine over playbin3, queue + shuffle/repeat, volume/mute, position/bus events | Emits TrackChanged/State/Position/Duration/Error/EndOfTrack as AppEvents |
 | tunex-core | Domain types (Track/Album/Artist/Queue/Playlist/...), PlayerState machine, errors, AppEvent enum, config schema | No Qt/GStreamer/SQLite/notify deps |
 | SQLite | artists/albums/tracks/genres/folders/playlists/playlist_tracks/favorites/play_history/library_roots/scan_state/artwork/settings + FTS5 external-content | WAL, versioned migrations, BM25 |
-| GStreamer playbin3 | Decode/seek/buffer/gapless/volume | about-to-finish preload; volume/tag tap reserved |
+| GStreamer playbin3 | Decode/seek/buffer/gapless/volume | about-to-finish preload; ReplayGain + crossfade volumes wrap the audio sink |
 | notify watcher | FS events → enqueue paths | Debounce/coalesce in app; never heavy work on callback |
 
 ## Data flow
@@ -56,4 +56,4 @@ Play: queue.next → engine.preload(about-to-finish) → bus → TrackChanged/Po
 - Build: CMake+Corrosion single entry + PKGBUILD; CI native + `makepkg` check; qmllint/qmlformat required.
 
 ## Alignment to locks
-- D-001→core Rust; D-002→QML/SceneGraph/RHI; D-003→cxx-qt models/signals; D-004→CMake/Corrosion; D-005→playbin3/about-to-finish; D-006→SQLite/FTS5; D-007→tokio AppEvent; D-008→4 crates; D-009→stable_key; D-010→art pipeline; D-011b→PKGBUILD/AUR V1; D-012→M6 perf; D-013→GPLv3; D-014→offline + boundary.
+- D-001→core Rust; D-002→QML/SceneGraph/RHI; D-003→cxx-qt models/signals; D-004→CMake/Corrosion; D-005→playbin3/about-to-finish + output picker; D-006→SQLite/FTS5; D-007→tokio AppEvent; D-008→4 crates; D-009→stable_key; D-010→art pipeline; D-011b→PKGBUILD/AUR V1; D-012→M6 perf; D-013→GPLv3; D-014→offline + boundary.

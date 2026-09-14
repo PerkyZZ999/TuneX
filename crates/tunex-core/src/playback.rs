@@ -21,6 +21,19 @@ pub enum RepeatMode {
     One,
 }
 
+/// `ReplayGain` application (L-001). Missing tags stay at unity.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplayGainMode {
+    /// Leave tagged gains unused.
+    #[default]
+    Off,
+    /// Apply per-track gain.
+    Track,
+    /// Apply album gain, falling back to track, then unity.
+    Album,
+}
+
 /// Application-level playback states (SPEC §6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PlaybackState {
@@ -55,6 +68,11 @@ mod tests {
     #[test]
     fn default_state_is_stopped() {
         assert_eq!(PlaybackState::default(), PlaybackState::Stopped);
+    }
+
+    #[test]
+    fn replaygain_defaults_off() {
+        assert_eq!(ReplayGainMode::default(), ReplayGainMode::Off);
     }
 
     #[test]

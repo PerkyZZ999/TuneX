@@ -12,7 +12,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use super::playback::RepeatMode;
+use super::playback::{RepeatMode, ReplayGainMode};
 use crate::{Error, Result};
 
 /// Playback behavior settings.
@@ -31,6 +31,13 @@ pub struct PlaybackConfig {
     /// Last playback position in milliseconds (best-effort).
     #[serde(default)]
     pub last_position_ms: u64,
+    /// `ReplayGain` mode. Missing tags stay at unity.
+    pub replaygain: ReplayGainMode,
+    /// Fade length in seconds on the about-to-finish handoff (0–12). `0` is a gapless cut.
+    pub crossfade_secs: u8,
+    /// `PipeWire`/`GStreamer` sink id. Empty means the system default.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub output_device: String,
 }
 
 /// Appearance and accessibility settings.
@@ -162,6 +169,7 @@ impl TunexConfig {
     /// Clamp invariants that deserialization alone cannot express.
     fn normalize(&mut self) {
         self.volume = self.volume.clamp(0.0, 1.0);
+        self.playback.crossfade_secs = self.playback.crossfade_secs.min(12);
         if self.window.width > 0 {
             self.window.width = self.window.width.max(WindowConfig::MIN_WIDTH);
         }
@@ -295,6 +303,9 @@ mod tests {
                 repeat_mode: RepeatMode::All,
                 last_uri: None,
                 last_position_ms: 0,
+                replaygain: ReplayGainMode::Track,
+                crossfade_secs: 4,
+                output_device: "alsa_output.pci-0.analog-stereo".to_owned(),
             },
             appearance: AppearanceConfig {
                 reduce_motion: true,
@@ -347,6 +358,28 @@ mod tests {
         let config = load_from(&path).expect("clamped load works");
         // Bit-exact: clamping to the literal yields its exact representation.
         assert_eq!(config.volume.to_bits(), 1.0f32.to_bits());
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn playback_enrichment_clamps_and_round_trips() {
+        assert_eq!(
+            TunexConfig::default().playback.replaygain,
+            ReplayGainMode::Off
+        );
+        assert_eq!(TunexConfig::default().playback.crossfade_secs, 0);
+        assert!(TunexConfig::default().playback.output_device.is_empty());
+        let dir = scratch_dir("enrichment");
+        let path = dir.join("config.toml");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::write(
+            &path,
+            "[playback]\ncrossfade_secs = 99\nreplaygain = \"album\"\n",
+        )
+        .expect("setup works");
+        let loaded = load_from(&path).expect("legacy-large fade loads");
+        assert_eq!(loaded.playback.crossfade_secs, 12);
+        assert_eq!(loaded.playback.replaygain, ReplayGainMode::Album);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

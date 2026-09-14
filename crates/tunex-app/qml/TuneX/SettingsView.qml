@@ -20,6 +20,9 @@ Item {
     property bool shuffleOn: false
     property int repeatModeValue: 0
     property int volumePct: 100
+    property int replayGainModeValue: 0
+    property int crossfadeSecs: 0
+    property string outputLabel: qsTr("System")
     property bool closeToTray: true
     property bool trayAvailable: false
     property bool reduceMotionOn: false
@@ -32,6 +35,13 @@ Item {
             return qsTr("All tracks");
         if (root.repeatModeValue === 2)
             return qsTr("One track");
+        return qsTr("Off");
+    }
+    readonly property string replayGainLabel: {
+        if (root.replayGainModeValue === 1)
+            return qsTr("Track");
+        if (root.replayGainModeValue === 2)
+            return qsTr("Album");
         return qsTr("Off");
     }
 
@@ -74,6 +84,17 @@ Item {
         root.repeatModeValue = root.queue.repeatMode();
         if (!volumeSlider.pressed)
             root.volumePct = root.queue.volumePct();
+        root.replayGainModeValue = root.queue.replayGainMode();
+        if (!crossfadeSlider.pressed)
+            root.crossfadeSecs = root.queue.crossfadeSecs();
+        root.outputLabel = qsTr("System");
+        const wanted = String(root.queue.outputDevice());
+        for (let i = 0; i < root.queue.outputCount(); i++) {
+            if (String(root.queue.outputIdAt(i)) === wanted) {
+                root.outputLabel = root.queue.outputLabelAt(i);
+                break;
+            }
+        }
         root.closeToTray = root.tray.closeToTray();
         root.trayAvailable = root.tray.isAvailable();
         root.reduceMotionOn = root.queue.reduceMotion();
@@ -88,6 +109,12 @@ Item {
     onVisibleChanged: {
         if (root.visible)
             root.sync();
+        if (root.visible && root.section === "playback")
+            root.queue.refreshOutputs();
+    }
+    onSectionChanged: {
+        if (root.section === "playback")
+            root.queue.refreshOutputs();
     }
     Accessible.role: Accessible.Pane
     Accessible.name: qsTr("Settings")
@@ -472,7 +499,7 @@ Item {
                         Text {
                             width: parent.width
                             wrapMode: Text.WordWrap
-                            text: qsTr("Playback is gapless between consecutive tracks. The last track and position come back when you reopen TuneX, if the file is still there.")
+                            text: qsTr("Playback is gapless between consecutive tracks. ReplayGain sits after the volume slider. A crossfade of 0 seconds keeps the gapless cut. Reduce motion does not turn the fade off.")
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontBody
@@ -587,6 +614,199 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     root.queue.cycleRepeat();
+                                    root.sync();
+                                }
+                            }
+                        }
+
+                        Item {
+                            width: parent.width
+                            height: Math.max(Theme.targetMin, replayCopy.implicitHeight + Theme.spaceSm * 2)
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("ReplayGain") + ", " + root.replayGainLabel
+                            Keys.onSpacePressed: {
+                                root.queue.cycleReplayGain();
+                                root.sync();
+                            }
+                            Keys.onReturnPressed: {
+                                root.queue.cycleReplayGain();
+                                root.sync();
+                            }
+                            Keys.onEnterPressed: {
+                                root.queue.cycleReplayGain();
+                                root.sync();
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.radiusSm
+                                color: replayMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
+                                border.width: parent.activeFocus ? 2 : 0
+                                border.color: Theme.focus
+                            }
+
+                            Column {
+                                id: replayCopy
+
+                                anchors.left: parent.left
+                                anchors.right: replayButton.left
+                                anchors.rightMargin: Theme.spaceMd
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: Theme.spaceXs
+
+                                Text {
+                                    text: qsTr("ReplayGain")
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBody
+                                    font.weight: Font.Medium
+                                    color: Theme.foreground
+                                }
+
+                                Text {
+                                    text: root.replayGainLabel
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBodySm
+                                    color: Theme.muted
+                                }
+                            }
+
+                            IconButton {
+                                id: replayButton
+
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                iconName: "volume"
+                                accessibleName: qsTr("Cycle ReplayGain") + ", " + root.replayGainLabel
+                                onActivated: {
+                                    root.queue.cycleReplayGain();
+                                    root.sync();
+                                }
+                            }
+
+                            MouseArea {
+                                id: replayMouse
+
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.queue.cycleReplayGain();
+                                    root.sync();
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("Crossfade")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontLabel
+                            font.weight: Font.Medium
+                            color: Theme.foreground
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: root.crossfadeSecs === 0 ? qsTr("Off — gapless cut") : qsTr("%1 seconds").arg(root.crossfadeSecs)
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBodySm
+                            color: Theme.muted
+                        }
+
+                        ProgressSlider {
+                            id: crossfadeSlider
+
+                            width: Math.min(parent.width, 320)
+                            from: 0
+                            to: 12
+                            stepSize: 1
+                            value: root.crossfadeSecs
+                            Accessible.name: qsTr("Crossfade")
+                            onMoved: {
+                                root.queue.setCrossfadeSecs(Math.round(value));
+                                root.sync();
+                            }
+                        }
+
+                        Item {
+                            width: parent.width
+                            height: Math.max(Theme.targetMin, outputCopy.implicitHeight + Theme.spaceSm * 2)
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("Output") + ", " + root.outputLabel
+                            Keys.onSpacePressed: {
+                                root.queue.cycleOutput();
+                                root.sync();
+                            }
+                            Keys.onReturnPressed: {
+                                root.queue.cycleOutput();
+                                root.sync();
+                            }
+                            Keys.onEnterPressed: {
+                                root.queue.cycleOutput();
+                                root.sync();
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.radiusSm
+                                color: outputMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
+                                border.width: parent.activeFocus ? 2 : 0
+                                border.color: Theme.focus
+                            }
+
+                            Column {
+                                id: outputCopy
+
+                                anchors.left: parent.left
+                                anchors.right: outputButton.left
+                                anchors.rightMargin: Theme.spaceMd
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: Theme.spaceXs
+
+                                Text {
+                                    text: qsTr("Output")
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBody
+                                    font.weight: Font.Medium
+                                    color: Theme.foreground
+                                }
+
+                                Text {
+                                    text: root.outputLabel
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBodySm
+                                    color: Theme.muted
+                                }
+                            }
+
+                            IconButton {
+                                id: outputButton
+
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                iconName: "sliders-horizontal"
+                                accessibleName: qsTr("Cycle output") + ", " + root.outputLabel
+                                onActivated: {
+                                    root.queue.cycleOutput();
+                                    root.sync();
+                                }
+                            }
+
+                            MouseArea {
+                                id: outputMouse
+
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.queue.cycleOutput();
                                     root.sync();
                                 }
                             }

@@ -1,11 +1,16 @@
-# Work items (current slice: S10 — Queue as an instrument)
+# Work items (current slice: S11 — Playback enrichment)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060).
 
 ## Current slice
-S10 — Queue drag-reorder, play-next clarity, playing equalizer, queue-across-restart. **Done 2026-09-13** (W-056–W-057). Does not reopen S9.
+S11 — ReplayGain, crossfade, output-device picker. **Done 2026-09-13** (W-058–W-060). Does not reopen S10.
 
-**Done condition:** Up Next rows drag-reorder onto `moveItem`; menu is Play next / Move to end / Remove; playing row shows an equalizer tick (static under reduce-motion); restart restores the ordered queue paused.
+**Done condition:** Settings → Playback offers ReplayGain (off/track/album), 0–12 s crossfade, and a System-default output picker; changing the device keeps Up Next.
+
+## Queue (S11)
+- [x] W-058 — ReplayGain from lofty + GStreamer tags; `volume` element downstream of user volume; off/track/album; missing tags = unity (R-020, L-001).
+- [x] W-059 — 0–12 s volume envelope on the existing about-to-finish handoff; not a second decoder; reduce-motion does not disable audio fade; 0 s = gapless cut (R-020, L-002).
+- [x] W-060 — Enumerate PipeWire/GStreamer sinks on a worker; persist device id; default System; changing device does not drop the queue; D-005 updated (R-020, L-013).
 
 ## Queue (S10)
 - [x] W-056 — Drag-reorder rows onto `moveItem` (same model diff path as insert/remove); queue-row menu Play next / Move to end / Remove; playing-row equalizer tick, static bars when `reduce_motion` (R-010, L-003 named UX).

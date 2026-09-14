@@ -19,4 +19,4 @@ pub use config::{
     library_db_path, load_from, save_to, update,
 };
 pub use error::{Error, Result};
-pub use playback::{PlaybackState, PlayerEvent, RepeatMode};
+pub use playback::{PlaybackState, PlayerEvent, RepeatMode, ReplayGainMode};

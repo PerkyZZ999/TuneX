@@ -60,5 +60,11 @@
 - **Validation:** `cargo test` queue persist/restore + play_next_at; `scripts/qml-lint.sh`
 - **Status:** done (W-056–W-057, 2026-09-13)
 
+## Slice S11 — Playback enrichment (post-V1)
+- **Acceptance:** ReplayGain off/track/album from tags (unity when missing); 0–12 s volume-envelope crossfade on the existing handoff; PipeWire/GStreamer output picker (System default) without dropping the queue.
+- **Requirements:** R-020 (promoted L-001, L-002, L-013); D-005 updated
+- **Validation:** `cargo test` replaygain/crossfade/output; `scripts/qml-lint.sh`
+- **Status:** done (W-058–W-060, 2026-09-13)
+
 ## Traceability (req → slices)
-- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9.
+- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9, R-020→S11.

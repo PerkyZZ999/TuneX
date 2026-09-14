@@ -1942,6 +1942,7 @@ name = "tunex-player"
 version = "0.1.0"
 dependencies = [
  "gstreamer",
+ "lofty",
  "tokio",
  "tracing",
  "tunex-core",

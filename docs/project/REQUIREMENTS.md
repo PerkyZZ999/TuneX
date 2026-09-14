@@ -97,6 +97,14 @@
   - [x] Slider/mute immediate; restart restores volume + last track if file exists
 - **Validation method:** manual
 
+### R-020 — Playback enrichment
+- **Description:** ReplayGain (off / track / album) from tags, applied downstream of user volume; missing tags stay at unity. Crossfade 0–12 s is a volume envelope on the existing about-to-finish handoff (not a second decoder); 0 s is the gapless cut; reduce-motion does not disable the audio fade. Output-device picker enumerates PipeWire/GStreamer sinks (default System); changing device does not drop the queue.
+- **Priority:** must (post-V1; promoted from L-001, L-002, L-013)
+- **Acceptance:**
+  - [x] Settings → Playback exposes ReplayGain, crossfade, and output (W-058–W-060)
+  - [x] ReplayGain missing tags = unity; device change keeps Up Next
+- **Validation method:** manual + test
+
 ### R-012 — Playlists
 - **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing.
 - **Priority:** must
@@ -157,7 +165,7 @@
 - **R-NFR-06 Perf (aspirational, M6 only):** 1.5s cold 50k, search p95 <50ms, 60fps scroll, <50ms controls, >500 files/min. Desired, not V1-blocking.
 
 ## Later (out of V1)
-- L-001 ReplayGain, L-002 crossfade, L-003 advanced queue (beyond named Play next / drag), L-004 smart playlists, L-005 metadata editing, L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm, L-013 output-device picker.
+- L-003 advanced queue (beyond named Play next / drag), L-004 smart playlists, L-005 metadata editing, L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm.
 
 ## Non-goals
 - Streaming/accounts/cloud, social, podcasts, video, mobile, DAW/editor, store, AI, advanced DSP — per BRIEF.

@@ -15,6 +15,7 @@ use super::models::qobject;
 
 use core::pin::Pin;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cxx_qt::CxxQtType;
@@ -27,7 +28,8 @@ use crate::mpris::{
     take_inbox, unmap_loop,
 };
 use crate::playback::queue_item_from_row;
-use tunex_player::{PlaybackController, uri_to_path};
+use tunex_core::ReplayGainMode;
+use tunex_player::{PlaybackController, list_audio_outputs, uri_to_path};
 
 /// How often the same-track position is flushed to disk.
 /// Frequent enough that a crash loses at most a couple of seconds; rare
@@ -130,6 +132,7 @@ pub struct QueueModelRust {
     /// URI of the last toasted track (S5 W-034). Restores seed it silently;
     /// only later advances pop a notification.
     last_notified_uri: Option<String>,
+    outputs: Arc<Mutex<Vec<(String, String)>>>,
 }
 
 impl Default for QueueModelRust {
@@ -149,6 +152,7 @@ impl Default for QueueModelRust {
             saved_at: None,
             mpris_rx: None,
             last_notified_uri: None,
+            outputs: Arc::new(Mutex::new(vec![(String::new(), "System".to_owned())])),
         }
     }
 }
@@ -219,6 +223,20 @@ impl QueueModelRust {
                     controller.set_muted(config.playback.muted);
                     controller.set_shuffle(config.playback.shuffle);
                     controller.set_repeat(config.playback.repeat_mode);
+                    controller.set_replaygain_mode(config.playback.replaygain);
+                    controller.set_crossfade(Duration::from_secs(u64::from(
+                        config.playback.crossfade_secs,
+                    )));
+                    if !config.playback.output_device.is_empty()
+                        && let Err(err) =
+                            controller.set_output_device(&config.playback.output_device)
+                    {
+                        tracing::warn!(
+                            name = "queue.output_restore_failed",
+                            error = %err,
+                            "stored output device unavailable; using system default"
+                        );
+                    }
                     self.controller = Some(controller);
                     self.restore_session(&config);
                 }
@@ -1003,6 +1021,162 @@ impl QueueModelRust {
         }
     }
 
+    fn replaygain_mode(&self) -> i32 {
+        match tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .playback
+            .replaygain
+        {
+            ReplayGainMode::Off => 0,
+            ReplayGainMode::Track => 1,
+            ReplayGainMode::Album => 2,
+        }
+    }
+
+    fn set_replaygain_mode(&mut self, mode: i32) {
+        let mode = match mode {
+            1 => ReplayGainMode::Track,
+            2 => ReplayGainMode::Album,
+            _ => ReplayGainMode::Off,
+        };
+        if self.ensure_controller()
+            && let Some(controller) = &mut self.controller
+        {
+            controller.set_replaygain_mode(mode);
+        }
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.playback.replaygain = mode;
+        }) {
+            tracing::warn!(
+                name = "queue.replaygain_persist_failed",
+                error = %err,
+                "replaygain not saved"
+            );
+        }
+    }
+
+    fn do_cycle_replaygain(&mut self) -> i32 {
+        let next = (self.replaygain_mode() + 1) % 3;
+        self.set_replaygain_mode(next);
+        next
+    }
+
+    fn crossfade_secs(&self) -> i32 {
+        i32::from(
+            tunex_core::load_from(&self.config_path)
+                .unwrap_or_default()
+                .playback
+                .crossfade_secs,
+        )
+    }
+
+    fn set_crossfade_secs(&mut self, secs: i32) {
+        let secs = u8::try_from(secs.clamp(0, 12)).unwrap_or(0);
+        if self.ensure_controller()
+            && let Some(controller) = &mut self.controller
+        {
+            controller.set_crossfade(Duration::from_secs(u64::from(secs)));
+        }
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.playback.crossfade_secs = secs;
+        }) {
+            tracing::warn!(
+                name = "queue.crossfade_persist_failed",
+                error = %err,
+                "crossfade not saved"
+            );
+        }
+    }
+
+    fn output_device(&self) -> String {
+        tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .playback
+            .output_device
+    }
+
+    fn set_output_device_id(&mut self, id: &str) {
+        if self.ensure_controller()
+            && let Some(controller) = &mut self.controller
+            && let Err(err) = controller.set_output_device(id)
+        {
+            self.last_error = Some(err.to_string());
+            return;
+        }
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            id.clone_into(&mut config.playback.output_device);
+        }) {
+            tracing::warn!(
+                name = "queue.output_persist_failed",
+                error = %err,
+                "output device not saved"
+            );
+        }
+    }
+
+    fn refresh_outputs(&self) {
+        let cache = Arc::clone(&self.outputs);
+        std::thread::Builder::new()
+            .name("tunex-outputs".to_owned())
+            .spawn(move || {
+                let list = list_audio_outputs()
+                    .into_iter()
+                    .map(|device| (device.id, device.label))
+                    .collect();
+                if let Ok(mut guard) = cache.lock() {
+                    *guard = list;
+                }
+            })
+            .ok();
+    }
+
+    fn output_count(&self) -> i32 {
+        self.outputs
+            .lock()
+            .map_or(1, |guard| i32::try_from(guard.len()).unwrap_or(i32::MAX))
+    }
+
+    fn output_id_at(&self, index: i32) -> String {
+        let Ok(index) = usize::try_from(index) else {
+            return String::new();
+        };
+        self.outputs
+            .lock()
+            .ok()
+            .and_then(|guard| guard.get(index).map(|(id, _)| id.clone()))
+            .unwrap_or_default()
+    }
+
+    fn output_label_at(&self, index: i32) -> String {
+        let Ok(index) = usize::try_from(index) else {
+            return String::new();
+        };
+        self.outputs
+            .lock()
+            .ok()
+            .and_then(|guard| guard.get(index).map(|(_, label)| label.clone()))
+            .unwrap_or_default()
+    }
+
+    fn do_cycle_output(&mut self) -> i32 {
+        let count = self.output_count();
+        if count <= 0 {
+            return 0;
+        }
+        let current = self.output_device();
+        let mut at = 0_i32;
+        for index in 0..count {
+            if self.output_id_at(index) == current {
+                at = index;
+                break;
+            }
+        }
+        let next = (at + 1) % count;
+        let id = self.output_id_at(next);
+        self.set_output_device_id(&id);
+        next
+    }
+
     /// Write volume, mute, shuffle/repeat, and last-track into settings.
     fn write_audio_config(&self) {
         let Some(controller) = &self.controller else {
@@ -1564,6 +1738,58 @@ impl qobject::QueueModel {
         self.rust().set_reduce_motion(enabled);
     }
 
+    /// `ReplayGain` mode as 0 (off), 1 (track), 2 (album).
+    pub fn replaygain_mode(&self) -> i32 {
+        self.rust().replaygain_mode()
+    }
+
+    /// Cycle `ReplayGain` off → track → album.
+    #[must_use]
+    pub fn cycle_replaygain(mut self: Pin<&mut Self>) -> i32 {
+        self.as_mut().rust_mut().do_cycle_replaygain()
+    }
+
+    /// Crossfade length in seconds.
+    pub fn crossfade_secs(&self) -> i32 {
+        self.rust().crossfade_secs()
+    }
+
+    /// Set crossfade length in seconds (0–12).
+    pub fn set_crossfade_secs(mut self: Pin<&mut Self>, secs: i32) {
+        self.as_mut().rust_mut().set_crossfade_secs(secs);
+    }
+
+    /// Current output device id (empty = System).
+    pub fn output_device(&self) -> QString {
+        QString::from(self.rust().output_device().as_str())
+    }
+
+    /// Refresh the device list on a worker.
+    pub fn refresh_outputs(self: Pin<&mut Self>) {
+        self.rust().refresh_outputs();
+    }
+
+    /// How many output devices are listed.
+    pub fn output_count(&self) -> i32 {
+        self.rust().output_count()
+    }
+
+    /// Device id at `index`.
+    pub fn output_id_at(&self, index: i32) -> QString {
+        QString::from(self.rust().output_id_at(index).as_str())
+    }
+
+    /// Device label at `index`.
+    pub fn output_label_at(&self, index: i32) -> QString {
+        QString::from(self.rust().output_label_at(index).as_str())
+    }
+
+    /// Cycle the output device.
+    #[must_use]
+    pub fn cycle_output(mut self: Pin<&mut Self>) -> i32 {
+        self.as_mut().rust_mut().do_cycle_output()
+    }
+
     /// Cursor position (-1 when idle).
     pub fn current_index(&self) -> i32 {
         self.rust().current_index()
@@ -1995,6 +2221,26 @@ mod tests {
         assert_eq!(model.playback_state(), 0, "idle engine reads stopped");
         assert_eq!(model.current_index(), -1, "idle cursor reads -1");
         assert_eq!(model.position_ms(), 0);
+    }
+
+    #[test]
+    fn replaygain_crossfade_and_output_persist() {
+        let (mut model, _guard) = model_with_seeded_library("queue-enrichment");
+        assert_eq!(model.replaygain_mode(), 0);
+        assert_eq!(model.do_cycle_replaygain(), 1);
+        assert_eq!(model.do_cycle_replaygain(), 2);
+        model.set_crossfade_secs(8);
+        assert_eq!(model.crossfade_secs(), 8);
+        model.set_crossfade_secs(99);
+        assert_eq!(model.crossfade_secs(), 12);
+        assert_eq!(model.output_count(), 1);
+        assert!(model.output_id_at(0).is_empty());
+        assert_eq!(model.output_label_at(0), "System");
+        model.set_output_device_id("");
+        let saved = tunex_core::load_from(&model.config_path).expect("enrichment saved");
+        assert_eq!(saved.playback.replaygain, tunex_core::ReplayGainMode::Album);
+        assert_eq!(saved.playback.crossfade_secs, 12);
+        assert!(saved.playback.output_device.is_empty());
     }
 
     #[test]

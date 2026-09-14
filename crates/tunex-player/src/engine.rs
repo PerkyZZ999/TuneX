@@ -17,9 +17,12 @@ use std::{
 
 use gstreamer::{self as gst, glib::object::ObjectExt as _, prelude::*};
 use tokio::sync::mpsc;
-use tunex_core::{Error, PlaybackState, PlayerEvent, Result};
+use tunex_core::{Error, PlaybackState, PlayerEvent, ReplayGainMode, Result};
 
-use crate::path_to_uri;
+use crate::{
+    path_to_uri,
+    replaygain::{ReplayGainTags, read_replaygain_uri, replaygain_multiplier},
+};
 
 /// Event channel depth: bursts (state + duration + end-of-track) stay small.
 const EVENT_BUFFER: usize = 64;
@@ -108,6 +111,14 @@ struct Inner {
     /// Gapless handoff state, shared between the preload hook, the swap
     /// report ([`connect_source_removed`]), and teardown.
     handoff: Handoff,
+    /// `ReplayGain` mode (applied downstream of playbin user volume).
+    rg_mode: ReplayGainMode,
+    lofty_track: Option<f64>,
+    lofty_album: Option<f64>,
+    gst_track: Option<f64>,
+    gst_album: Option<f64>,
+    rg_volume: gst::Element,
+    xfade_volume: gst::Element,
 }
 
 impl std::fmt::Debug for Inner {
@@ -121,7 +132,8 @@ impl std::fmt::Debug for Inner {
             .field("pause_requested", &self.pause_requested)
             .field("seek_pending", &self.seek_pending)
             .field("handoff", &self.handoff)
-            .finish()
+            .field("rg_mode", &self.rg_mode)
+            .finish_non_exhaustive()
     }
 }
 
@@ -167,6 +179,13 @@ impl PlayerEngine {
             return Err(Error::Player("playbin3 is not a bin".to_owned()));
         };
 
+        let terminal = gst::ElementFactory::make("autoaudiosink")
+            .build()
+            .or_else(|_| gst::ElementFactory::make("fakesink").build())
+            .map_err(|err| Error::Player(format!("no audio sink: {err}")))?;
+        let (audio_bin, rg_volume, xfade_volume) = wrap_audio_sink(&terminal)?;
+        playbin.set_property("audio-sink", &audio_bin);
+
         let inner = Arc::new(Mutex::new(Inner {
             state: PlaybackState::Stopped,
             has_track: false,
@@ -176,6 +195,13 @@ impl PlayerEngine {
             pause_requested: false,
             seek_pending: false,
             handoff: Handoff::Idle,
+            rg_mode: ReplayGainMode::Off,
+            lofty_track: None,
+            lofty_album: None,
+            gst_track: None,
+            gst_album: None,
+            rg_volume,
+            xfade_volume,
         }));
         let handoff_settled = Arc::new(Condvar::new());
         let shutdown = Arc::new(AtomicBool::new(false));
@@ -246,6 +272,12 @@ impl PlayerEngine {
             inner.has_track = true;
             inner.pause_requested = false;
             inner.queued_uri = Some(uri.to_owned());
+            inner.gst_track = None;
+            inner.gst_album = None;
+            let tags = read_replaygain_uri(uri);
+            inner.lofty_track = tags.track_db;
+            inner.lofty_album = tags.album_db;
+            apply_replaygain(&inner);
         }
         self.set_tracked_state(PlaybackState::Loading);
         Ok(())
@@ -361,9 +393,83 @@ impl PlayerEngine {
     }
 
     /// Override the audio sink (test seam: point at `fakesink` to run the
-    /// pipeline with no sound server).
+    /// pipeline with no sound server). The `ReplayGain` and crossfade volumes
+    /// wrap the new terminal so they stay downstream of user volume.
     pub fn set_audio_sink(&self, sink: &gst::Element) {
-        self.playbin.set_property("audio-sink", sink);
+        let Ok((bin, rg, xfade)) = wrap_audio_sink(sink) else {
+            tracing::warn!(name: "player.audio_sink.wrap_failed", "cannot wrap audio sink");
+            return;
+        };
+        self.install_audio_bin(&bin, rg, xfade);
+    }
+
+    /// Current queued URI, if the pipeline has been told to play one.
+    #[must_use]
+    pub fn queued_uri(&self) -> Option<String> {
+        self.inner
+            .lock()
+            .ok()
+            .and_then(|inner| inner.queued_uri.clone())
+    }
+
+    /// `ReplayGain` mode. Applied on the next tag refresh and immediately.
+    pub fn set_replaygain_mode(&self, mode: ReplayGainMode) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.rg_mode = mode;
+            apply_replaygain(&inner);
+        }
+    }
+
+    /// Replace lofty-sourced `ReplayGain` tags and re-apply the current mode.
+    pub fn set_replaygain_tags(&self, tags: ReplayGainTags) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.lofty_track = tags.track_db;
+            inner.lofty_album = tags.album_db;
+            apply_replaygain(&inner);
+        }
+    }
+
+    /// Linear `ReplayGain` multiplier currently on the downstream volume element.
+    #[must_use]
+    pub fn replaygain_linear(&self) -> f64 {
+        self.inner
+            .lock()
+            .ok()
+            .map_or(1.0, |inner| inner.rg_volume.property("volume"))
+    }
+
+    /// Crossfade envelope (0–1), independent of user volume and `ReplayGain`.
+    pub fn set_crossfade_volume(&self, volume: f64) {
+        if let Ok(inner) = self.inner.lock() {
+            inner
+                .xfade_volume
+                .set_property("volume", volume.clamp(0.0, 1.0));
+        }
+    }
+
+    /// Current crossfade envelope.
+    #[must_use]
+    pub fn crossfade_volume(&self) -> f64 {
+        self.inner
+            .lock()
+            .ok()
+            .map_or(1.0, |inner| inner.xfade_volume.property("volume"))
+    }
+
+    fn install_audio_bin(&self, bin: &gst::Bin, rg: gst::Element, xfade: gst::Element) {
+        let (rg_vol, xf_vol) = self.inner.lock().ok().map_or((1.0, 1.0), |inner| {
+            (
+                inner.rg_volume.property::<f64>("volume"),
+                inner.xfade_volume.property::<f64>("volume"),
+            )
+        });
+        rg.set_property("volume", rg_vol);
+        xfade.set_property("volume", xf_vol);
+        self.playbin.set_property("audio-sink", bin);
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.rg_volume = rg;
+            inner.xfade_volume = xfade;
+        }
     }
 
     /// Install (or clear) the gapless lookahead consulted when
@@ -625,6 +731,7 @@ fn handle_message(
             }
             on_duration_discovery(playbin, inner, events);
         }
+        MessageView::Tag(tag) => on_replaygain_tags(inner, &tag.tags()),
         _ => {}
     }
 }
@@ -687,6 +794,61 @@ fn on_duration_discovery(
     if changed {
         emit(events, PlayerEvent::DurationChanged(duration));
     }
+}
+
+/// Fill missing `ReplayGain` from the decoder tag tap (never overwrites lofty).
+fn on_replaygain_tags(inner: &Arc<Mutex<Inner>>, tags: &gst::TagList) {
+    let Ok(mut guard) = inner.lock() else {
+        return;
+    };
+    if let Some(gain) = tags.get::<gst::tags::TrackGain>() {
+        guard.gst_track = Some(gain.get());
+    }
+    if let Some(gain) = tags.get::<gst::tags::AlbumGain>() {
+        guard.gst_album = Some(gain.get());
+    }
+    apply_replaygain(&guard);
+}
+
+/// User-volume is playbin; this element is downstream so `ReplayGain` is post-fader.
+fn apply_replaygain(inner: &Inner) {
+    let track = inner.lofty_track.or(inner.gst_track);
+    let album = inner.lofty_album.or(inner.gst_album);
+    let linear = replaygain_multiplier(inner.rg_mode, track, album);
+    inner.rg_volume.set_property("volume", linear);
+}
+
+/// `volume(rg) ! volume(xfade) ! terminal` with a ghost sink pad.
+fn wrap_audio_sink(terminal: &gst::Element) -> Result<(gst::Bin, gst::Element, gst::Element)> {
+    let terminal = terminal.clone();
+    let bin = gst::Bin::builder().name("tunex-audio").build();
+    let rg = gst::ElementFactory::make("volume")
+        .name("tunex-rg")
+        .build()
+        .map_err(|err| Error::Player(format!("volume element unavailable: {err}")))?;
+    let xfade = gst::ElementFactory::make("volume")
+        .name("tunex-xfade")
+        .build()
+        .map_err(|err| Error::Player(format!("volume element unavailable: {err}")))?;
+    rg.set_property("volume", 1.0_f64);
+    xfade.set_property("volume", 1.0_f64);
+    bin.add_many([&rg, &xfade, &terminal])
+        .map_err(|err| Error::Player(format!("audio bin add failed: {err}")))?;
+    rg.link(&xfade)
+        .map_err(|err| Error::Player(format!("replaygain link failed: {err}")))?;
+    xfade
+        .link(&terminal)
+        .map_err(|err| Error::Player(format!("crossfade link failed: {err}")))?;
+    let sink_pad = rg
+        .static_pad("sink")
+        .ok_or_else(|| Error::Player("replaygain volume has no sink pad".to_owned()))?;
+    let ghost = gst::GhostPad::builder_with_target(&sink_pad)
+        .map_err(|err| Error::Player(format!("audio ghost pad: {err}")))?
+        .name("sink")
+        .build();
+    bin.add_pad(&ghost)
+        .map_err(|err| Error::Player(format!("audio ghost pad add: {err}")))?;
+    Ok((bin, rg, xfade))
 }
 
 #[cfg(test)]
@@ -793,6 +955,33 @@ mod tests {
         assert!(!engine.muted());
         engine.set_muted(true);
         assert!(engine.muted());
+    }
+
+    #[test]
+    fn replaygain_off_stays_at_unity() {
+        let (engine, _receiver) = test_engine();
+        engine.set_replaygain_tags(ReplayGainTags {
+            track_db: Some(-6.0),
+            album_db: Some(-12.0),
+        });
+        engine.set_replaygain_mode(ReplayGainMode::Off);
+        assert!((engine.replaygain_linear() - 1.0).abs() < 1e-6);
+        engine.set_replaygain_mode(ReplayGainMode::Track);
+        let expected = replaygain_multiplier(ReplayGainMode::Track, Some(-6.0), Some(-12.0));
+        assert!(
+            (engine.replaygain_linear() - expected).abs() < 1e-6,
+            "got {} expected {expected}",
+            engine.replaygain_linear()
+        );
+    }
+
+    #[test]
+    fn crossfade_envelope_is_independent_of_user_volume() {
+        let (engine, _receiver) = test_engine();
+        engine.set_volume(0.5);
+        engine.set_crossfade_volume(0.25);
+        assert!((engine.crossfade_volume() - 0.25).abs() < f64::EPSILON);
+        assert_eq!(engine.volume().to_bits(), f64::from(0.5f32).to_bits());
     }
 
     #[test]
