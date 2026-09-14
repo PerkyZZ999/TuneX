@@ -68,18 +68,44 @@ pub fn read_metadata(path: &Path) -> Result<FileMetadata> {
         duration: Some(tagged.properties().duration()),
         ..Default::default()
     };
-    let Some(tag) = tagged.primary_tag() else {
-        return Ok(metadata);
-    };
-    metadata.title = text(tag.title());
-    metadata.artist = text(tag.artist());
-    metadata.album = text(tag.album());
-    metadata.album_artist = text(tag.get_string(ItemKey::AlbumArtist));
-    metadata.composer = text(tag.get_string(ItemKey::Composer));
-    metadata.genre = text(tag.genre());
-    metadata.year = tag.date().map(|stamp| u32::from(stamp.year));
-    metadata.track_number = tag.track().filter(|number| *number > 0);
-    metadata.disc_number = tag.disk().filter(|number| *number > 0);
+    // Walk every tag, not only `primary_tag()`. ID3v1/APE/encoder-only
+    // primaries otherwise hide a populated ID3v2 frame set.
+    for tag in tagged.tags() {
+        merge_tag(&mut metadata, tag);
+    }
+    Ok(metadata)
+}
+
+/// Fill only `None` slots from `tag` so a later, richer tag cannot be
+/// overwritten by an empty primary (and vice versa).
+fn merge_tag(metadata: &mut FileMetadata, tag: &Tag) {
+    fill(&mut metadata.title, text(tag.title()));
+    fill(&mut metadata.artist, text(tag.artist()));
+    fill(&mut metadata.album, text(tag.album()));
+    fill(
+        &mut metadata.album_artist,
+        text(tag.get_string(ItemKey::AlbumArtist)),
+    );
+    fill(
+        &mut metadata.composer,
+        text(tag.get_string(ItemKey::Composer)),
+    );
+    fill(&mut metadata.genre, text(tag.genre()));
+    fill(
+        &mut metadata.year,
+        tag.date().map(|stamp| u32::from(stamp.year)),
+    );
+    fill(
+        &mut metadata.track_number,
+        tag.track().filter(|number| *number > 0),
+    );
+    fill(
+        &mut metadata.disc_number,
+        tag.disk().filter(|number| *number > 0),
+    );
+    if !metadata.artwork.is_empty() {
+        return;
+    }
     let mut pictures = tag.pictures().iter();
     if let Some(cover) = pictures
         .clone()
@@ -95,7 +121,12 @@ pub fn read_metadata(path: &Path) -> Result<FileMetadata> {
             });
         }
     }
-    Ok(metadata)
+}
+
+fn fill<T>(slot: &mut Option<T>, value: Option<T>) {
+    if slot.is_none() {
+        *slot = value;
+    }
 }
 
 /// User-authored tag edits. Empty strings are skipped (never invented).
@@ -229,6 +260,33 @@ mod tests {
     fn corrupt_file_errors_explicitly() {
         let err = read_metadata(&fixture("corrupt.mp3")).expect_err("must fail loudly");
         assert!(matches!(err, Error::Metadata(_)));
+    }
+
+    #[test]
+    fn merge_fills_fields_from_every_tag() {
+        use lofty::tag::{Tag, TagType};
+
+        let dir = std::env::temp_dir().join(format!("tunex-meta-merge-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("setup works");
+        let tagged = dir.join("merge.mp3");
+        std::fs::copy(fixture("sine.mp3"), &tagged).expect("setup works");
+
+        let mut file = lofty::probe::Probe::open(&tagged)
+            .and_then(lofty::probe::Probe::read)
+            .expect("setup reads");
+        let mut v2 = Tag::new(TagType::Id3v2);
+        v2.set_title("From V2".to_owned());
+        let mut v1 = Tag::new(TagType::Id3v1);
+        v1.set_artist("From V1".to_owned());
+        file.insert_tag(v2);
+        file.insert_tag(v1);
+        file.save_to_path(&tagged, lofty::config::WriteOptions::default())
+            .expect("setup writes");
+
+        let metadata = read_metadata(&tagged).expect("reads");
+        assert_eq!(metadata.title.as_deref(), Some("From V2"));
+        assert_eq!(metadata.artist.as_deref(), Some("From V1"));
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 
     /// Minimal 8x8 24-bit BMP: hand-encodable (no compression), valid enough

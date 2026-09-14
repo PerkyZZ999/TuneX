@@ -91,10 +91,18 @@ fn main() {
     })
     .expect("scan completes");
     let tracks = tunex_library::list_tracks(&db).expect("list works");
-    let artists =
-        tunex_library::list_artists(&db, tunex_library::ArtistSort::Name).expect("artists list");
-    let albums =
-        tunex_library::list_albums(&db, tunex_library::AlbumSort::Title).expect("albums list");
+    let artists = tunex_library::list_artists(
+        &db,
+        tunex_library::ArtistSort::Name,
+        tunex_library::SortDir::Asc,
+    )
+    .expect("artists list");
+    let albums = tunex_library::list_albums(
+        &db,
+        tunex_library::AlbumSort::Title,
+        tunex_library::SortDir::Asc,
+    )
+    .expect("albums list");
     println!(
         "result files_seen={} tracks_added={} metadata_failed={} renamed={} missing_marked={} rows={} artists={} albums={} elapsed_ms={}",
         stats.files_seen,

@@ -503,13 +503,15 @@ impl QueueModelRust {
                     }
                 }
             }
-            let title = path.file_name().map_or_else(
-                || "Unknown Title".to_owned(),
-                |name| name.to_string_lossy().into_owned(),
-            );
-            return tunex_player::QueueItem::new(uri, &title);
+            let (title, artist) =
+                tunex_library::display_title_artist(&path.to_string_lossy(), None, None);
+            let mut item = tunex_player::QueueItem::new(uri, &title);
+            if artist != tunex_library::UNKNOWN_ARTIST {
+                item = item.with_artist(&artist);
+            }
+            return item;
         }
-        tunex_player::QueueItem::new(uri, "Unknown Title")
+        tunex_player::QueueItem::new(uri, tunex_library::UNKNOWN_TITLE)
     }
 
     /// Start or resume playback; refreshes rows on success.
@@ -1523,7 +1525,7 @@ impl QueueModelRust {
     }
 
     /// Enqueue one folder's direct child tracks. Returns the number enqueued.
-    fn do_enqueue_folder(&mut self, folder: &str, sort_key: &str) -> i32 {
+    fn do_enqueue_folder(&mut self, folder: &str, sort_key: &str, descending: bool) -> i32 {
         if !self.ensure_controller() {
             return 0;
         }
@@ -1531,7 +1533,8 @@ impl QueueModelRust {
             return 0;
         };
         let sort = tunex_library::TrackSort::from_key(sort_key);
-        let rows = match tunex_library::list_tracks_in_folder(&db, folder, u32::MAX, sort) {
+        let dir = tunex_library::SortDir::from_descending(descending);
+        let rows = match tunex_library::list_tracks_in_folder(&db, folder, u32::MAX, sort, dir) {
             Ok(rows) => rows,
             Err(err) => {
                 tracing::warn!(name = "queue.folder_failed", error = %err, "folder lookup failed");
@@ -2009,11 +2012,17 @@ impl qobject::QueueModel {
 
     /// Enqueue one folder's direct child tracks; returns the number enqueued.
     #[must_use]
-    pub fn enqueue_folder(mut self: Pin<&mut Self>, folder: &QString, sort_key: &QString) -> i32 {
-        let added = self
-            .as_mut()
-            .rust_mut()
-            .do_enqueue_folder(&folder.to_string(), &sort_key.to_string());
+    pub fn enqueue_folder(
+        mut self: Pin<&mut Self>,
+        folder: &QString,
+        sort_key: &QString,
+        descending: bool,
+    ) -> i32 {
+        let added = self.as_mut().rust_mut().do_enqueue_folder(
+            &folder.to_string(),
+            &sort_key.to_string(),
+            descending,
+        );
         if added > 0 {
             self.as_mut().apply_rows();
         }
@@ -2291,11 +2300,15 @@ mod tests {
     fn enqueue_album_and_artist_collect_in_order() {
         let (mut model, _guard) = model_with_seeded_library("queue-groups");
         let db = tunex_library::open_file(&model.index_path).expect("seed opens");
-        let tapes = tunex_library::list_albums(&db, tunex_library::AlbumSort::Title)
-            .expect("albums list")
-            .into_iter()
-            .find(|album| album.title == "Night Tapes")
-            .expect("album present");
+        let tapes = tunex_library::list_albums(
+            &db,
+            tunex_library::AlbumSort::Title,
+            tunex_library::SortDir::Asc,
+        )
+        .expect("albums list")
+        .into_iter()
+        .find(|album| album.title == "Night Tapes")
+        .expect("album present");
         assert_eq!(model.do_enqueue_album(tapes.id), 2);
         assert_eq!(model.row_count(), 2);
         assert_eq!(model.do_enqueue_artist("Nova Rae"), 2);
@@ -2305,20 +2318,24 @@ mod tests {
     #[test]
     fn enqueue_folder_collects_direct_children() {
         let (mut model, _guard) = model_with_seeded_library("queue-folder");
-        assert_eq!(model.do_enqueue_folder("/music", "title"), 3);
+        assert_eq!(model.do_enqueue_folder("/music", "title", false), 3);
         assert_eq!(model.row_count(), 3);
-        assert_eq!(model.do_enqueue_folder("/music/missing", "title"), 0);
+        assert_eq!(model.do_enqueue_folder("/music/missing", "title", false), 0);
     }
 
     #[test]
     fn queue_ops_reorder_and_remove_rows() {
         let (mut model, _guard) = model_with_seeded_library("queue-ops");
         let db = tunex_library::open_file(&model.index_path).expect("seed opens");
-        let tapes = tunex_library::list_albums(&db, tunex_library::AlbumSort::Title)
-            .expect("albums list")
-            .into_iter()
-            .find(|album| album.title == "Night Tapes")
-            .expect("album present");
+        let tapes = tunex_library::list_albums(
+            &db,
+            tunex_library::AlbumSort::Title,
+            tunex_library::SortDir::Asc,
+        )
+        .expect("albums list")
+        .into_iter()
+        .find(|album| album.title == "Night Tapes")
+        .expect("album present");
         assert_eq!(model.do_enqueue_album(tapes.id), 2);
         model.do_move(0, 1);
         assert_eq!(

@@ -65,6 +65,7 @@ pub struct LibraryTrackModelRust {
     tracks: Vec<(i32, QString, QString, QString, i32, i32, bool)>,
     search: SearchCore,
     sort: tunex_library::TrackSort,
+    sort_dir: tunex_library::SortDir,
     browse: TrackBrowse,
 }
 
@@ -157,13 +158,14 @@ impl LibraryTrackModelRust {
     }
 }
 
-/// Display mapping shared by every loader: unknowns stay visible as such,
-/// numbers saturate into `i32`.
+/// Display mapping shared by every loader: tags win, filename fills gaps.
 fn display_row(row: &tunex_library::TrackRow) -> (i32, QString, QString, QString, i32, i32, bool) {
+    let (title, artist) =
+        tunex_library::display_title_artist(&row.path, row.title.as_deref(), row.artist.as_deref());
     (
         i32::try_from(row.id).unwrap_or(i32::MAX),
-        QString::from(row.title.as_deref().unwrap_or("Unknown Title")),
-        QString::from(row.artist.as_deref().unwrap_or("Unknown Artist")),
+        QString::from(&title),
+        QString::from(&artist),
         QString::from(row.album.as_deref().unwrap_or("Unknown Album")),
         row.track_number
             .and_then(|number| i32::try_from(number).ok())
@@ -181,6 +183,7 @@ fn load_tracks(
     path: &std::path::Path,
     browse: &TrackBrowse,
     sort: tunex_library::TrackSort,
+    dir: tunex_library::SortDir,
 ) -> Vec<(i32, QString, QString, QString, i32, i32, bool)> {
     if !path.is_file() {
         return Vec::new();
@@ -195,12 +198,12 @@ fn load_tracks(
     let rows = match browse {
         TrackBrowse::Album(album_id) => tunex_library::list_tracks_in_album(&db, *album_id),
         TrackBrowse::Folder(folder) => {
-            tunex_library::list_tracks_in_folder(&db, folder, SONGS_CAP, sort)
+            tunex_library::list_tracks_in_folder(&db, folder, SONGS_CAP, sort, dir)
         }
         TrackBrowse::Artist(name) => tunex_library::list_tracks_for_artist(&db, name),
         TrackBrowse::Genre(name) => tunex_library::list_tracks_for_genre(&db, name),
         TrackBrowse::Composer(name) => tunex_library::list_tracks_for_composer(&db, name),
-        TrackBrowse::Songs => tunex_library::list_tracks_capped(&db, SONGS_CAP, sort),
+        TrackBrowse::Songs => tunex_library::list_tracks_capped(&db, SONGS_CAP, sort, dir),
     };
     match rows {
         Ok(rows) => rows.iter().map(display_row).collect(),
@@ -217,7 +220,8 @@ impl qobject::LibraryTrackModel {
     pub fn refresh(mut self: Pin<&mut Self>) {
         let browse = self.as_ref().rust().browse.clone();
         let sort = self.as_ref().rust().sort;
-        let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort);
+        let dir = self.as_ref().rust().sort_dir;
+        let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort, dir);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_tracks();
@@ -234,6 +238,7 @@ impl qobject::LibraryTrackModel {
             &tunex_core::library_db_path(),
             &TrackBrowse::Album(i64::from(album_id)),
             tunex_library::TrackSort::Title,
+            tunex_library::SortDir::Asc,
         );
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
@@ -249,10 +254,12 @@ impl qobject::LibraryTrackModel {
         let path = folder.to_string();
         self.as_mut().rust_mut().browse = TrackBrowse::Folder(path.clone());
         let sort = self.as_ref().rust().sort;
+        let dir = self.as_ref().rust().sort_dir;
         let rows = load_tracks(
             &tunex_core::library_db_path(),
             &TrackBrowse::Folder(path),
             sort,
+            dir,
         );
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
@@ -270,6 +277,7 @@ impl qobject::LibraryTrackModel {
             &tunex_core::library_db_path(),
             &TrackBrowse::Artist(name),
             tunex_library::TrackSort::Title,
+            tunex_library::SortDir::Asc,
         );
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
@@ -287,6 +295,7 @@ impl qobject::LibraryTrackModel {
             &tunex_core::library_db_path(),
             &TrackBrowse::Genre(name),
             tunex_library::TrackSort::Title,
+            tunex_library::SortDir::Asc,
         );
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
@@ -304,6 +313,7 @@ impl qobject::LibraryTrackModel {
             &tunex_core::library_db_path(),
             &TrackBrowse::Composer(name),
             tunex_library::TrackSort::Title,
+            tunex_library::SortDir::Asc,
         );
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
@@ -312,6 +322,7 @@ impl qobject::LibraryTrackModel {
             self.as_mut().end_reset_model_tracks();
         }
     }
+    /// Remember a songs-tab sort key and reload when the current browse
     /// honours it (songs tab or folder drill). Album drill stays disc/track.
     /// Exposed as `setSort`.
     pub fn set_sort(mut self: Pin<&mut Self>, key: &QString) {
@@ -327,7 +338,33 @@ impl qobject::LibraryTrackModel {
         ) {
             return;
         }
-        let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort);
+        let dir = self.as_ref().rust().sort_dir;
+        let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort, dir);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_tracks();
+            self.as_mut().rust_mut().replace_rows(rows);
+            self.as_mut().end_reset_model_tracks();
+        }
+    }
+
+    /// Remember the songs-tab sort direction and reload when the current
+    /// browse honours it. Exposed as `setSortDescending`.
+    pub fn set_sort_descending(mut self: Pin<&mut Self>, descending: bool) {
+        let dir = tunex_library::SortDir::from_descending(descending);
+        self.as_mut().rust_mut().sort_dir = dir;
+        let browse = self.as_ref().rust().browse.clone();
+        if matches!(
+            browse,
+            TrackBrowse::Album(_)
+                | TrackBrowse::Artist(_)
+                | TrackBrowse::Genre(_)
+                | TrackBrowse::Composer(_)
+        ) {
+            return;
+        }
+        let sort = self.as_ref().rust().sort;
+        let rows = load_tracks(&tunex_core::library_db_path(), &browse, sort, dir);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_tracks();
@@ -345,7 +382,13 @@ impl qobject::LibraryTrackModel {
     pub fn refresh_songs(mut self: Pin<&mut Self>) {
         self.as_mut().rust_mut().browse = TrackBrowse::Songs;
         let sort = self.as_ref().rust().sort;
-        let rows = load_tracks(&tunex_core::library_db_path(), &TrackBrowse::Songs, sort);
+        let dir = self.as_ref().rust().sort_dir;
+        let rows = load_tracks(
+            &tunex_core::library_db_path(),
+            &TrackBrowse::Songs,
+            sort,
+            dir,
+        );
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_tracks();
@@ -622,7 +665,8 @@ mod tests {
             super::load_tracks(
                 &missing.join("library.db"),
                 &super::TrackBrowse::Songs,
-                tunex_library::TrackSort::Title
+                tunex_library::TrackSort::Title,
+                tunex_library::SortDir::Asc,
             )
             .is_empty()
         );
@@ -635,6 +679,7 @@ mod tests {
             &path,
             &super::TrackBrowse::Songs,
             tunex_library::TrackSort::Title,
+            tunex_library::SortDir::Asc,
         );
         assert_eq!(rows.len(), 3);
         let titles: Vec<String> = rows.iter().map(|row| row.1.to_string()).collect();
@@ -643,6 +688,7 @@ mod tests {
             &path,
             &super::TrackBrowse::Songs,
             tunex_library::TrackSort::Artist,
+            tunex_library::SortDir::Asc,
         );
         assert_eq!(by_artist[2].1.to_string(), "Solo");
     }
@@ -683,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn display_row_keeps_unknowns_visible() {
+    fn display_row_falls_back_to_filename() {
         let row = tunex_library::TrackRow {
             id: 1,
             path: "/music/x.flac".to_owned(),
@@ -701,7 +747,7 @@ mod tests {
         };
         let (track_id, title, artist, album, number, duration, missing) = super::display_row(&row);
         assert_eq!(track_id, 1);
-        assert_eq!(title, QString::from("Unknown Title"));
+        assert_eq!(title, QString::from("x"));
         assert_eq!(artist, QString::from("Unknown Artist"));
         assert_eq!(album, QString::from("Unknown Album"));
         assert_eq!((number, duration, missing), (0, 0, true));

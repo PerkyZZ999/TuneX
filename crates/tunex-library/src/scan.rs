@@ -360,12 +360,9 @@ pub async fn scan_folder_live(
 /// of stealing the row.
 ///
 /// A file already indexed under this path whose identity key still matches
-/// returns early: the key covers mtime and size, so its tags cannot have
-/// changed, and reading them is by far the most expensive thing here. Every
-/// start rescans the roots, so on a settled library this is the common case
-/// — rescanning an unchanged 530-track library went from 97 ms to 7 ms (S6
-/// W-041). The work skipped is file I/O, so the gap widens when the page
-/// cache is cold; indexing the same library from empty costs 607 ms. Rows
+/// returns early *when the row already has a title*: the key covers mtime
+/// and size, so tagged files are not re-read. Untitled rows are re-read so
+/// a one-time tag miss (wrong primary tag, empty ID3) can recover. Rows
 /// flagged missing still take the full path, because only the upsert clears
 /// that flag.
 fn index_file(
@@ -378,6 +375,7 @@ fn index_file(
 ) -> Result<()> {
     if let Some(previous) = by_path.get(path.to_string_lossy().as_ref())
         && !previous.missing
+        && !previous.incomplete
         && previous.stable_key == stable_key(path)
     {
         stats.tracks_added += 1;
@@ -509,10 +507,24 @@ mod tests {
     }
 
     #[test]
-    fn rescan_leaves_untouched_files_unread() {
+    fn rescan_leaves_untouched_tagged_files_unread() {
         let dir = scratch("unchanged");
         std::fs::create_dir_all(&dir).expect("setup works");
-        std::fs::copy(corrupt_source(), dir.join("same.mp3")).expect("setup works");
+        let file = dir.join("same.flac");
+        std::fs::copy(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sine.flac"),
+            &file,
+        )
+        .expect("setup works");
+        let mut tagged_file = lofty::probe::Probe::open(&file)
+            .and_then(lofty::probe::Probe::read)
+            .expect("setup reads");
+        let mut tag = lofty::tag::Tag::new(lofty::tag::TagType::VorbisComments);
+        tag.set_title("Midnight".to_owned());
+        tagged_file.insert_tag(tag);
+        tagged_file
+            .save_to_path(&file, lofty::config::WriteOptions::default())
+            .expect("setup writes");
         let mut db = open_memory().expect("db opens");
         let first = scan_folder(&mut db, &dir).expect("first scan works");
         assert_eq!(first.tracks_unchanged, 0, "a first index reads every file");
@@ -526,6 +538,46 @@ mod tests {
             second.metadata_failed, 0,
             "the skip means the tags were never read again"
         );
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn rescan_rereads_untitled_rows() {
+        let dir = scratch("untitled-reread");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        let file = dir.join("bare.flac");
+        std::fs::copy(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sine.flac"),
+            &file,
+        )
+        .expect("setup works");
+        let mut db = open_memory().expect("db opens");
+        scan_folder(&mut db, &dir).expect("first scan works");
+        assert_eq!(
+            list_tracks(&db).expect("list")[0].title,
+            None,
+            "untagged fixture stays unknown"
+        );
+        let second = scan_folder(&mut db, &dir).expect("rescan works");
+        assert_eq!(
+            second.tracks_unchanged, 0,
+            "a blank title is not skipped, so a missed tag can recover"
+        );
+        crate::write_tags(
+            &file,
+            &crate::TagEdit {
+                title: Some("Recovered".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("tag write");
+        scan_folder(&mut db, &dir).expect("tagged rescan works");
+        assert_eq!(
+            list_tracks(&db).expect("list")[0].title.as_deref(),
+            Some("Recovered")
+        );
+        let settled = scan_folder(&mut db, &dir).expect("settled rescan works");
+        assert_eq!(settled.tracks_unchanged, 1);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

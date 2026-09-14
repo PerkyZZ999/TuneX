@@ -163,7 +163,7 @@ Item {
                 }
 
                 Chip {
-                    label: qsTr("Songs")
+                    label: qsTr("Tracks")
                     selected: root.chipKey === "songs"
                     onActivated: root.activateChip("songs")
                 }

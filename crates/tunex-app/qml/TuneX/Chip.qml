@@ -11,7 +11,7 @@ Item {
 
     signal activated
 
-    implicitWidth: chipText.implicitWidth + Theme.spaceMd * 2
+    implicitWidth: chipText.implicitWidth + Theme.spaceSm * 2
     implicitHeight: Theme.chipHeight
     width: implicitWidth
     height: implicitHeight
@@ -27,7 +27,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Theme.radiusPill
+        radius: Theme.radiusXs
         color: root.selected ? Theme.selected : (chipMouse.containsMouse ? Theme.hover : "transparent")
         Behavior on color {
             ColorAnimation {

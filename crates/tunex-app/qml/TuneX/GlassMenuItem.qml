@@ -2,27 +2,41 @@ import QtQuick
 import QtQuick.Controls.Basic
 import TuneX
 
-// GlassMenuItem (S6 W-038): one 40px body-md row in a GlassMenu. Hover or
-// keyboard highlight steps an inset `hover` surface (sm radius); keyboard
-// focus adds the 2px ring. Sub-menu entries show a chevron. Disabled rows
-// dim to 38% with muted text — never hidden, so the menu shape is stable.
+// GlassMenuItem (S6 W-038): compact body-md row in a GlassMenu. Hover or
+// keyboard highlight steps an inset `hover` surface (xs radius); keyboard
+// focus adds the 2px ring. Sub-menu entries show a chevron. Checkable rows
+// show a leading check. Disabled rows dim to 38% with muted text.
 MenuItem {
     id: root
 
-    implicitHeight: Theme.denseTarget
+    implicitHeight: Theme.buttonHeight
+    leftPadding: Theme.spaceSm
     rightPadding: Theme.spaceMd
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontBody
 
-    contentItem: Text {
-        rightPadding: root.subMenu ? Theme.spaceLg : 0
-        text: root.text
-        textFormat: Text.PlainText
-        font: root.font
-        color: root.enabled ? Theme.foreground : Theme.muted
-        opacity: root.enabled ? 1 : 0.38
-        elide: Text.ElideRight
-        verticalAlignment: Text.AlignVCenter
+    contentItem: Row {
+        spacing: Theme.spaceSm
+
+        Icon {
+            visible: root.checkable
+            anchors.verticalCenter: parent.verticalCenter
+            name: "check"
+            iconSize: 14
+            opacity: root.checked ? 1 : 0
+            stroke: Theme.foreground
+        }
+
+        Text {
+            rightPadding: root.subMenu ? Theme.spaceLg : 0
+            text: root.text
+            textFormat: Text.PlainText
+            font: root.font
+            color: root.enabled ? Theme.foreground : Theme.muted
+            opacity: root.enabled ? 1 : 0.38
+            elide: Text.ElideRight
+            verticalAlignment: Text.AlignVCenter
+        }
     }
 
     indicator: Item {}
@@ -39,9 +53,9 @@ MenuItem {
     background: Rectangle {
         x: Theme.spaceXs
         implicitWidth: 216
-        implicitHeight: Theme.denseTarget
+        implicitHeight: Theme.buttonHeight
         width: root.width - Theme.spaceXs * 2
-        radius: Theme.radiusSm
+        radius: Theme.radiusXs
         color: root.highlighted && root.enabled ? Theme.hover : "transparent"
         Behavior on color {
             ColorAnimation {

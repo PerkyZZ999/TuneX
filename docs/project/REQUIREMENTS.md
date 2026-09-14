@@ -49,18 +49,18 @@
 - **Validation method:** test + manual
 
 ### R-007 — Browse library
-- **Description:** Browse tracks/albums/artists/folders with artwork grid + track lists, virtualized for large libs. V1-basic sort on Songs (title/artist/album/date), Albums (title/artist/date), Artists (name/songs). Clicking a song plays it now; queueing is a row-menu "Queue in Up Next" action. Album cards open `AlbumDetailView`; artist cards open `ArtistDetailView` (play is the header primary).
+- **Description:** Browse tracks/albums/artists/folders with artwork grid + track lists, virtualized for large libs. V1-basic sort on Tracks (title/artist/album/date), Albums (title/artist/date), Artists (name/tracks). Clicking a track plays it now; queueing is a row-menu "Queue in Up Next" action. Album cards open `AlbumDetailView`; artist cards open `ArtistDetailView` (play is the header primary).
 - **Priority:** must
 - **Acceptance:**
   - [ ] 50k-track seed browsable, scroll holds, album → tracks correct
-  - [ ] Songs/Albums/Artists sort chips reorder the Rust models (session-stable)
+  - [ ] Tracks/Albums/Artists Sort menu reorders the Rust models (session-stable, including direction)
   - [ ] Folders rail opens a folder browse (not scanned-root management)
-  - [ ] Song click plays now; context menu queues in Up Next
+  - [ ] Track click plays now; context menu queues in Up Next
   - [x] Album click opens the album landing page; artist click opens the artist landing page (W-052, W-053)
 - **Validation method:** manual + test
 
 ### R-019 — Genre, composer, and search recents
-- **Description:** Browse Genres and Composers from Your Library (Unknown stays Unknown). Search keeps local recent queries (cap 10) and Tab / Shift+Tab cycles Songs → Albums → Artists groups.
+- **Description:** Browse Genres and Composers from Your Library (Unknown stays Unknown). Search keeps local recent queries (cap 10) and Tab / Shift+Tab cycles Tracks → Albums → Artists groups.
 - **Priority:** must (post-V1; promoted from L-014)
 - **Acceptance:**
   - [x] Genres and Composers rail entries list groups then filtered songs (W-054)
@@ -138,17 +138,17 @@
 - **Validation method:** manual
 
 ### R-014 — Keyboard
-- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, list/grid arrows and j/k, Enter to play or open, type-to-select in Songs, Tab/Shift+Tab cycles Search groups, standard text editing. Settings → Shortcuts is a complete reference list of real bindings (not a rebind UI).
+- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, list/grid arrows and j/k, Enter to play or open, type-to-select in Tracks, Tab/Shift+Tab cycles Search groups, standard text editing. Settings → Shortcuts is a complete reference list of real bindings (not a rebind UI).
 - **Priority:** must
 - **Acceptance:**
   - [x] All bindings work focused in library/search/player; list documented (W-029, W-050)
 - **Validation method:** manual
 
 ### R-015 — Settings
-- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance, animation pref, audio default, shortcuts, close-to-tray, window geometry, last library tab and sort chips, named library profiles, opt-in MusicBrainz (default off).
+- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance, animation pref, audio default, shortcuts, close-to-tray, window geometry, last library tab and sort (key + direction), named library profiles, opt-in MusicBrainz (default off).
 - **Priority:** must
 - **Acceptance:**
-  - [x] Change → restart → retained (window size/position, library tab, sort chips: W-048)
+  - [x] Change → restart → retained (window size/position, library tab, sort: W-048)
   - [x] Settings list-detail (Library / Playback / Appearance / Shortcuts) binds to real config (W-046)
   - [x] Close-to-tray defaults on, persists, and hides the window only when a tray host is present; Quit is on the tray card (W-046)
   - [x] Named library profiles and MusicBrainz toggle live in Settings → Library (W-065, W-066)

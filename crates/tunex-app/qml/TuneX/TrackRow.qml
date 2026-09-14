@@ -194,7 +194,7 @@ Item {
         width: root.missing ? missingLabel.width + Theme.spaceSm * 2 : 0
         height: missingLabel.height + Theme.spaceXs
         visible: root.missing
-        radius: Theme.radiusPill
+        radius: Theme.radiusXs
         color: Theme.surfaceRaised
         border.color: Theme.warning
         border.width: 1
@@ -220,7 +220,7 @@ Item {
         width: root.dangling ? danglingLabel.width + Theme.spaceSm * 2 : 0
         height: danglingLabel.height + Theme.spaceXs
         visible: root.dangling
-        radius: Theme.radiusPill
+        radius: Theme.radiusXs
         color: Theme.surfaceRaised
         border.color: Theme.error
         border.width: 1

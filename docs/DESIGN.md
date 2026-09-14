@@ -90,25 +90,25 @@ components:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.label-md}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.xs}"
     padding: 8px
   button-primary-hover:
     backgroundColor: "{colors.primary-hover}"
     textColor: "{colors.on-primary}"
     typography: "{typography.label-md}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.xs}"
     padding: 8px
   button-secondary:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.foreground}"
     typography: "{typography.label-md}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.xs}"
     padding: 8px
   button-secondary-hover:
     backgroundColor: "{colors.hover}"
     textColor: "{colors.foreground}"
     typography: "{typography.label-md}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.xs}"
     padding: 8px
   nav-item:
     backgroundColor: "transparent"
@@ -138,7 +138,7 @@ components:
     backgroundColor: "{colors.chrome}"
     textColor: "{colors.foreground}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.xs}"
     padding: 8px
   glass-panel:
     backgroundColor: "{colors.surface}"
@@ -156,13 +156,13 @@ components:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.muted}"
     typography: "{typography.label-sm}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.xs}"
     padding: 8px
   chip-selected:
     backgroundColor: "{colors.selected}"
     textColor: "{colors.foreground}"
     typography: "{typography.label-sm}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.xs}"
     padding: 8px
   text-link:
     backgroundColor: "transparent"
@@ -278,12 +278,12 @@ Depth model: **tonal layering first, translucency second, shadows last.** Most h
 
 Small, crisp, consistent radius scale. TuneX feels engineered, not bubbly: corners are present but quiet, so artwork and type carry the warmth.
 
-- `{rounded.xs}` 4px — focus-adjacent ticks, progress track ends, tiny badges.
+- `{rounded.xs}` 4px — text buttons, chips, search field, badges, progress track ends. Quiet corners on compact chrome.
 - `{rounded.sm}` 8px — rows, nav items, icon buttons, menus. The workhorse for anything clickable in a list.
 - `{rounded.md}` 12px — album/playlist cards and thumbnails, toasts.
 - `{rounded.lg}` 16px — hero card, dialogs, Now Playing panel, drawer.
 - `{rounded.xl}` 24px — reserved for the expanded artwork frame if a future iteration needs it; do not use elsewhere in V1.
-- `{rounded.pill}` — buttons, chips, search field. Pills signal "control"; rectangles-with-small-radius signal "content row". Never pill a card, never square a button.
+- `{rounded.pill}` — toggle tracks (settings switches) and circular transport only. Never pill a card, text button, chip, or search field.
 - Artwork is always 1:1 with the card radius (never circular except the Now Playing crest if art is missing and a placeholder monogram is used).
 
 ## Components
@@ -292,14 +292,14 @@ Contracts for the V1 primitives. QML implements these as custom components (no v
 
 **Icon system (normative):** one line-icon family in the Lucide style — 2px stroke at 24px, rounded caps/corners, straight-on metaphors. Sizes 16px (dense rows, validation), 20px (compact buttons), 24px (default: nav, buttons, transport); touch/keyboard targets stay 44px+ via transparent padding. Icon + text is the default (rail items, buttons, empty states, validation); icon-only is allowed only for universal transport/media symbols and always carries an accessible name plus hover tooltip. Never mix stroke weights or families in one view; never use emoji or file-type/brand glyphs as UI actions; icons meet 3:1 non-text contrast in dark. Dynamic icons (play↔pause, mute, shuffle/repeat state) update their accessible name with the state.
 
-- **Primary button (`button-primary` → `button-primary-hover`):** pill, 44px min height, label-md. Reserved for the one main action per view (Play, Add folder, Save). One per view — a second primary action is a design error; demote to secondary. Disabled: 38% opacity, desaturated, no hover. Loading: icon swaps to spinner, width locked so layout never shifts.
-- **Secondary button:** same geometry on `{colors.surface-raised}`; hover steps to `{colors.hover}`. Row-level and dialog-cancel actions.
+- **Primary button (`button-primary` → `button-primary-hover`):** compact 32px height, `{rounded.xs}`, label-md. Reserved for the one main action per view (Play, Add folder, Save). One per view — a second primary action is a design error; demote to secondary. Disabled: 38% opacity, desaturated, no hover. Loading: icon swaps to spinner, width locked so layout never shifts.
+- **Secondary button:** same geometry on `{colors.surface-raised}` with a 1px border; hover steps to `{colors.hover}`. Row-level and dialog-cancel actions. The library Sort control is a secondary button that opens a GlassMenu (keys plus Ascending/Descending).
 - **Nav item (`nav-item` → `nav-item-selected`):** full-width 40px rows, icon + label-md; selected adds the surface plus a 3px accent bar at the leading edge. Unselected text is muted; icons inherit text color.
 - **Track row (`track-row` → `track-row-hover`):** 48px, transparent; columns art-thumb 40px (sm radius) · title/body-md + artist/body-sm-muted · duration/caption-muted right. Playing row: accent 3px bar + title in foreground (not accent-colored text) + animated equalizer tick allowed only with motion on. Missing-file rows dim to 50% with "File missing" caption + actions.
-- **Search field (`search-field`):** pill well with magnifier icon; typed text foreground, placeholder muted at full opacity (never transparent-ized placeholder text); Esc clears; focus ring replaces any glow.
-- **Glass panel (`glass-panel`):** dialogs and menus only. Dialogs: title-md + body + primary/secondary actions; menus: body-md items 40px with hover surface. Menus open toward available space, never off-window.
+- **Search field (`search-field`):** compact well (`{rounded.xs}`) with magnifier icon; typed text foreground, placeholder muted at full opacity (never transparent-ized placeholder text); Esc clears; focus ring replaces any glow.
+- **Glass panel (`glass-panel`):** dialogs and menus only. Dialogs: title-md + body + primary/secondary actions; menus: body-md items 32px with hover surface. Menus open toward available space, never off-window.
 - **Album/artist/playlist cards (`album-card`):** art on top (1:1, md radius), title/body-md truncated 1 line, subtitle/body-sm-muted 1 line; hover lifts nothing — art gets a 4% brighten + play-affordance overlay button. No text wider than the art.
-- **Chips (`chip` → `chip-selected`):** filter pills (search groups, view filters). Selected steps up to the selected surface with foreground text — max one selected per group in V1.
+- **Chips (`chip` → `chip-selected`):** compact filter chips (`{rounded.xs}`; search groups, Home shortcuts). Selected steps up to the selected surface with foreground text — max one selected per group in V1.
 - **Progress + volume (`progress-fill` on xs track):** 4px track in `{colors.hover}`, cyan fill, 12px thumb appearing on hover/focus/drag. Dragging scrubs the engine live; time labels use tabular caption and never overlap the thumb at min width.
 - **Now Playing surface:** lg glass panel; artwork ≥280px md radius with 180ms crossfade on track change; lyrics toggle replaces the art with a local sidecar/embedded pane (not tabs); headline title, muted artist, favorite heart toggle; transport row (shuffle · prev · play/pause 52px primary circle · next · repeat · lyrics) + volume + queue toggle.
 - **Toast (`toast-error`, `status-success`, `status-warning`):** bottom-center above the persistent player, surface-raised, icon + one-line copy + optional action ("Reveal", "Rescan", "Retry"). Auto-dismiss 5s except errors with actions (persist until dismissed).
@@ -309,7 +309,7 @@ Contracts for the V1 primitives. QML implements these as custom components (no v
 
 ## Do's and Don'ts
 
-- Do give every view exactly one primary action; don't place two blue pill buttons side by side.
+- Do give every view exactly one primary action; don't place two blue compact buttons side by side.
 - Do keep track rows opaque/transparent over canvas; don't put blur, glass, or shadows on list rows.
 - Do use `{colors.accent}` for signals (playing marker, links, kickers); don't fill large areas with it or set body copy in it.
 - Do pair every color-coded state with text or icon (playing bar + label, error icon + copy); don't communicate status by hue alone.
@@ -317,7 +317,7 @@ Contracts for the V1 primitives. QML implements these as custom components (no v
 - Do write honest copy ("File missing", "Unknown artist", "Searched your library"); don't fake metadata, artwork, or availability.
 - Do keep motion to 120–220ms single-property transitions (see below); don't add entrance choreography, parallax, or animated gradients.
 - Do test each overlay with transparency off; don't ship a surface that only works blurred.
-- Do name domain things per the IA glossary (Songs view, Up Next panel, Music folders); don't use "Liked Songs", "Discover", "Trending", or any service vocabulary.
+- Do name domain things per the IA glossary (Tracks view, Up Next panel, Music folders); don't use "Liked Songs", "Discover", "Trending", or any service vocabulary.
 - Do disclose progressively: hover/focus reveals row actions (with an always-visible touch target), drawers hold queue and Now Playing, "See all"/"More" escalate lists, context menus replace action toolbars; don't show more than ~7 primary choices per view or hide anything behind an unlabeled affordance.
 - Do keep dialogs and menus on the glass panel contract; don't invent new surface colors per dialog.
 - Don't add bells, avatars, badges, or algorithmic rails — the out-of-scope patterns stay out of V1 even where the mockup sketches them.
@@ -326,7 +326,7 @@ Contracts for the V1 primitives. QML implements these as custom components (no v
 
 Motion budget (all QML behaviors, standard easing `OutCubic`): hover/focus 120ms color-only; artwork crossfade 180ms opacity; row insert/remove 160ms; drawer/overlay open 200ms translate+fade; progress follows the engine (no easing). Reduce-motion toggle forces all durations to 0 (instant state swaps) except progress, which keeps following playback position.
 
-- Minimum 44px hit areas for all interactive targets (icons 16/20/24px optical inside padded hit areas); the sole exception is dense TrackList inline actions at 40px with ≥8px separation. Never smaller.
+- Minimum 44px hit areas for icon-only and rail targets (icons 16/20/24px optical inside padded hit areas); compact text buttons, chips, and menu rows are 32px; the dense TrackList inline-action exception stays 40px with ≥8px separation. Never smaller than 32px.
 - Focus order matches visual order; the persistent-player transport is reachable without opening Now Playing.
 - Screen-reader names on all icon-only buttons; rows expose "title, artist, duration"; progress exposes position/duration; toasts announce politely.
 - Body and label text hold WCAG AA (primary/white ~5.2:1, muted/canvas ~7:1, accent/canvas ~5.9:1 per token pairs above); captions never carry essential meaning alone.

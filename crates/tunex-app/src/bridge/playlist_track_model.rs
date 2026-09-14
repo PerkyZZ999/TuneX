@@ -243,17 +243,24 @@ fn display_entry(entry: &tunex_library::PlaylistEntry) -> PlaylistTrackRow {
     let entry_id = i32::try_from(entry.id).unwrap_or(i32::MAX);
     let track_id = i32::try_from(entry.track_id).unwrap_or(i32::MAX);
     match &entry.track {
-        Some(row) => (
-            entry_id,
-            track_id,
-            QString::from(row.title.as_deref().unwrap_or("Unknown Title")),
-            QString::from(row.artist.as_deref().unwrap_or("Unknown Artist")),
-            row.duration_ms
-                .and_then(|duration| i32::try_from(duration).ok())
-                .unwrap_or(0),
-            row.missing,
-            false,
-        ),
+        Some(row) => {
+            let (title, artist) = tunex_library::display_title_artist(
+                &row.path,
+                row.title.as_deref(),
+                row.artist.as_deref(),
+            );
+            (
+                entry_id,
+                track_id,
+                QString::from(&title),
+                QString::from(&artist),
+                row.duration_ms
+                    .and_then(|duration| i32::try_from(duration).ok())
+                    .unwrap_or(0),
+                row.missing,
+                false,
+            )
+        }
         None => (
             entry_id,
             track_id,

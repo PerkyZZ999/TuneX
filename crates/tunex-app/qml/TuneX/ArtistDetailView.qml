@@ -195,7 +195,7 @@ Item {
 
             Text {
                 visible: tracksView.count > 0
-                text: qsTr("Songs")
+                text: qsTr("Tracks")
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontTitle
                 font.weight: Font.DemiBold

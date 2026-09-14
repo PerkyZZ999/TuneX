@@ -531,3 +531,10 @@
 - **Waiver:** none
 - **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation. Sleep timer and stop-after-album stay out.
 
+### 2026-09-13 — Library polish: titles, Tracks, Sort menu, compact chrome
+- **Slice:** post-S13
+- **Result:** pass (code + unit tests)
+- **Evidence:** `read_metadata` merges every tag (not only `primary_tag()`); rescans re-read untitled rows so a one-time miss recovers; display falls back to the file stem (`Artist - Title` when both tags are missing) without writing parsed names. User-visible "Songs" labels are "Tracks" (internal keys stay `songs`). Library sort chips became one Sort dropdown with Ascending/Descending; direction persists additively on `ViewConfig`. Text buttons/chips/search/menu rows are 32px with `{rounded.xs}`. Tests: merge-tags, untitled rescan, filename display, title DESC SQL, legacy sort-dir default. `scripts/qml-lint.sh` 42/42 ✓. `rust-tc doctor` ✓ (300 tests). Traceability: R-007 + R-NFR-02 → this entry.
+- **Waiver:** none
+- **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
+

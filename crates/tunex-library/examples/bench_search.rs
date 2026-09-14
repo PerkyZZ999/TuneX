@@ -40,8 +40,13 @@ fn main() {
     let opened = Instant::now();
     let db = open_file(&db_path).expect("index opens");
     let open_elapsed = opened.elapsed();
-    let tracks = tunex_library::list_tracks_capped(&db, u32::MAX, tunex_library::TrackSort::Title)
-        .map_or(0, |rows| rows.len());
+    let tracks = tunex_library::list_tracks_capped(
+        &db,
+        u32::MAX,
+        tunex_library::TrackSort::Title,
+        tunex_library::SortDir::Asc,
+    )
+    .map_or(0, |rows| rows.len());
     println!(
         "index {} — {tracks} tracks, opened in {open_elapsed:?}, {runs} runs per query",
         db_path.display()

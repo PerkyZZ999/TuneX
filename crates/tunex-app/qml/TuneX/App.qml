@@ -521,7 +521,7 @@ Window {
                         }
 
                         NavItem {
-                            label: qsTr("Songs")
+                            label: qsTr("Tracks")
                             iconName: "music"
                             compact: root.compactRail
                             selected: root.section === "library" && libraryView.tab === "songs"
@@ -678,7 +678,7 @@ Window {
                             id: searchWrap
 
                             width: Math.min(520, Math.max(240, topBar.width - navRow.width - settingsButton.width - queueButton.width - Theme.spaceXl * 3))
-                            height: Theme.targetMin
+                            height: Theme.buttonHeight + Theme.spaceXs
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.verticalCenter: parent.verticalCenter
 
@@ -686,7 +686,7 @@ Window {
                                 id: searchField
 
                                 anchors.fill: parent
-                                placeholderText: qsTr("Search for songs, artists, albums…")
+                                placeholderText: qsTr("Search for tracks, artists, albums…")
                                 Accessible.name: qsTr("Search your library")
                                 color: Theme.foreground
                                 placeholderTextColor: Theme.muted
@@ -730,7 +730,7 @@ Window {
                                 }
 
                                 background: Rectangle {
-                                    radius: Theme.radiusPill
+                                    radius: Theme.radiusXs
                                     color: Theme.chrome
                                     border.color: searchField.activeFocus ? Theme.focus : Theme.border
                                     border.width: searchField.activeFocus ? 2 : 1

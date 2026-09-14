@@ -34,17 +34,17 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1–S13 done. S13 adds a local lyrics overlay on Now Playing, named library profiles, and opt-in MusicBrainz (default off). Visual identity is charcoal + royal blue with tinted-translucent chrome over an artwork wash; glass stays hierarchical; glow appears exactly twice. M6 numbers remain aspirational and were met. Maintainer follow-ups before AUR publish are unchanged from S5.
+- Repo reality: S1–S13 done. Post-S13 polish recovers missing titles from non-primary tags and filenames, relabels Songs → Tracks, and compact chrome with a Sort menu. Visual identity is charcoal + royal blue with tinted-translucent chrome over an artwork wash; glass stays hierarchical; glow appears exactly twice. M6 numbers remain aspirational and were met. Maintainer follow-ups before AUR publish are unchanged from S5.
 
 ## Open loops
 - S7 W-046 KWin/Plasma tray hover + close-to-tray visual proof (this environment has no StatusNotifierWatcher / isolated Plasma session)
-- Library UX (sort / Folders browse / click-to-play) rebased onto W-046; scanned-folder add/remove lives in Settings → Library. Charles tests once this PR is conflict-free.
+- Library UX (Tracks sort menu / Folders browse / click-to-play). Scanned-folder add/remove lives in Settings → Library.
 
 ## Blockers
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Continue at Phase 7 Release: AUR publish still waits on human confirmation. Sleep timer and stop-after-album stay out.
+- Continue at Phase 7 Release: AUR publish still waits on human confirmation. Sleep timer and stop-after-album stay out. Dogfood: after this polish, rescan so recovered tags land.
 
 ## Phase checklist
 - [x] 0 Intake

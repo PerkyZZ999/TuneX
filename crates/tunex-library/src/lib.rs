@@ -11,6 +11,7 @@
 
 pub mod artwork;
 pub mod db;
+pub mod display;
 pub mod enrich;
 pub mod lyrics;
 pub mod metadata;
@@ -27,15 +28,16 @@ pub use artwork::{
 
 pub use db::{
     AlbumRow, AlbumSort, ArtistRow, ArtistSort, FacetRow, FolderRow, NewTrack, SavedQueue,
-    SavedQueueItem, TrackIdentity, TrackRow, TrackSort, UNKNOWN_FACET, add_root, album_by_id,
-    album_duration_ms, artist_by_name, delete_track, list_albums, list_albums_for_artist,
-    list_artists, list_composers, list_genres, list_recently_played_albums, list_track_folders,
-    list_tracks, list_tracks_capped, list_tracks_for_artist, list_tracks_for_composer,
-    list_tracks_for_genre, list_tracks_in_album, list_tracks_in_folder, load_playback_queue,
-    open_file, open_memory, record_play, remove_library_root, rename_track, save_playback_queue,
-    schema_version, search_track_ids, set_missing, track_by_id, track_by_path, track_identities,
-    upsert_track,
+    SavedQueueItem, SortDir, TrackIdentity, TrackRow, TrackSort, UNKNOWN_FACET, add_root,
+    album_by_id, album_duration_ms, artist_by_name, delete_track, list_albums,
+    list_albums_for_artist, list_artists, list_composers, list_genres, list_recently_played_albums,
+    list_track_folders, list_tracks, list_tracks_capped, list_tracks_for_artist,
+    list_tracks_for_composer, list_tracks_for_genre, list_tracks_in_album, list_tracks_in_folder,
+    load_playback_queue, open_file, open_memory, record_play, remove_library_root, rename_track,
+    save_playback_queue, schema_version, search_track_ids, set_missing, track_by_id, track_by_path,
+    track_identities, upsert_track,
 };
+pub use display::{UNKNOWN_ARTIST, UNKNOWN_TITLE, display_title_artist};
 pub use enrich::{
     Enrichment, cover_art_url, fill_missing, lookup_recording, parse_recording_search,
     run_missing_pass,

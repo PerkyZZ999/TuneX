@@ -101,7 +101,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 
 | Concept | Label in UI | Notes |
 |---------|-------------|-------|
-| Track (domain) | Song / Songs | Users say "songs"; code says Track (D-008). View title "Songs". |
+| Track (domain) | Track / Tracks | Code says Track (D-008). View title "Tracks". |
 | Queue (domain) | Up Next | Panel header "Up Next"; settings/docs say queue. |
 | Favorites | Favorites | Heart toggle; a local collection, never a service ("Liked Songs" wording banned). |
 | Library roots | Music folders | Settings label; "Library Root" never shown. |
@@ -117,7 +117,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 |-----------|---------|---------------------|
 | NavigationRail | All views (shell) | Icon-strip variant <1024px; same selection model |
 | TopBar + SearchBar | All views (shell) | Search text persists per session; Esc scope-aware |
-| TrackList / TrackRow | Songs, Artist/Album detail, Playlist detail, Search songs, Favorites, Folders | Playlist adds drag-reorder + remove; missing rows dimmed everywhere |
+| TrackList / TrackRow | Tracks, Artist/Album detail, Playlist detail, Search tracks, Favorites, Folders | Playlist adds drag-reorder + remove; missing rows dimmed everywhere |
 | AlbumCard / ArtistCard grid | Home rails, Artists, Albums, Search groups | Fixed card contract; column count fluid by width |
 | HeroCard | Home only | Greeting variant: empty-state vs. continue-listening |
 | MiniPlayer | Narrow widths (panel hidden) | Bottom transport bar; hidden pre-first-play (empty state instead) |
@@ -132,7 +132,7 @@ Libraries grow to 50k+ tracks; the IA absorbs growth structurally, not with more
 
 - All long lists virtualized (TrackList) with stable scroll position across navigation.
 - Grids paginate by window (no infinite-scroll spinners blocking); search is the primary retrieval path at scale, always one keypress away.
-- Recently Played/Added rails capped (e.g. 20) from local history; full history stays queryable via Songs + sort.
+- Recently Played/Added rails capped (e.g. 20) from local history; full history stays queryable via Tracks + sort.
 - Playlists are user-bounded; playlist list scrolls inside the rail section with its own overflow.
 - No new top-level destinations may be added for scale — growth goes into search ranking, filters, and sort, not nav items (guards R1 scope-creep risk).
 

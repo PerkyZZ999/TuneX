@@ -39,6 +39,7 @@ pub struct ArtistListModelRust {
     artists: Vec<(QString, i32, i32)>,
     search: SearchCore,
     sort: tunex_library::ArtistSort,
+    sort_dir: tunex_library::SortDir,
 }
 
 impl ArtistListModelRust {
@@ -122,6 +123,7 @@ fn display_artist(row: &tunex_library::ArtistRow) -> (QString, i32, i32) {
 fn load_artists(
     path: &std::path::Path,
     sort: tunex_library::ArtistSort,
+    dir: tunex_library::SortDir,
 ) -> Vec<(QString, i32, i32)> {
     if !path.is_file() {
         return Vec::new();
@@ -133,7 +135,7 @@ fn load_artists(
             return Vec::new();
         }
     };
-    match tunex_library::list_artists(&db, sort) {
+    match tunex_library::list_artists(&db, sort, dir) {
         Ok(rows) => rows.iter().map(display_artist).collect(),
         Err(err) => {
             tracing::warn!(name = "browse.artists_failed", error = %err, "index unreadable");
@@ -146,7 +148,8 @@ impl qobject::ArtistListModel {
     /// Reload all artists from the library index; emits model reset.
     pub fn refresh(mut self: Pin<&mut Self>) {
         let sort = self.as_ref().rust().sort;
-        let rows = load_artists(&tunex_core::library_db_path(), sort);
+        let dir = self.as_ref().rust().sort_dir;
+        let rows = load_artists(&tunex_core::library_db_path(), sort, dir);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_artists();
@@ -163,7 +166,26 @@ impl qobject::ArtistListModel {
     pub fn set_sort(mut self: Pin<&mut Self>, key: &QString) {
         let sort = tunex_library::ArtistSort::from_key(&key.to_string());
         self.as_mut().rust_mut().sort = sort;
-        let rows = load_artists(&tunex_core::library_db_path(), sort);
+        let dir = self.as_ref().rust().sort_dir;
+        let rows = load_artists(&tunex_core::library_db_path(), sort, dir);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_artists();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for (name, album_count, track_count) in rows {
+                rust.push_row(name, album_count, track_count);
+            }
+            self.as_mut().end_reset_model_artists();
+        }
+    }
+
+    /// Remember the artists-tab sort direction and reload. Exposed as `setSortDescending`.
+    pub fn set_sort_descending(mut self: Pin<&mut Self>, descending: bool) {
+        let dir = tunex_library::SortDir::from_descending(descending);
+        self.as_mut().rust_mut().sort_dir = dir;
+        let sort = self.as_ref().rust().sort;
+        let rows = load_artists(&tunex_core::library_db_path(), sort, dir);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_artists();
@@ -344,18 +366,30 @@ mod tests {
         let missing =
             std::env::temp_dir().join(format!("tunex-browse-missing-{}", std::process::id()));
         assert!(
-            super::load_artists(&missing.join("library.db"), tunex_library::ArtistSort::Name)
-                .is_empty()
+            super::load_artists(
+                &missing.join("library.db"),
+                tunex_library::ArtistSort::Name,
+                tunex_library::SortDir::Asc,
+            )
+            .is_empty()
         );
     }
 
     #[test]
     fn seeded_index_loads_artist_rows() {
         let (_guard, path) = seeded_index("artists");
-        let rows = super::load_artists(&path, tunex_library::ArtistSort::Name);
+        let rows = super::load_artists(
+            &path,
+            tunex_library::ArtistSort::Name,
+            tunex_library::SortDir::Asc,
+        );
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].0, QString::from("Nova Rae"));
-        let by_songs = super::load_artists(&path, tunex_library::ArtistSort::Songs);
+        let by_songs = super::load_artists(
+            &path,
+            tunex_library::ArtistSort::Songs,
+            tunex_library::SortDir::Desc,
+        );
         assert_eq!(by_songs[0].2, 2);
     }
 

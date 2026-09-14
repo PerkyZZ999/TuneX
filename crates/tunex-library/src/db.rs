@@ -287,6 +287,9 @@ pub struct TrackIdentity {
     pub stable_key: String,
     /// Whether the row is currently flagged missing.
     pub missing: bool,
+    /// `true` when the indexed title is missing or blank. Untouched-file
+    /// skip must not apply: a one-time tag miss would otherwise stick.
+    pub incomplete: bool,
 }
 
 /// Open an in-memory database (tests, throwaway harnesses).
@@ -709,6 +712,57 @@ impl ArtistSort {
     }
 }
 
+/// Ascending or descending primary key. Tie-breakers stay stable.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SortDir {
+    /// A–Z / oldest / fewest.
+    #[default]
+    Asc,
+    /// Z–A / newest / most. Default for date and artist track-count.
+    Desc,
+}
+
+impl SortDir {
+    /// `true` → [`SortDir::Desc`].
+    #[must_use]
+    pub fn from_descending(descending: bool) -> Self {
+        if descending { Self::Desc } else { Self::Asc }
+    }
+
+    /// Whether this is descending.
+    #[must_use]
+    pub fn is_desc(self) -> bool {
+        matches!(self, Self::Desc)
+    }
+
+    /// Historical default for a songs-tab key (date newest-first).
+    #[must_use]
+    pub fn for_track(sort: TrackSort) -> Self {
+        match sort {
+            TrackSort::Date => Self::Desc,
+            TrackSort::Title | TrackSort::Artist | TrackSort::Album => Self::Asc,
+        }
+    }
+
+    /// Historical default for an albums-tab key (date newest-first).
+    #[must_use]
+    pub fn for_album(sort: AlbumSort) -> Self {
+        match sort {
+            AlbumSort::Date => Self::Desc,
+            AlbumSort::Title | AlbumSort::Artist => Self::Asc,
+        }
+    }
+
+    /// Historical default for an artists-tab key (track count most-first).
+    #[must_use]
+    pub fn for_artist(sort: ArtistSort) -> Self {
+        match sort {
+            ArtistSort::Songs => Self::Desc,
+            ArtistSort::Name => Self::Asc,
+        }
+    }
+}
+
 /// One folder that directly contains indexed tracks (browse, not library-root
 /// management).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -752,37 +806,66 @@ const ARTIST_LIST_GROUP: &str = "GROUP BY artists.id";
 const ARTIST_LIST_TAIL: &str = "GROUP BY artists.id ORDER BY artists.name COLLATE NOCASE";
 
 /// Static `ORDER BY` for the songs browse (never interpolates user text).
-fn track_order_sql(sort: TrackSort) -> &'static str {
-    match sort {
-        TrackSort::Title => "ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path",
-        TrackSort::Artist => {
-            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE, COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+fn track_order_sql(sort: TrackSort, dir: SortDir) -> &'static str {
+    match (sort, dir) {
+        (TrackSort::Title, SortDir::Asc) => {
+            "ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE ASC, tracks.path"
         }
-        TrackSort::Album => {
-            "ORDER BY COALESCE(albums.title, '') COLLATE NOCASE, COALESCE(tracks.disc_number, 1), COALESCE(tracks.track_number, 1000000), tracks.path"
+        (TrackSort::Title, SortDir::Desc) => {
+            "ORDER BY COALESCE(tracks.title, '') COLLATE NOCASE DESC, tracks.path"
         }
-        TrackSort::Date => {
+        (TrackSort::Artist, SortDir::Asc) => {
+            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE ASC, COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        }
+        (TrackSort::Artist, SortDir::Desc) => {
+            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE DESC, COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        }
+        (TrackSort::Album, SortDir::Asc) => {
+            "ORDER BY COALESCE(albums.title, '') COLLATE NOCASE ASC, COALESCE(tracks.disc_number, 1), COALESCE(tracks.track_number, 1000000), tracks.path"
+        }
+        (TrackSort::Album, SortDir::Desc) => {
+            "ORDER BY COALESCE(albums.title, '') COLLATE NOCASE DESC, COALESCE(tracks.disc_number, 1), COALESCE(tracks.track_number, 1000000), tracks.path"
+        }
+        (TrackSort::Date, SortDir::Asc) => {
+            "ORDER BY COALESCE(tracks.year, 0) ASC, COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
+        }
+        (TrackSort::Date, SortDir::Desc) => {
             "ORDER BY COALESCE(tracks.year, 0) DESC, COALESCE(tracks.title, '') COLLATE NOCASE, tracks.path"
         }
     }
 }
 
 /// Static `ORDER BY` for the albums browse (never interpolates user text).
-fn album_order_sql(sort: AlbumSort) -> &'static str {
-    match sort {
-        AlbumSort::Title => "ORDER BY albums.title COLLATE NOCASE",
-        AlbumSort::Artist => {
-            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE, albums.title COLLATE NOCASE"
+fn album_order_sql(sort: AlbumSort, dir: SortDir) -> &'static str {
+    match (sort, dir) {
+        (AlbumSort::Title, SortDir::Asc) => "ORDER BY albums.title COLLATE NOCASE ASC",
+        (AlbumSort::Title, SortDir::Desc) => "ORDER BY albums.title COLLATE NOCASE DESC",
+        (AlbumSort::Artist, SortDir::Asc) => {
+            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE ASC, albums.title COLLATE NOCASE"
         }
-        AlbumSort::Date => "ORDER BY COALESCE(albums.year, 0) DESC, albums.title COLLATE NOCASE",
+        (AlbumSort::Artist, SortDir::Desc) => {
+            "ORDER BY COALESCE(artists.name, '') COLLATE NOCASE DESC, albums.title COLLATE NOCASE"
+        }
+        (AlbumSort::Date, SortDir::Asc) => {
+            "ORDER BY COALESCE(albums.year, 0) ASC, albums.title COLLATE NOCASE"
+        }
+        (AlbumSort::Date, SortDir::Desc) => {
+            "ORDER BY COALESCE(albums.year, 0) DESC, albums.title COLLATE NOCASE"
+        }
     }
 }
 
 /// Static `ORDER BY` for the artists browse (never interpolates user text).
-fn artist_order_sql(sort: ArtistSort) -> &'static str {
-    match sort {
-        ArtistSort::Name => "ORDER BY artists.name COLLATE NOCASE",
-        ArtistSort::Songs => "ORDER BY track_count DESC, artists.name COLLATE NOCASE",
+fn artist_order_sql(sort: ArtistSort, dir: SortDir) -> &'static str {
+    match (sort, dir) {
+        (ArtistSort::Name, SortDir::Asc) => "ORDER BY artists.name COLLATE NOCASE ASC",
+        (ArtistSort::Name, SortDir::Desc) => "ORDER BY artists.name COLLATE NOCASE DESC",
+        (ArtistSort::Songs, SortDir::Asc) => {
+            "ORDER BY track_count ASC, artists.name COLLATE NOCASE"
+        }
+        (ArtistSort::Songs, SortDir::Desc) => {
+            "ORDER BY track_count DESC, artists.name COLLATE NOCASE"
+        }
     }
 }
 
@@ -791,11 +874,11 @@ fn artist_order_sql(sort: ArtistSort) -> &'static str {
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
-pub fn list_artists(db: &Connection, sort: ArtistSort) -> Result<Vec<ArtistRow>> {
+pub fn list_artists(db: &Connection, sort: ArtistSort, dir: SortDir) -> Result<Vec<ArtistRow>> {
     let mut statement = db
         .prepare(&format!(
             "{ARTIST_LIST_SELECT} {ARTIST_LIST_GROUP} {}",
-            artist_order_sql(sort)
+            artist_order_sql(sort, dir)
         ))
         .map_err(|err| db_error(&err))?;
     let rows = statement
@@ -816,11 +899,11 @@ pub fn list_artists(db: &Connection, sort: ArtistSort) -> Result<Vec<ArtistRow>>
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
-pub fn list_albums(db: &Connection, sort: AlbumSort) -> Result<Vec<AlbumRow>> {
+pub fn list_albums(db: &Connection, sort: AlbumSort, dir: SortDir) -> Result<Vec<AlbumRow>> {
     let mut statement = db
         .prepare(&format!(
             "{ALBUM_LIST_SELECT} {ALBUM_LIST_GROUP} {}",
-            album_order_sql(sort)
+            album_order_sql(sort, dir)
         ))
         .map_err(|err| db_error(&err))?;
     let rows = statement
@@ -1116,11 +1199,16 @@ fn query_named_tracks(
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the query fails.
-pub fn list_tracks_capped(db: &Connection, limit: u32, sort: TrackSort) -> Result<Vec<TrackRow>> {
+pub fn list_tracks_capped(
+    db: &Connection,
+    limit: u32,
+    sort: TrackSort,
+    dir: SortDir,
+) -> Result<Vec<TrackRow>> {
     let mut statement = db
         .prepare(&format!(
             "{TRACK_LIST_SELECT} {} LIMIT ?1",
-            track_order_sql(sort)
+            track_order_sql(sort, dir)
         ))
         .map_err(|err| db_error(&err))?;
     let rows = statement
@@ -1183,6 +1271,7 @@ pub fn list_tracks_in_folder(
     folder: &str,
     limit: u32,
     sort: TrackSort,
+    dir: SortDir,
 ) -> Result<Vec<TrackRow>> {
     let prefix = format!("{}/%", like_escaped(folder));
     let nested = format!("{}/%/%", like_escaped(folder));
@@ -1192,7 +1281,7 @@ pub fn list_tracks_in_folder(
              WHERE tracks.path LIKE ?1 ESCAPE '\\'
                AND tracks.path NOT LIKE ?2 ESCAPE '\\'
              {} LIMIT ?3",
-            track_order_sql(sort)
+            track_order_sql(sort, dir)
         ))
         .map_err(|err| db_error(&err))?;
     let rows = statement
@@ -1231,7 +1320,11 @@ fn like_escaped(value: &str) -> String {
 /// Returns [`Error::Database`] when the query fails.
 pub fn track_identities(db: &Connection) -> Result<Vec<TrackIdentity>> {
     let mut statement = db
-        .prepare("SELECT id, path, file_id, stable_key, missing FROM tracks ORDER BY path")
+        .prepare(
+            "SELECT id, path, file_id, stable_key, missing,
+                    (title IS NULL OR trim(title) = '') AS incomplete
+             FROM tracks ORDER BY path",
+        )
         .map_err(|err| db_error(&err))?;
     let rows = statement
         .query_map([], |row| {
@@ -1241,6 +1334,7 @@ pub fn track_identities(db: &Connection) -> Result<Vec<TrackIdentity>> {
                 file_id: row.get("file_id")?,
                 stable_key: row.get("stable_key")?,
                 missing: row.get("missing")?,
+                incomplete: row.get("incomplete")?,
             })
         })
         .map_err(|err| db_error(&err))?;
@@ -1990,7 +2084,7 @@ mod tests {
             )
             .expect("upsert works");
         }
-        let artists = list_artists(&db, ArtistSort::Name).expect("artists list");
+        let artists = list_artists(&db, ArtistSort::Name, SortDir::Asc).expect("artists list");
         assert_eq!(artists.len(), 2);
         let nova = artists
             .iter()
@@ -1998,7 +2092,7 @@ mod tests {
             .expect("artist present");
         assert_eq!((nova.album_count, nova.track_count), (1, 2));
 
-        let albums = list_albums(&db, AlbumSort::Title).expect("albums list");
+        let albums = list_albums(&db, AlbumSort::Title, SortDir::Asc).expect("albums list");
         assert_eq!(albums.len(), 2);
         let tapes = albums
             .iter()
@@ -2017,26 +2111,38 @@ mod tests {
         assert_eq!(songs[0].title.as_deref(), Some("One"));
         assert_eq!(songs[1].title.as_deref(), Some("Two"));
 
-        let capped = list_tracks_capped(&db, 2, TrackSort::Title).expect("capped list");
+        let capped =
+            list_tracks_capped(&db, 2, TrackSort::Title, SortDir::Asc).expect("capped list");
         assert_eq!(capped.len(), 2);
         assert!(
-            list_tracks_capped(&db, 0, TrackSort::Title)
+            list_tracks_capped(&db, 0, TrackSort::Title, SortDir::Asc)
                 .expect("empty cap")
                 .is_empty()
         );
-        let by_title = list_tracks_capped(&db, 10, TrackSort::Title).expect("title sort");
+        let by_title =
+            list_tracks_capped(&db, 10, TrackSort::Title, SortDir::Asc).expect("title sort");
         let titles: Vec<_> = by_title
             .iter()
             .filter_map(|row| row.title.as_deref())
             .collect();
         assert_eq!(titles, ["One", "Solo", "Two"]);
-        let by_artist = list_tracks_capped(&db, 10, TrackSort::Artist).expect("artist sort");
+        let by_title_desc =
+            list_tracks_capped(&db, 10, TrackSort::Title, SortDir::Desc).expect("title desc");
+        let titles_desc: Vec<_> = by_title_desc
+            .iter()
+            .filter_map(|row| row.title.as_deref())
+            .collect();
+        assert_eq!(titles_desc, ["Two", "Solo", "One"]);
+        let by_artist =
+            list_tracks_capped(&db, 10, TrackSort::Artist, SortDir::Asc).expect("artist sort");
         assert_eq!(by_artist[0].artist.as_deref(), Some("Nova Rae"));
         assert_eq!(by_artist[2].artist.as_deref(), Some("Solo Act"));
 
-        let albums_by_artist = list_albums(&db, AlbumSort::Artist).expect("album artist sort");
+        let albums_by_artist =
+            list_albums(&db, AlbumSort::Artist, SortDir::Asc).expect("album artist sort");
         assert_eq!(albums_by_artist[0].artist.as_deref(), Some("Nova Rae"));
-        let artists_by_songs = list_artists(&db, ArtistSort::Songs).expect("artist song sort");
+        let artists_by_songs =
+            list_artists(&db, ArtistSort::Songs, SortDir::Desc).expect("artist song sort");
         assert_eq!(artists_by_songs[0].name, "Nova Rae");
         assert_eq!(artists_by_songs[0].track_count, 2);
 
@@ -2148,8 +2254,8 @@ mod tests {
             .find(|row| row.name == "Night Tapes")
             .expect("album folder");
         assert_eq!(tapes.track_count, 2, "nested Live tracks stay in Live");
-        let in_tapes =
-            list_tracks_in_folder(&db, &tapes.path, 10, TrackSort::Title).expect("folder tracks");
+        let in_tapes = list_tracks_in_folder(&db, &tapes.path, 10, TrackSort::Title, SortDir::Asc)
+            .expect("folder tracks");
         let titles: Vec<_> = in_tapes
             .iter()
             .filter_map(|row| row.title.as_deref())
@@ -2159,8 +2265,8 @@ mod tests {
             .iter()
             .find(|row| row.name == "Live")
             .expect("nested folder");
-        let in_live =
-            list_tracks_in_folder(&db, &live.path, 10, TrackSort::Title).expect("nested tracks");
+        let in_live = list_tracks_in_folder(&db, &live.path, 10, TrackSort::Title, SortDir::Asc)
+            .expect("nested tracks");
         assert_eq!(in_live.len(), 1);
         assert_eq!(in_live[0].title.as_deref(), Some("Three"));
     }
@@ -2227,10 +2333,10 @@ mod tests {
             )
             .expect("upsert works");
         }
-        let rows = list_tracks_capped(&db, 10, TrackSort::Date).expect("date sort");
+        let rows = list_tracks_capped(&db, 10, TrackSort::Date, SortDir::Desc).expect("date sort");
         let titles: Vec<_> = rows.iter().filter_map(|row| row.title.as_deref()).collect();
         assert_eq!(titles, ["New", "Old", "None"]);
-        let albums = list_albums(&db, AlbumSort::Date).expect("album date sort");
+        let albums = list_albums(&db, AlbumSort::Date, SortDir::Desc).expect("album date sort");
         assert_eq!(albums[0].year, Some(2024));
         assert_eq!(TrackSort::from_key("nope"), TrackSort::Title);
         assert_eq!(AlbumSort::from_key("date").as_key(), "date");

@@ -2,10 +2,10 @@ import QtQuick
 import TuneX
 
 // LibraryView (S2 W-016, S9 landing pages): browse the indexed library —
-// Songs, Albums, Artists, Genres, Composers, Folders. Album and artist
-// cards open detail views; genre/composer rows filter songs. Models load
+// Tracks, Albums, Artists, Genres, Composers, Folders. Album and artist
+// cards open detail views; genre/composer rows filter tracks. Models load
 // from the index on completion; a missing index shows the empty state
-// (never an error). V1-basic sort chips drive Rust ORDER BY. Scanned-folder
+// (never an error). A Sort menu drives Rust ORDER BY. Scanned-folder
 // add/remove lives in Settings → Library.
 Item {
     id: root
@@ -23,8 +23,11 @@ Item {
     property string previousPage: "browse"
     property string facetName: ""
     property string songsSort: "title"
+    property bool songsSortDesc: false
     property string albumsSort: "title"
+    property bool albumsSortDesc: false
     property string artistsSort: "name"
+    property bool artistsSortDesc: false
     property string typePrefix: ""
     readonly property bool albumDrilled: root.albumId >= 0
     readonly property bool folderDrilled: root.folderPath !== ""
@@ -49,25 +52,51 @@ Item {
             return qsTr("Genres");
         if (key === "composers")
             return qsTr("Composers");
-        return qsTr("Songs");
+        return qsTr("Tracks");
     }
 
-    function sortSongs(key) {
+    function sortSongs(key, descending) {
         root.songsSort = key;
+        root.songsSortDesc = descending;
         songs.setSort(key);
+        songs.setSortDescending(descending);
         root.library.setSongsSort(key);
+        root.library.setSongsSortDescending(descending);
     }
 
-    function sortAlbums(key) {
+    function sortAlbums(key, descending) {
         root.albumsSort = key;
+        root.albumsSortDesc = descending;
         albums.setSort(key);
+        albums.setSortDescending(descending);
         root.library.setAlbumsSort(key);
+        root.library.setAlbumsSortDescending(descending);
     }
 
-    function sortArtists(key) {
+    function sortArtists(key, descending) {
         root.artistsSort = key;
+        root.artistsSortDesc = descending;
         artists.setSort(key);
+        artists.setSortDescending(descending);
         root.library.setArtistsSort(key);
+        root.library.setArtistsSortDescending(descending);
+    }
+
+    function currentSortDesc() {
+        if (sortRow.showAlbumsSort)
+            return root.albumsSortDesc;
+        if (sortRow.showArtistsSort)
+            return root.artistsSortDesc;
+        return root.songsSortDesc;
+    }
+
+    function setSortDir(descending) {
+        if (sortRow.showAlbumsSort)
+            root.sortAlbums(root.albumsSort, descending);
+        else if (sortRow.showArtistsSort)
+            root.sortArtists(root.artistsSort, descending);
+        else
+            root.sortSongs(root.songsSort, descending);
     }
 
     function showTab(key) {
@@ -87,16 +116,13 @@ Item {
             root.showTab(tab);
 
         const songsKey = root.library.songsSort();
-        if (songsKey !== "")
-            root.sortSongs(songsKey);
+        root.sortSongs(songsKey !== "" ? songsKey : "title", root.library.songsSortDescending());
 
         const albumsKey = root.library.albumsSort();
-        if (albumsKey !== "")
-            root.sortAlbums(albumsKey);
+        root.sortAlbums(albumsKey !== "" ? albumsKey : "title", root.library.albumsSortDescending());
 
         const artistsKey = root.library.artistsSort();
-        if (artistsKey !== "")
-            root.sortArtists(artistsKey);
+        root.sortArtists(artistsKey !== "" ? artistsKey : "name", root.library.artistsSortDescending());
     }
 
     function moveList(view, delta) {
@@ -371,7 +397,7 @@ Item {
             }
         }
 
-        // V1-basic sort: one selected chip per view; order is applied in Rust.
+        // V1-basic sort: one compact Sort menu; order is applied in Rust.
         Row {
             id: sortRow
 
@@ -384,77 +410,107 @@ Item {
             height: visible ? implicitHeight : 0
             spacing: Theme.spaceXs
 
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
+            PrimaryButton {
+                id: sortButton
+
+                primary: false
+                glyph: "chevron-down"
+                glyphTrailing: true
                 text: qsTr("Sort")
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
-                font.weight: Font.DemiBold
-                color: Theme.muted
+                Accessible.name: qsTr("Sort")
+                onClicked: sortMenu.popup(sortButton, 0, sortButton.height)
             }
 
-            Chip {
-                visible: sortRow.showSongsSort
-                label: qsTr("Title")
-                selected: root.songsSort === "title"
-                onActivated: root.sortSongs("title")
-            }
+            GlassMenu {
+                id: sortMenu
 
-            Chip {
-                visible: sortRow.showSongsSort
-                label: qsTr("Artist")
-                selected: root.songsSort === "artist"
-                onActivated: root.sortSongs("artist")
-            }
+                GlassMenuItem {
+                    visible: sortRow.showSongsSort
+                    text: qsTr("Title")
+                    checkable: true
+                    checked: root.songsSort === "title"
+                    onTriggered: root.sortSongs("title", root.songsSortDesc)
+                }
 
-            Chip {
-                visible: sortRow.showSongsSort
-                label: qsTr("Album")
-                selected: root.songsSort === "album"
-                onActivated: root.sortSongs("album")
-            }
+                GlassMenuItem {
+                    visible: sortRow.showSongsSort
+                    text: qsTr("Artist")
+                    checkable: true
+                    checked: root.songsSort === "artist"
+                    onTriggered: root.sortSongs("artist", root.songsSortDesc)
+                }
 
-            Chip {
-                visible: sortRow.showSongsSort
-                label: qsTr("Date")
-                selected: root.songsSort === "date"
-                onActivated: root.sortSongs("date")
-            }
+                GlassMenuItem {
+                    visible: sortRow.showSongsSort
+                    text: qsTr("Album")
+                    checkable: true
+                    checked: root.songsSort === "album"
+                    onTriggered: root.sortSongs("album", root.songsSortDesc)
+                }
 
-            Chip {
-                visible: sortRow.showAlbumsSort
-                label: qsTr("Title")
-                selected: root.albumsSort === "title"
-                onActivated: root.sortAlbums("title")
-            }
+                GlassMenuItem {
+                    visible: sortRow.showSongsSort
+                    text: qsTr("Date")
+                    checkable: true
+                    checked: root.songsSort === "date"
+                    onTriggered: root.sortSongs("date", root.songsSortDesc)
+                }
 
-            Chip {
-                visible: sortRow.showAlbumsSort
-                label: qsTr("Artist")
-                selected: root.albumsSort === "artist"
-                onActivated: root.sortAlbums("artist")
-            }
+                GlassMenuItem {
+                    visible: sortRow.showAlbumsSort
+                    text: qsTr("Title")
+                    checkable: true
+                    checked: root.albumsSort === "title"
+                    onTriggered: root.sortAlbums("title", root.albumsSortDesc)
+                }
 
-            Chip {
-                visible: sortRow.showAlbumsSort
-                label: qsTr("Date")
-                selected: root.albumsSort === "date"
-                onActivated: root.sortAlbums("date")
-            }
+                GlassMenuItem {
+                    visible: sortRow.showAlbumsSort
+                    text: qsTr("Artist")
+                    checkable: true
+                    checked: root.albumsSort === "artist"
+                    onTriggered: root.sortAlbums("artist", root.albumsSortDesc)
+                }
 
-            Chip {
-                visible: sortRow.showArtistsSort
-                label: qsTr("Name")
-                selected: root.artistsSort === "name"
-                onActivated: root.sortArtists("name")
-            }
+                GlassMenuItem {
+                    visible: sortRow.showAlbumsSort
+                    text: qsTr("Date")
+                    checkable: true
+                    checked: root.albumsSort === "date"
+                    onTriggered: root.sortAlbums("date", root.albumsSortDesc)
+                }
 
-            Chip {
-                visible: sortRow.showArtistsSort
-                label: qsTr("Songs")
-                selected: root.artistsSort === "songs"
-                onActivated: root.sortArtists("songs")
+                GlassMenuItem {
+                    visible: sortRow.showArtistsSort
+                    text: qsTr("Name")
+                    checkable: true
+                    checked: root.artistsSort === "name"
+                    onTriggered: root.sortArtists("name", root.artistsSortDesc)
+                }
+
+                GlassMenuItem {
+                    visible: sortRow.showArtistsSort
+                    text: qsTr("Tracks")
+                    checkable: true
+                    checked: root.artistsSort === "songs"
+                    onTriggered: root.sortArtists("songs", root.artistsSortDesc)
+                }
+
+                GlassMenuSeparator {}
+
+                GlassMenuItem {
+                    text: qsTr("Ascending")
+                    checkable: true
+                    checked: !root.currentSortDesc()
+                    onTriggered: root.setSortDir(false)
+                }
+
+                GlassMenuItem {
+                    text: qsTr("Descending")
+                    checkable: true
+                    checked: root.currentSortDesc()
+                    onTriggered: root.setSortDir(true)
+                }
             }
         }
 
@@ -537,7 +593,7 @@ Item {
                 Accessible.name: qsTr("Play this folder now")
                 onClicked: {
                     root.queue.clearQueue();
-                    root.queue.enqueueFolder(root.folderPath, root.songsSort);
+                    root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc);
                     root.queue.playAt(0);
                 }
             }
@@ -548,7 +604,7 @@ Item {
                 primary: false
                 text: qsTr("Queue folder")
                 Accessible.name: qsTr("Queue this folder in Up Next")
-                onClicked: root.queue.enqueueFolder(root.folderPath, root.songsSort)
+                onClicked: root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc)
             }
 
             Text {
@@ -598,7 +654,7 @@ Item {
             clip: true
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             Accessible.role: Accessible.List
-            Accessible.name: root.albumDrilled ? root.albumTitle : (root.folderDrilled ? root.folderTitle : qsTr("Songs"))
+            Accessible.name: root.albumDrilled ? root.albumTitle : (root.folderDrilled ? root.folderTitle : qsTr("Tracks"))
             Keys.onReturnPressed: {
                 const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
                 if (at < songsView.count && songs.isPlayableAt(at))
@@ -674,7 +730,7 @@ Item {
                     anchors.centerIn: parent
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("Showing the first 500 songs — search finds the rest.")
+                    text: qsTr("Showing the first 500 tracks — search finds the rest.")
                     textFormat: Text.PlainText
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontCaption

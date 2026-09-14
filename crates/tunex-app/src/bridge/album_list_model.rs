@@ -65,6 +65,7 @@ pub struct AlbumListModelRust {
     art: ArtCore,
     search: SearchCore,
     sort: tunex_library::AlbumSort,
+    sort_dir: tunex_library::SortDir,
 }
 
 /// One settled search result set as display rows.
@@ -220,7 +221,11 @@ fn file_url(path: &Path) -> QString {
 
 /// Load album rows from the index at `path` (empty when absent/unreadable —
 /// the empty-library state, never an error surface).
-fn load_albums(path: &std::path::Path, sort: tunex_library::AlbumSort) -> Vec<AlbumRow> {
+fn load_albums(
+    path: &std::path::Path,
+    sort: tunex_library::AlbumSort,
+    dir: tunex_library::SortDir,
+) -> Vec<AlbumRow> {
     if !path.is_file() {
         return Vec::new();
     }
@@ -231,7 +236,7 @@ fn load_albums(path: &std::path::Path, sort: tunex_library::AlbumSort) -> Vec<Al
             return Vec::new();
         }
     };
-    match tunex_library::list_albums(&db, sort) {
+    match tunex_library::list_albums(&db, sort, dir) {
         Ok(rows) => rows.iter().map(display_album).collect(),
         Err(err) => {
             tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
@@ -288,7 +293,8 @@ impl qobject::AlbumListModel {
     /// Reload all albums from the library index; emits model reset.
     pub fn refresh(mut self: Pin<&mut Self>) {
         let sort = self.as_ref().rust().sort;
-        let rows = load_albums(&tunex_core::library_db_path(), sort);
+        let dir = self.as_ref().rust().sort_dir;
+        let rows = load_albums(&tunex_core::library_db_path(), sort, dir);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_albums();
@@ -305,7 +311,26 @@ impl qobject::AlbumListModel {
     pub fn set_sort(mut self: Pin<&mut Self>, key: &QString) {
         let sort = tunex_library::AlbumSort::from_key(&key.to_string());
         self.as_mut().rust_mut().sort = sort;
-        let rows = load_albums(&tunex_core::library_db_path(), sort);
+        let dir = self.as_ref().rust().sort_dir;
+        let rows = load_albums(&tunex_core::library_db_path(), sort, dir);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_albums();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for album in rows {
+                rust.push_row(album);
+            }
+            self.as_mut().end_reset_model_albums();
+        }
+    }
+
+    /// Remember the albums-tab sort direction and reload. Exposed as `setSortDescending`.
+    pub fn set_sort_descending(mut self: Pin<&mut Self>, descending: bool) {
+        let dir = tunex_library::SortDir::from_descending(descending);
+        self.as_mut().rust_mut().sort_dir = dir;
+        let sort = self.as_ref().rust().sort;
+        let rows = load_albums(&tunex_core::library_db_path(), sort, dir);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_albums();
@@ -582,18 +607,30 @@ mod tests {
         let missing =
             std::env::temp_dir().join(format!("tunex-browse-missing-{}", std::process::id()));
         assert!(
-            super::load_albums(&missing.join("library.db"), tunex_library::AlbumSort::Title)
-                .is_empty()
+            super::load_albums(
+                &missing.join("library.db"),
+                tunex_library::AlbumSort::Title,
+                tunex_library::SortDir::Asc,
+            )
+            .is_empty()
         );
     }
 
     #[test]
     fn seeded_index_loads_album_rows() {
         let (_guard, path) = seeded_index("albums");
-        let rows = super::load_albums(&path, tunex_library::AlbumSort::Title);
+        let rows = super::load_albums(
+            &path,
+            tunex_library::AlbumSort::Title,
+            tunex_library::SortDir::Asc,
+        );
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].title, QString::from("Night Tapes"));
-        let by_artist = super::load_albums(&path, tunex_library::AlbumSort::Artist);
+        let by_artist = super::load_albums(
+            &path,
+            tunex_library::AlbumSort::Artist,
+            tunex_library::SortDir::Asc,
+        );
         assert_eq!(by_artist[0].artist, QString::from("Nova Rae"));
     }
 

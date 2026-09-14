@@ -320,6 +320,11 @@ pub mod qobject {
         #[cxx_name = "setSort"]
         fn set_sort(self: Pin<&mut ArtistListModel>, key: &QString);
 
+        /// Remember the artists-tab sort direction and reload. Exposed as `setSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "setSortDescending"]
+        fn set_sort_descending(self: Pin<&mut ArtistListModel>, descending: bool);
+
         /// Current artists-tab sort key. Exposed as `sortKey`.
         #[qinvokable]
         #[cxx_name = "sortKey"]
@@ -396,6 +401,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setSort"]
         fn set_sort(self: Pin<&mut AlbumListModel>, key: &QString);
+
+        /// Remember the albums-tab sort direction and reload. Exposed as `setSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "setSortDescending"]
+        fn set_sort_descending(self: Pin<&mut AlbumListModel>, descending: bool);
 
         /// Current albums-tab sort key. Exposed as `sortKey`.
         #[qinvokable]
@@ -485,6 +495,12 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setSort"]
         fn set_sort(self: Pin<&mut LibraryTrackModel>, key: &QString);
+
+        /// Remember the songs-tab sort direction and reload when the current
+        /// browse honours it. Exposed as `setSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "setSortDescending"]
+        fn set_sort_descending(self: Pin<&mut LibraryTrackModel>, descending: bool);
 
         /// Current songs-tab sort key. Exposed as `sortKey`.
         #[qinvokable]
@@ -1009,10 +1025,15 @@ pub mod qobject {
         fn enqueue_album(self: Pin<&mut QueueModel>, album_id: i32) -> i32;
 
         /// Enqueue every playable track in one folder (direct children),
-        /// ordered by `sort_key`. Exposed as `enqueueFolder`.
+        /// ordered by `sort_key` / `descending`. Exposed as `enqueueFolder`.
         #[qinvokable]
         #[cxx_name = "enqueueFolder"]
-        fn enqueue_folder(self: Pin<&mut QueueModel>, folder: &QString, sort_key: &QString) -> i32;
+        fn enqueue_folder(
+            self: Pin<&mut QueueModel>,
+            folder: &QString,
+            sort_key: &QString,
+            descending: bool,
+        ) -> i32;
 
         /// Enqueue one artist in album order; returns the number enqueued.
         /// Exposed to QML as `enqueueArtist`.
@@ -1470,6 +1491,16 @@ pub mod qobject {
         #[cxx_name = "setSongsSort"]
         fn set_songs_sort(self: Pin<&mut LibraryManager>, key: &QString);
 
+        /// Songs-tab sort descending. Exposed as `songsSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "songsSortDescending"]
+        fn songs_sort_descending(self: &LibraryManager) -> bool;
+
+        /// Persist the songs-tab sort direction. Exposed as `setSongsSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "setSongsSortDescending"]
+        fn set_songs_sort_descending(self: Pin<&mut LibraryManager>, descending: bool);
+
         /// Last albums-tab sort key. Exposed as `albumsSort`.
         #[qinvokable]
         #[cxx_name = "albumsSort"]
@@ -1480,6 +1511,16 @@ pub mod qobject {
         #[cxx_name = "setAlbumsSort"]
         fn set_albums_sort(self: Pin<&mut LibraryManager>, key: &QString);
 
+        /// Albums-tab sort descending. Exposed as `albumsSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "albumsSortDescending"]
+        fn albums_sort_descending(self: &LibraryManager) -> bool;
+
+        /// Persist the albums-tab sort direction. Exposed as `setAlbumsSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "setAlbumsSortDescending"]
+        fn set_albums_sort_descending(self: Pin<&mut LibraryManager>, descending: bool);
+
         /// Last artists-tab sort key. Exposed as `artistsSort`.
         #[qinvokable]
         #[cxx_name = "artistsSort"]
@@ -1489,6 +1530,16 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setArtistsSort"]
         fn set_artists_sort(self: Pin<&mut LibraryManager>, key: &QString);
+
+        /// Artists-tab sort descending. Exposed as `artistsSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "artistsSortDescending"]
+        fn artists_sort_descending(self: &LibraryManager) -> bool;
+
+        /// Persist the artists-tab sort direction. Exposed as `setArtistsSortDescending`.
+        #[qinvokable]
+        #[cxx_name = "setArtistsSortDescending"]
+        fn set_artists_sort_descending(self: Pin<&mut LibraryManager>, descending: bool);
 
         /// Open the parent directory of an indexed track. Exposed as `revealTrack`.
         #[qinvokable]

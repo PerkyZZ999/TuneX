@@ -9,26 +9,22 @@
 
 use rusqlite::Connection;
 use tunex_core::Result;
-use tunex_library::{TrackRow, list_tracks_for_artist, list_tracks_in_album};
+use tunex_library::{TrackRow, display_title_artist, list_tracks_for_artist, list_tracks_in_album};
 use tunex_player::{PlaybackController, QueueItem, path_to_uri};
 
 /// Translate one index row into an enriched queue item.
 ///
-/// The title falls back to the file name when untagged (honest identity,
-/// never fabricated tags); artist, album, and duration pass through when
-/// known. Returns `None` when the path cannot become a playback URI.
+/// Title and artist fall back to the file stem (`Artist - Title` when both
+/// tags are missing). Parsed names are never written as tags. Returns `None`
+/// when the path cannot become a playback URI.
 #[must_use]
 pub fn queue_item_from_row(row: &TrackRow) -> Option<QueueItem> {
     let uri = path_to_uri(std::path::Path::new(&row.path)).ok()?;
-    let title = row.title.clone().unwrap_or_else(|| {
-        std::path::Path::new(&row.path).file_name().map_or_else(
-            || "Unknown Title".to_owned(),
-            |name| name.to_string_lossy().into_owned(),
-        )
-    });
+    let (title, artist) =
+        display_title_artist(&row.path, row.title.as_deref(), row.artist.as_deref());
     let mut item = QueueItem::new(&uri, &title).with_track_id(row.id);
-    if let Some(artist) = &row.artist {
-        item = item.with_artist(artist);
+    if artist != tunex_library::UNKNOWN_ARTIST {
+        item = item.with_artist(&artist);
     }
     if let Some(album) = &row.album {
         item = item.with_album(album);
@@ -175,7 +171,7 @@ mod tests {
             .find(|row| row.path.ends_with("b1.flac"))
             .expect("seed present");
         let item = queue_item_from_row(bare).expect("untagged row converts");
-        assert_eq!(item.title, "b1.flac");
+        assert_eq!(item.title, "b1");
         assert_eq!(item.track_id, Some(bare.id));
         assert!(item.artist.is_none());
         assert!(item.album.is_none());
@@ -185,8 +181,12 @@ mod tests {
     #[test]
     fn enqueue_album_orders_disc_tracks_and_skips_missing() {
         let (db, dir) = scratch_db("album");
-        let albums =
-            tunex_library::list_albums(&db, tunex_library::AlbumSort::Title).expect("albums list");
+        let albums = tunex_library::list_albums(
+            &db,
+            tunex_library::AlbumSort::Title,
+            tunex_library::SortDir::Asc,
+        )
+        .expect("albums list");
         let tapes = albums
             .iter()
             .find(|album| album.title == "Night Tapes")

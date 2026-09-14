@@ -117,7 +117,7 @@ impl WindowConfig {
     }
 }
 
-/// Last-used browse prefs (library tab and sort chips).
+/// Last-used browse prefs (library tab and sort).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ViewConfig {
@@ -125,13 +125,30 @@ pub struct ViewConfig {
     pub library_tab: String,
     /// Songs-tab sort key (`title` / `artist` / `album` / `date`).
     pub songs_sort: String,
+    /// Songs-tab direction (`asc` / `desc`). Empty uses the default for the key.
+    pub songs_sort_dir: String,
     /// Albums-tab sort key (`title` / `artist` / `date`).
     pub albums_sort: String,
+    /// Albums-tab direction (`asc` / `desc`). Empty uses the default for the key.
+    pub albums_sort_dir: String,
     /// Artists-tab sort key (`name` / `songs`).
     pub artists_sort: String,
+    /// Artists-tab direction (`asc` / `desc`). Empty uses the default for the key.
+    pub artists_sort_dir: String,
     /// Recent search queries, newest first, capped by the search view.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_searches: Vec<String>,
+}
+
+/// Resolve a stored sort direction. Empty/`unknown` keeps date and artist
+/// track-count newest/most-first so legacy configs do not flip.
+#[must_use]
+pub fn sort_dir_is_desc(sort_key: &str, stored: &str) -> bool {
+    match stored {
+        "asc" => false,
+        "desc" => true,
+        _ => matches!(sort_key, "date" | "songs"),
+    }
 }
 
 /// Named library profile (own index + roots). The empty id is the default.
@@ -173,7 +190,7 @@ pub struct TunexConfig {
     pub appearance: AppearanceConfig,
     /// Window close, tray, and geometry.
     pub window: WindowConfig,
-    /// Last library tab and sort chips.
+    /// Last library tab and sort.
     pub view: ViewConfig,
     /// Active library profile id. Empty means the default (`library.db`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -406,8 +423,11 @@ mod tests {
             view: ViewConfig {
                 library_tab: "albums".to_owned(),
                 songs_sort: "artist".to_owned(),
+                songs_sort_dir: "desc".to_owned(),
                 albums_sort: "date".to_owned(),
+                albums_sort_dir: String::new(),
                 artists_sort: "songs".to_owned(),
+                artists_sort_dir: String::new(),
                 recent_searches: vec!["nova".to_owned()],
             },
             active_profile: String::new(),
@@ -583,6 +603,12 @@ mod tests {
         let back = load_from(&path).expect("reload works");
         assert_eq!(back.view.library_tab, "folders");
         assert_eq!(back.view.songs_sort, "date");
+        assert!(
+            crate::sort_dir_is_desc("date", &back.view.songs_sort_dir),
+            "legacy files without a dir keep date newest-first"
+        );
+        assert!(!crate::sort_dir_is_desc("title", ""));
+        assert!(crate::sort_dir_is_desc("title", "desc"));
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

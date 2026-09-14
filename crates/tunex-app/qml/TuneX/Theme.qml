@@ -70,6 +70,7 @@ QtObject {
     readonly property int progressTrack: 4
     readonly property int targetMin: 44
     readonly property int denseTarget: 40
+    readonly property int buttonHeight: 32
     readonly property int artThumb: 40
     readonly property int topBarHeight: 48
     readonly property int trackRowHeight: 48

@@ -2,25 +2,26 @@ import QtQuick
 import QtQuick.Controls.Basic
 import TuneX
 
-// Pill primary/secondary action. One primary per view (DESIGN.md). Disabled
-// fades the whole control to 38% on the desaturated raised surface, label
-// and glyph included; the 2px ring follows keyboard focus only.
+// Compact primary/secondary action. Small radius, 32px height (DESIGN.md
+// compact chrome). Disabled fades the whole control to 38% on the
+// desaturated raised surface; the 2px ring follows keyboard focus only.
 Button {
     id: root
 
     property bool primary: true
     property string glyph: ""
+    property bool glyphTrailing: false
 
-    implicitHeight: Theme.targetMin
-    leftPadding: Theme.spaceMd
-    rightPadding: Theme.spaceMd
+    implicitHeight: Theme.buttonHeight
+    leftPadding: Theme.spaceSm + Theme.spaceXs
+    rightPadding: Theme.spaceSm + Theme.spaceXs
     opacity: root.enabled ? 1 : 0.38
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontLabel
     font.weight: Font.Medium
 
     background: Rectangle {
-        radius: Theme.radiusPill
+        radius: Theme.radiusXs
         color: {
             if (!root.enabled)
                 return Theme.surfaceRaised;
@@ -42,13 +43,13 @@ Button {
     }
 
     contentItem: Row {
-        spacing: Theme.spaceSm
+        spacing: Theme.spaceXs
 
         Icon {
-            visible: root.glyph !== ""
+            visible: root.glyph !== "" && !root.glyphTrailing
             anchors.verticalCenter: parent.verticalCenter
             name: root.glyph
-            iconSize: 20
+            iconSize: 16
             stroke: root.primary && root.enabled ? Theme.primaryText : Theme.foreground
         }
 
@@ -58,6 +59,14 @@ Button {
             textFormat: Text.PlainText
             font: root.font
             color: root.primary && root.enabled ? Theme.primaryText : Theme.foreground
+        }
+
+        Icon {
+            visible: root.glyph !== "" && root.glyphTrailing
+            anchors.verticalCenter: parent.verticalCenter
+            name: root.glyph
+            iconSize: 16
+            stroke: root.primary && root.enabled ? Theme.primaryText : Theme.foreground
         }
     }
 }

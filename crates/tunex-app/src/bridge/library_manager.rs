@@ -132,6 +132,24 @@ impl qobject::LibraryManager {
         }
     }
 
+    /// Songs-tab sort descending (legacy empty dir uses the key default).
+    pub fn songs_sort_descending(&self) -> bool {
+        let view = self.rust().core.view_prefs();
+        tunex_core::sort_dir_is_desc(&view.songs_sort, &view.songs_sort_dir)
+    }
+
+    /// Persist the songs-tab sort direction.
+    pub fn set_songs_sort_descending(self: Pin<&mut Self>, descending: bool) {
+        let dir = if descending { "desc" } else { "asc" }.to_owned();
+        if let Err(err) = self
+            .rust()
+            .core
+            .set_view_prefs(|view| view.songs_sort_dir = dir)
+        {
+            tracing::warn!(name = "library.sort_persist_failed", error = %err, "sort not saved");
+        }
+    }
+
     /// Last albums-tab sort key.
     pub fn albums_sort(&self) -> QString {
         QString::from(self.rust().core.view_prefs().albums_sort.as_str())
@@ -149,6 +167,24 @@ impl qobject::LibraryManager {
         }
     }
 
+    /// Albums-tab sort descending.
+    pub fn albums_sort_descending(&self) -> bool {
+        let view = self.rust().core.view_prefs();
+        tunex_core::sort_dir_is_desc(&view.albums_sort, &view.albums_sort_dir)
+    }
+
+    /// Persist the albums-tab sort direction.
+    pub fn set_albums_sort_descending(self: Pin<&mut Self>, descending: bool) {
+        let dir = if descending { "desc" } else { "asc" }.to_owned();
+        if let Err(err) = self
+            .rust()
+            .core
+            .set_view_prefs(|view| view.albums_sort_dir = dir)
+        {
+            tracing::warn!(name = "library.sort_persist_failed", error = %err, "sort not saved");
+        }
+    }
+
     /// Last artists-tab sort key.
     pub fn artists_sort(&self) -> QString {
         QString::from(self.rust().core.view_prefs().artists_sort.as_str())
@@ -161,6 +197,24 @@ impl qobject::LibraryManager {
             .rust()
             .core
             .set_view_prefs(|view| view.artists_sort = key)
+        {
+            tracing::warn!(name = "library.sort_persist_failed", error = %err, "sort not saved");
+        }
+    }
+
+    /// Artists-tab sort descending.
+    pub fn artists_sort_descending(&self) -> bool {
+        let view = self.rust().core.view_prefs();
+        tunex_core::sort_dir_is_desc(&view.artists_sort, &view.artists_sort_dir)
+    }
+
+    /// Persist the artists-tab sort direction.
+    pub fn set_artists_sort_descending(self: Pin<&mut Self>, descending: bool) {
+        let dir = if descending { "desc" } else { "asc" }.to_owned();
+        if let Err(err) = self
+            .rust()
+            .core
+            .set_view_prefs(|view| view.artists_sort_dir = dir)
         {
             tracing::warn!(name = "library.sort_persist_failed", error = %err, "sort not saved");
         }

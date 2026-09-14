@@ -139,7 +139,7 @@ Item {
 
     function tabLabel(key) {
         if (key === "songs")
-            return songsView.count > 0 ? qsTr("Songs (%1)").arg(songsView.count) : qsTr("Songs");
+            return songsView.count > 0 ? qsTr("Tracks (%1)").arg(songsView.count) : qsTr("Tracks");
 
         if (key === "albums")
             return albumsView.count > 0 ? qsTr("Albums (%1)").arg(albumsView.count) : qsTr("Albums");
