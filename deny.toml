@@ -36,6 +36,8 @@ allow = [
     # notify (filesystem watcher) is a public-domain dedication (CC0-1.0,
     # FSF-free): no restrictions to conflict with the GPLv3 app binary.
     "CC0-1.0",
+    # ureq's `webpki-root-certs` (Mozilla CA set) for opt-in MusicBrainz HTTPS.
+    "CDLA-Permissive-2.0",
 ]
 unused-allowed-license = "allow"
 confidence-threshold = 0.8

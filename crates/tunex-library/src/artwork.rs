@@ -1,10 +1,12 @@
 //! Artwork pipeline: embedded or folder art into the XDG thumbnail cache.
 //!
 //! Priority is locked (D-010): embedded art first, then `cover.jpg`, then
-//! `folder.jpg`, then `front.jpg` (each with `.jpeg`/`.png` siblings). Anything
-//! else — oversized, corrupt, undecodable — resolves to `None` and the UI
-//! shows its generated placeholder; unknown art stays a placeholder, never a
-//! guess (R-005, R-NFR-02).
+//! `folder.jpg`, then `front.jpg` (each with `.jpeg`/`.png` siblings). Opt-in
+//! `MusicBrainz` / Cover Art Archive fills are a last extra source in the XDG
+//! cache (`remote/` pointers), never overwriting local art. Anything else —
+//! oversized, corrupt, undecodable — resolves to `None` and the UI shows its
+//! generated placeholder; unknown art stays a placeholder, never a guess
+//! (R-005, R-NFR-02).
 //!
 //! Layout under the cache root (default
 //! `$XDG_CACHE_HOME/tunex/art`, `~/.cache/tunex/art` fallback):
@@ -553,7 +555,52 @@ pub fn resolve_track_art(
             }
         }
     }
+    // Opt-in `MusicBrainz` / Cover Art Archive (D-010 extra source, after local).
+    if let Some(cached) = load_remote_art(cache, track) {
+        return Ok(Some(cached));
+    }
     Ok(None)
+}
+
+fn remote_pointer(cache: &Path, track: &Path) -> PathBuf {
+    let key = blake3::hash(track.to_string_lossy().as_bytes())
+        .to_hex()
+        .to_string();
+    cache.join("remote").join(key)
+}
+
+/// Persist Cover Art Archive bytes in the XDG cache and remember them for `track`.
+///
+/// # Errors
+///
+/// Returns [`Error::Io`] when the cache cannot be written.
+pub fn store_remote_art(cache: &Path, track: &Path, bytes: &[u8]) -> Result<Option<CachedArt>> {
+    let Some(cached) = store_artwork(cache, bytes)? else {
+        return Ok(None);
+    };
+    let pointer = remote_pointer(cache, track);
+    if let Some(parent) = pointer.parent() {
+        std::fs::create_dir_all(parent).map_err(|source| Error::Io {
+            path: parent.to_path_buf(),
+            source,
+        })?;
+    }
+    std::fs::write(&pointer, cached.key.as_bytes()).map_err(|source| Error::Io {
+        path: pointer,
+        source,
+    })?;
+    Ok(Some(cached))
+}
+
+/// Cached Cover Art Archive hit for `track`, if a previous fill stored one.
+#[must_use]
+pub fn load_remote_art(cache: &Path, track: &Path) -> Option<CachedArt> {
+    let key = std::fs::read_to_string(remote_pointer(cache, track)).ok()?;
+    let key = key.trim();
+    if key.is_empty() {
+        return None;
+    }
+    cached_art(cache, key)
 }
 
 #[cfg(test)]
@@ -789,6 +836,22 @@ mod tests {
             resolve_track_art(&cache, &bare, None).expect("resolve works"),
             None
         );
+        std::fs::remove_dir_all(&cache).expect("cleanup works");
+    }
+
+    #[test]
+    fn remote_art_is_last_after_local_sources() {
+        let cache = scratch("remote");
+        let track = cache.join("bare").join("song.flac");
+        std::fs::create_dir_all(track.parent().expect("parent")).expect("setup");
+        let png = png_bytes(8, 8, [3, 3, 3]);
+        store_remote_art(&cache, &track, &png)
+            .expect("store works")
+            .expect("decodes");
+        let art = resolve_track_art(&cache, &track, None)
+            .expect("resolve works")
+            .expect("remote resolves");
+        assert_eq!(art.key, artwork_key(&png));
         std::fs::remove_dir_all(&cache).expect("cleanup works");
     }
 

@@ -131,13 +131,13 @@
 - **Date:** 2026-09-09
 - **Owner:** user
 - **Context:** Artwork is signature visual; must never jank UI.
-- **Decision:** embedded > cover/folder/front.jpg only in V1; XDG cache 64/256/512+orig; blake3 key; ~2GB LRU; decode caps; lazy/background; placeholder.
-- **Rationale:** Deterministic, restart-stable, bomb-safe.
-- **Evidence:** SPEC §10.1.
-- **Consequences:** Other filename heuristics deferred to Phase 2+.
-- **Alternatives:** Wider heuristics V1 (rejected: scope).
+- **Decision:** Local order is unchanged: embedded > cover/folder/front.jpg; XDG cache 64/256/512+orig; blake3 key; ~2GB LRU; decode caps; lazy/background; placeholder. MusicBrainz / Cover Art Archive is an **opt-in extra source after local miss**, default off (R-022). Remote fills never overwrite user tags or local art.
+- **Rationale:** Deterministic, restart-stable, bomb-safe. Network stays never required.
+- **Evidence:** SPEC §10.1; post-V1 S13.
+- **Consequences:** Other filename heuristics deferred. Opt-in enrichment writes Cover Art Archive bytes into the XDG cache (`remote/` pointers) only when embedded and folder art are missing.
+- **Alternatives:** Wider heuristics V1 (rejected: scope); always-on MusicBrainz (rejected: D-014).
 - **Reopen criteria:** User signal that V1 misses dominant naming convention.
-- **Confirmed by / date:** user, 2026-09-09
+- **Confirmed by / date:** user, 2026-09-09; extra-source consequence updated 2026-09-13 (S13)
 - **Supersedes / superseded by:** —
 
 ## D-011 — Flatpak primary packaging
@@ -201,11 +201,11 @@
 - **Date:** 2026-09-09
 - **Owner:** user
 - **Context:** Core product model; keeps UI replaceable and testable.
-- **Decision:** Network never required for R-001–R-015; QML presentation only, Rust logic only, no FS/DB/GStreamer from QML.
+- **Decision:** Network never required for core flows (R-001–R-021). QML presentation only, Rust logic only, no FS/DB/GStreamer/HTTP from QML. Opt-in MusicBrainz (R-022) is the explicit product-loop exception: default **off**, worker + timeout + XDG cache, never overwrites user tags/art; `scripts/netoff-rehearsal.sh` must keep passing with enrichment off.
 - **Rationale:** Offline reliability + clean testing seams.
-- **Evidence:** SPEC §2.1, §4–5.
-- **Consequences:** Every feature needs Rust API + QML model; no QML shortcuts.
-- **Alternatives:** QML-side logic (rejected).
-- **Reopen criteria:** Only via explicit product-loop adding network scope.
-- **Confirmed by / date:** user, 2026-09-09
+- **Evidence:** SPEC §2.1, §4–5; post-V1 S13.
+- **Consequences:** Every feature needs Rust API + QML model; no QML shortcuts. Core playback, scan, search, and queue stay fully offline.
+- **Alternatives:** QML-side logic (rejected); required network for metadata (rejected).
+- **Reopen criteria:** Only via explicit product-loop adding further network scope.
+- **Confirmed by / date:** user, 2026-09-09; product-loop exception documented 2026-09-13 (S13)
 - **Supersedes / superseded by:** —

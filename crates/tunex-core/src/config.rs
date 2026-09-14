@@ -134,6 +134,31 @@ pub struct ViewConfig {
     pub recent_searches: Vec<String>,
 }
 
+/// Named library profile (own index + roots). The empty id is the default.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LibraryProfile {
+    /// Stable id (`default` or a slug). Used in the data-dir path.
+    pub id: String,
+    /// Display name.
+    pub name: String,
+    /// Watched folders for this profile.
+    pub library_roots: Vec<PathBuf>,
+}
+
+/// Opt-in online enrichment. Default off (D-014).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EnrichmentConfig {
+    /// `MusicBrainz` / Cover Art Archive. Never required; only fills missing tags/art.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub musicbrainz: bool,
+}
+
+fn enrichment_is_off(config: &EnrichmentConfig) -> bool {
+    !config.musicbrainz
+}
+
 /// Application settings. Sections land slice by slice; see SPEC §30.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -150,6 +175,15 @@ pub struct TunexConfig {
     pub window: WindowConfig,
     /// Last library tab and sort chips.
     pub view: ViewConfig,
+    /// Active library profile id. Empty means the default (`library.db`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub active_profile: String,
+    /// Extra named profiles (the default uses `library_roots` on this struct).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<LibraryProfile>,
+    /// Opt-in online enrichment (default off).
+    #[serde(default, skip_serializing_if = "enrichment_is_off")]
+    pub enrichment: EnrichmentConfig,
 }
 
 impl Default for TunexConfig {
@@ -161,6 +195,9 @@ impl Default for TunexConfig {
             appearance: AppearanceConfig::default(),
             window: WindowConfig::default(),
             view: ViewConfig::default(),
+            active_profile: String::new(),
+            profiles: Vec::new(),
+            enrichment: EnrichmentConfig::default(),
         }
     }
 }
@@ -210,10 +247,58 @@ pub fn data_dir() -> PathBuf {
     base.join("tunex")
 }
 
-/// Full path of the library index database.
+/// Full path of the library index database for the active profile.
 #[must_use]
 pub fn library_db_path() -> PathBuf {
-    data_dir().join("library.db")
+    profile_db_path(&load_from(&config_file()).unwrap_or_default())
+}
+
+/// Index path for one config snapshot.
+#[must_use]
+pub fn profile_db_path(config: &TunexConfig) -> PathBuf {
+    if config.active_profile.is_empty() {
+        data_dir().join("library.db")
+    } else {
+        data_dir()
+            .join("profiles")
+            .join(sanitize_profile_id(&config.active_profile))
+            .join("library.db")
+    }
+}
+
+/// Roots for the active profile (default uses `library_roots`).
+#[must_use]
+pub fn active_roots(config: &TunexConfig) -> Vec<PathBuf> {
+    if config.active_profile.is_empty() {
+        return config.library_roots.clone();
+    }
+    config
+        .profiles
+        .iter()
+        .find(|profile| profile.id == config.active_profile)
+        .map(|profile| profile.library_roots.clone())
+        .unwrap_or_default()
+}
+
+/// Slug a profile id: lowercase ASCII letters, digits, and hyphen.
+#[must_use]
+pub fn sanitize_profile_id(id: &str) -> String {
+    let slug: String = id
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let slug = slug.trim_matches('-').to_owned();
+    if slug.is_empty() {
+        "library".to_owned()
+    } else {
+        slug.chars().take(40).collect()
+    }
 }
 
 /// Load settings from `path`. Missing files are not an error — first runs
@@ -325,6 +410,9 @@ mod tests {
                 artists_sort: "songs".to_owned(),
                 recent_searches: vec!["nova".to_owned()],
             },
+            active_profile: String::new(),
+            profiles: Vec::new(),
+            enrichment: EnrichmentConfig::default(),
         };
         save_to(&path, &config).expect("save works");
         let back = load_from(&path).expect("reload works");
@@ -425,11 +513,34 @@ mod tests {
 
     #[test]
     fn library_db_lives_under_the_data_dir() {
-        assert_eq!(library_db_path(), data_dir().join("library.db"));
+        assert_eq!(
+            profile_db_path(&TunexConfig::default()),
+            data_dir().join("library.db")
+        );
+        let named = TunexConfig {
+            active_profile: "Work Music".to_owned(),
+            ..TunexConfig::default()
+        };
+        assert_eq!(
+            profile_db_path(&named),
+            data_dir().join("profiles/work-music/library.db")
+        );
+        assert_eq!(sanitize_profile_id("Work Music"), "work-music");
         assert!(
             data_dir().ends_with("tunex"),
             "data dir carries the app leaf"
         );
+        assert!(
+            !TunexConfig::default().enrichment.musicbrainz,
+            "MusicBrainz is opt-in"
+        );
+        let dir = scratch_dir("enrich-off");
+        let path = dir.join("config.toml");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::write(&path, "volume = 0.5\n").expect("setup works");
+        let loaded = load_from(&path).expect("legacy file loads");
+        assert!(!loaded.enrichment.musicbrainz);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 
     #[test]

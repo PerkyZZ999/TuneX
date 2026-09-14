@@ -133,6 +133,9 @@ pub struct QueueModelRust {
     /// only later advances pop a notification.
     last_notified_uri: Option<String>,
     outputs: Arc<Mutex<Vec<(String, String)>>>,
+    lyrics_uri: String,
+    lyrics_plain: String,
+    lyrics_lines: Vec<(i32, String)>,
 }
 
 impl Default for QueueModelRust {
@@ -153,6 +156,9 @@ impl Default for QueueModelRust {
             mpris_rx: None,
             last_notified_uri: None,
             outputs: Arc::new(Mutex::new(vec![(String::new(), "System".to_owned())])),
+            lyrics_uri: String::new(),
+            lyrics_plain: String::new(),
+            lyrics_lines: Vec::new(),
         }
     }
 }
@@ -311,7 +317,41 @@ impl QueueModelRust {
         let art_landed = self.sync_current_art();
         self.sync_mpris();
         self.maybe_notify_track();
+        self.maybe_load_lyrics();
         !unchanged || art_landed
+    }
+
+    /// Load sidecar or embedded lyrics when the current URI changes.
+    fn maybe_load_lyrics(&mut self) {
+        let uri = self
+            .controller
+            .as_ref()
+            .and_then(PlaybackController::current_item)
+            .map(|item| item.uri.clone())
+            .unwrap_or_default();
+        if uri == self.lyrics_uri {
+            return;
+        }
+        self.lyrics_uri.clone_from(&uri);
+        self.lyrics_plain.clear();
+        self.lyrics_lines.clear();
+        let Some(path) = uri_to_path(&uri) else {
+            return;
+        };
+        let lyrics = tunex_library::load_lyrics(&path);
+        self.lyrics_plain = lyrics.plain;
+        self.lyrics_lines = lyrics
+            .lines
+            .into_iter()
+            .map(|line| {
+                (
+                    line.time_ms
+                        .and_then(|ms| i32::try_from(ms).ok())
+                        .unwrap_or(-1),
+                    line.text,
+                )
+            })
+            .collect();
     }
 
     /// Toast on track advances and nothing else. Restores seed
@@ -738,6 +778,59 @@ impl QueueModelRust {
         self.current_row()
             .map(|row| row.1.clone())
             .unwrap_or_default()
+    }
+
+    /// Unsynced or joined LRC text.
+    fn lyrics_plain(&self) -> QString {
+        QString::from(self.lyrics_plain.as_str())
+    }
+
+    fn lyrics_line_count(&self) -> i32 {
+        i32::try_from(self.lyrics_lines.len()).unwrap_or(i32::MAX)
+    }
+
+    fn lyrics_line_at(&self, row: i32) -> QString {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.lyrics_lines.get(index))
+            .map(|line| QString::from(line.1.as_str()))
+            .unwrap_or_default()
+    }
+
+    fn lyrics_time_at(&self, row: i32) -> i32 {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.lyrics_lines.get(index))
+            .map_or(-1, |line| line.0)
+    }
+
+    fn lyrics_active_index(&self, position_ms: i32) -> i32 {
+        let position = u64::try_from(position_ms.max(0)).unwrap_or(0);
+        let mut active = -1;
+        for (index, (time, _)) in self.lyrics_lines.iter().enumerate() {
+            if *time >= 0 && u64::try_from(*time).unwrap_or(0) <= position {
+                active = i32::try_from(index).unwrap_or(i32::MAX);
+            }
+        }
+        active
+    }
+
+    fn lyrics_synced(&self) -> bool {
+        self.lyrics_lines.iter().any(|(time, _)| *time >= 0)
+    }
+
+    fn reload_index_path(&mut self) {
+        self.persist_queue();
+        self.index_path = tunex_core::library_db_path();
+        if !self.restore_saved_queue() {
+            if let Some(controller) = self.controller.as_mut() {
+                controller.clear_queue();
+            }
+            self.lyrics_uri.clear();
+            self.lyrics_plain.clear();
+            self.lyrics_lines.clear();
+        }
+        self.sync_rows();
     }
 
     /// Cached cover of the playing track, as a path into the art cache.
@@ -1716,6 +1809,42 @@ impl qobject::QueueModel {
     /// Artist of the playing row (empty when idle).
     pub fn current_artist(&self) -> QString {
         self.rust().current_artist()
+    }
+
+    /// Joined lyrics text (sidecar LRC or embedded unsynced).
+    pub fn lyrics_plain(&self) -> QString {
+        self.rust().lyrics_plain()
+    }
+
+    /// Number of synced lyric lines (0 for unsynced-only).
+    pub fn lyrics_line_count(&self) -> i32 {
+        self.rust().lyrics_line_count()
+    }
+
+    /// Lyric text at `row`.
+    pub fn lyrics_line_at(&self, row: i32) -> QString {
+        self.rust().lyrics_line_at(row)
+    }
+
+    /// Lyric start time at `row` (`-1` when unsynced).
+    pub fn lyrics_time_at(&self, row: i32) -> i32 {
+        self.rust().lyrics_time_at(row)
+    }
+
+    /// Synced line for `positionMs` (`-1` when none).
+    pub fn lyrics_active_index(&self, position_ms: i32) -> i32 {
+        self.rust().lyrics_active_index(position_ms)
+    }
+
+    /// Whether loaded lyrics carry timestamps.
+    pub fn lyrics_synced(&self) -> bool {
+        self.rust().lyrics_synced()
+    }
+
+    /// Re-read the active profile's index path and restore that profile's queue.
+    pub fn reload_index(mut self: Pin<&mut Self>) {
+        self.as_mut().rust_mut().reload_index_path();
+        self.as_mut().apply_rows();
     }
 
     /// Output volume as 0–100.

@@ -72,5 +72,11 @@
 - **Validation:** `cargo test` play_history / smart playlists / tag write; `scripts/qml-lint.sh`
 - **Status:** done (W-061–W-063, 2026-09-13)
 
+## Slice S13 — Lyrics, profiles, opt-in MusicBrainz (post-V1)
+- **Acceptance:** Now Playing lyrics toggle (sidecar `.lrc` + embedded unsynced, offline-only); named library profiles with their own index and folders; MusicBrainz / Cover Art Archive opt-in default off, missing-only, never required.
+- **Requirements:** R-022 (promoted L-009, L-010); D-010 extra source; D-014 product-loop exception
+- **Validation:** `cargo test` lyrics/profiles/enrichment-off; `scripts/qml-lint.sh`; enrichment off for `scripts/netoff-rehearsal.sh`
+- **Status:** done (W-064–W-066, 2026-09-13)
+
 ## Traceability (req → slices)
-- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3+S12, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9, R-020→S11, R-021→S12.
+- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3+S12, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8+S13, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9, R-020→S11, R-021→S12, R-022→S13.

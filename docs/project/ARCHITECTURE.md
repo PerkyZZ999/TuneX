@@ -8,7 +8,7 @@ Fast Rust engine + beautiful Qt Quick shell. QML renders; Rust decides. `tunex-a
 |-----------|----------------|-------|
 | QML shell (`qml/`) | Nav, theme tokens, lists/grids, player UI, search field, dialogs | `qt_add_qml_module`; models are Rust QAbstractListModels; qmllint/qmlformat gated |
 | tunex-app | cxx-qt QObjects, QML models, AppEvent fan-out, watcher debounce, settings (XDG), MPRIS/D-Bus, StatusNotifierItem tray, config | Only crate touching Qt; owns Qt-thread affinity |
-| tunex-library | Roots, recursive scan, metadata trait, SQLite + migrations + FTS5 search controller, artwork pipeline, playlists/favorites/history | Largest crate by design; split later per D-008 |
+| tunex-library | Roots, recursive scan, metadata trait, SQLite + migrations + FTS5 search controller, artwork pipeline, playlists/favorites/history, local lyrics, opt-in MusicBrainz | Largest crate by design; split later per D-008 |
 | tunex-player | PlayerEngine over playbin3, queue + shuffle/repeat, volume/mute, position/bus events | Emits TrackChanged/State/Position/Duration/Error/EndOfTrack as AppEvents |
 | tunex-core | Domain types (Track/Album/Artist/Queue/Playlist/...), PlayerState machine, errors, AppEvent enum, config schema | No Qt/GStreamer/SQLite/notify deps |
 | SQLite | artists/albums/tracks/genres/folders/playlists/playlist_tracks/favorites/play_history/library_roots/scan_state/artwork/settings + FTS5 external-content | WAL, versioned migrations, BM25 |
@@ -29,7 +29,7 @@ Play: queue.next → engine.preload(about-to-finish) → bus → TrackChanged/Po
 - Authn/z: none (local single-user). No secrets in V1.
 - Data sensitivity: file paths + listening history stay local; no egress.
 - Retention/deletion: remove root → stop watch + GC orphan index rows; missing files flagged not silently dropped.
-- External calls: none required. Future enrichment (MusicBrainz/lyrics) sandboxed + opt-in, post-V1.
+- External calls: none required. Opt-in MusicBrainz (R-022) is the D-014 product-loop exception: default off, worker + timeout, never overwrites user tags/art.
 - Boundary enforced: QML cannot import FS/DB/media; review any new cxx-qt method for logic leakage.
 
 ## Failure modes

@@ -10,7 +10,8 @@ import TuneX
 // MiniPlayer and docked panel; Close or Esc returns without touching
 // scroll (the popup takes focus so Esc always reaches it). Scrub posts
 // async seeks (W-027). With Appearance.reduceTransparency the backdrop is
-// solid `surface` and nothing blurs.
+// solid `surface` and nothing blurs. A lyrics toggle (S13) replaces the
+// art with a local sidecar/embedded pane — not a tab farm.
 Popup {
     id: root
 
@@ -25,6 +26,9 @@ Popup {
     property int positionMs: 0
     property int durationMs: 0
     property bool muted: false
+    property bool lyricsOn: false
+    property int lyricsActive: -1
+    readonly property bool hasLyrics: root.queue.lyricsLineCount() > 0 || root.queue.lyricsPlain() !== ""
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
     readonly property int motionMs: Appearance.duration(Theme.overlayMs)
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
@@ -80,6 +84,7 @@ Popup {
 
         if (!seekSlider.pressed)
             seekSlider.value = root.positionMs;
+        root.lyricsActive = root.queue.lyricsActiveIndex(root.positionMs);
     }
 
     parent: Overlay.overlay
@@ -285,6 +290,7 @@ Popup {
                         Artwork {
                             id: art
 
+                            visible: !root.lyricsOn
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: Theme.nowPlayingArt
                             height: Theme.nowPlayingArt
@@ -299,11 +305,70 @@ Popup {
                             Accessible.ignored: true
 
                             Icon {
-                                visible: !root.hasCurrent && !art.showingArt
+                                visible: !root.hasCurrent && !art.showingArt && !root.lyricsOn
                                 anchors.centerIn: parent
                                 name: "music"
                                 iconSize: 48
                                 stroke: Theme.muted
+                            }
+                        }
+
+                        Flickable {
+                            visible: root.lyricsOn
+                            anchors.fill: parent
+                            clip: true
+                            contentWidth: width
+                            contentHeight: lyricsColumn.height
+                            boundsBehavior: Flickable.StopAtBounds
+                            Accessible.role: Accessible.List
+                            Accessible.name: qsTr("Lyrics")
+
+                            Column {
+                                id: lyricsColumn
+
+                                width: parent.width
+                                spacing: Theme.spaceSm
+
+                                Text {
+                                    visible: !root.hasLyrics
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: qsTr("No local lyrics for this track.")
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBody
+                                    color: Theme.muted
+                                }
+
+                                Repeater {
+                                    model: root.queue.lyricsSynced() ? root.queue.lyricsLineCount() : 0
+
+                                    Text {
+                                        required property int index
+                                        width: lyricsColumn.width
+                                        wrapMode: Text.WordWrap
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: root.queue.lyricsLineAt(index)
+                                        textFormat: Text.PlainText
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontBody
+                                        font.weight: index === root.lyricsActive ? Font.DemiBold : Font.Normal
+                                        color: index === root.lyricsActive ? Theme.foreground : Theme.muted
+                                    }
+                                }
+
+                                Text {
+                                    visible: !root.queue.lyricsSynced() && root.queue.lyricsPlain() !== ""
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: root.queue.lyricsPlain()
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBody
+                                    color: Theme.foreground
+                                }
                             }
                         }
                     }
@@ -441,6 +506,15 @@ Popup {
                                 root.queue.cycleRepeat();
                                 root.sync();
                             }
+                        }
+
+                        IconButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconName: "list-music"
+                            accessibleName: root.lyricsOn ? qsTr("Hide lyrics") : qsTr("Show lyrics")
+                            checkable: true
+                            checked: root.lyricsOn
+                            onActivated: root.lyricsOn = !root.lyricsOn
                         }
                     }
 

@@ -118,7 +118,9 @@ impl LibraryCore {
                 TunexConfig::default()
             }
         };
-        lock_state(&self.state).folders = config.library_roots;
+        lock_state(&self.state).folders = tunex_core::active_roots(&config);
+        // Production `new()` already pointed at the active profile. Tests pass
+        // an explicit scratch index — never remap those onto the live XDG path.
         self.restart_watcher();
         self.rescan();
     }
@@ -163,6 +165,8 @@ impl LibraryCore {
                     tracks_added = state.last_stats.tracks_added,
                     "scan run complete"
                 );
+                drop(state);
+                self.maybe_enrich();
             }
         }
         // One worker at a time: bursts coalesce into a single follow-up run.
@@ -323,10 +327,134 @@ impl LibraryCore {
     /// Persist the in-memory folders over the config file.
     fn persist_folders(&self) -> Result<()> {
         let mut config = load_from(&self.config_path).unwrap_or_default();
-        config
-            .library_roots
-            .clone_from(&lock_state(&self.state).folders);
+        let folders = lock_state(&self.state).folders.clone();
+        if config.active_profile.is_empty() {
+            config.library_roots = folders;
+        } else if let Some(profile) = config
+            .profiles
+            .iter_mut()
+            .find(|profile| profile.id == config.active_profile)
+        {
+            profile.library_roots = folders;
+        }
         save_to(&self.config_path, &config)
+    }
+
+    /// Start `MusicBrainz` fill-in only when the setting is on (default off).
+    fn maybe_enrich(&self) {
+        let config = load_from(&self.config_path).unwrap_or_default();
+        if !config.enrichment.musicbrainz {
+            return;
+        }
+        if !self.db_path.is_file() {
+            return;
+        }
+        let db_path = self.db_path.clone();
+        let _ = std::thread::Builder::new()
+            .name("tunex-mb".to_owned())
+            .spawn(move || {
+                if let Err(err) = tunex_library::enrich::run_missing_pass(&db_path) {
+                    tracing::debug!(name = "library.enrich_failed", error = %err, "musicbrainz pass skipped");
+                }
+            });
+    }
+
+    /// Switch the active library profile and reopen its index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] when the profile is unknown.
+    pub fn switch_profile(&mut self, id: &str) -> Result<()> {
+        self.persist_folders()?;
+        let mut config = load_from(&self.config_path).unwrap_or_default();
+        let id = if id.is_empty() || id == "default" {
+            String::new()
+        } else {
+            tunex_core::sanitize_profile_id(id)
+        };
+        if !id.is_empty() && !config.profiles.iter().any(|profile| profile.id == id) {
+            let err = Error::Config(format!("profile {id} is gone"));
+            lock_state(&self.state).last_error = Some(err.to_string());
+            return Err(err);
+        }
+        if config.active_profile == id {
+            return Ok(());
+        }
+        config.active_profile.clone_from(&id);
+        save_to(&self.config_path, &config)?;
+        self.db_path = tunex_core::profile_db_path(&config);
+        lock_state(&self.state).folders = tunex_core::active_roots(&config);
+        lock_state(&self.state).last_error = None;
+        self.restart_watcher();
+        self.rescan();
+        Ok(())
+    }
+
+    /// Create a named profile (empty roots). Returns its id.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] when the name is blank.
+    pub fn create_profile(&self, name: &str) -> Result<String> {
+        let name = name.trim();
+        if name.is_empty() {
+            let err = Error::Config("profile name must not be blank".to_owned());
+            lock_state(&self.state).last_error = Some(err.to_string());
+            return Err(err);
+        }
+        let mut config = load_from(&self.config_path).unwrap_or_default();
+        let mut id = tunex_core::sanitize_profile_id(name);
+        let mut counter = 2;
+        while id == "default" || config.profiles.iter().any(|profile| profile.id == id) {
+            id = format!("{}-{counter}", tunex_core::sanitize_profile_id(name));
+            counter += 1;
+        }
+        config.profiles.push(tunex_core::LibraryProfile {
+            id: id.clone(),
+            name: name.to_owned(),
+            library_roots: Vec::new(),
+        });
+        save_to(&self.config_path, &config)?;
+        Ok(id)
+    }
+
+    /// Profile rows as (id, name), default first.
+    #[must_use]
+    pub fn profiles(&self) -> Vec<(String, String)> {
+        let config = load_from(&self.config_path).unwrap_or_default();
+        let mut rows = vec![(String::new(), "Default".to_owned())];
+        for profile in config.profiles {
+            rows.push((profile.id, profile.name));
+        }
+        rows
+    }
+
+    /// Active profile id (empty = default).
+    #[must_use]
+    pub fn active_profile(&self) -> String {
+        load_from(&self.config_path)
+            .unwrap_or_default()
+            .active_profile
+    }
+
+    /// Whether `MusicBrainz` enrichment is on (default off).
+    #[must_use]
+    pub fn musicbrainz_on(&self) -> bool {
+        load_from(&self.config_path)
+            .unwrap_or_default()
+            .enrichment
+            .musicbrainz
+    }
+
+    /// Persist the `MusicBrainz` opt-in (default off).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Io`] or [`Error::Config`] when the file cannot be written.
+    pub fn set_musicbrainz(&self, on: bool) -> Result<()> {
+        tunex_core::update(&self.config_path, |config| {
+            config.enrichment.musicbrainz = on;
+        })
     }
 
     /// Whether the filesystem watcher is currently active.
@@ -930,6 +1058,49 @@ mod tests {
         assert_eq!(core.track_value(id, "year"), "2021");
         assert_eq!(core.track_value(id, "track"), "3");
         assert_eq!(core.track_value(id, "disc"), "1");
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn create_profile_and_musicbrainz_stay_off() {
+        let (config, db, dir) = scratch("profile");
+        let core = LibraryCore::with_paths(config, db);
+        assert!(
+            !core.musicbrainz_on(),
+            "`MusicBrainz` stays off until the user opts in"
+        );
+        let id = core.create_profile("Work Music").expect("create");
+        assert_eq!(id, "work-music");
+        let rows = core.profiles();
+        assert_eq!(rows[0], (String::new(), "Default".to_owned()));
+        assert_eq!(rows[1], ("work-music".to_owned(), "Work Music".to_owned()));
+        assert!(core.create_profile("").is_err());
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn persist_folders_writes_named_profile_roots() {
+        let (config, db, dir) = scratch("profile-roots");
+        let music = seed_music(&dir);
+        save_to(
+            &config,
+            &TunexConfig {
+                active_profile: "work-music".to_owned(),
+                profiles: vec![tunex_core::LibraryProfile {
+                    id: "work-music".to_owned(),
+                    name: "Work Music".to_owned(),
+                    library_roots: Vec::new(),
+                }],
+                ..TunexConfig::default()
+            },
+        )
+        .expect("seed");
+        let mut core = LibraryCore::with_paths(config.clone(), db);
+        core.add_folder(&music).expect("add works");
+        run_until_idle(&mut core);
+        let saved = load_from(&config).expect("reload");
+        assert!(saved.library_roots.is_empty(), "default roots stay empty");
+        assert_eq!(saved.profiles[0].library_roots.len(), 1);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

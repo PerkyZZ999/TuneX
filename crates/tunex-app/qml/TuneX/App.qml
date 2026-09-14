@@ -852,6 +852,13 @@ Window {
                                 queue: queueModel
                                 library: library
                                 tray: tray
+                                onLibraryReopened: {
+                                    queueModel.reloadIndex();
+                                    playlistModel.reloadIndex();
+                                    playlistsView.refreshAll();
+                                    homeView.refresh();
+                                    libraryView.refresh();
+                                }
                             }
                         }
 

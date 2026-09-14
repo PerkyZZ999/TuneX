@@ -309,6 +309,71 @@ impl qobject::LibraryManager {
             }
         }
     }
+
+    /// Active profile id (empty = default).
+    pub fn active_profile(&self) -> QString {
+        QString::from(self.rust().core.active_profile().as_str())
+    }
+
+    /// How many profiles including Default.
+    pub fn profile_count(&self) -> i32 {
+        i32::try_from(self.rust().core.profiles().len()).unwrap_or(i32::MAX)
+    }
+
+    /// Profile id at `index`.
+    pub fn profile_id_at(&self, index: i32) -> QString {
+        let rows = self.rust().core.profiles();
+        usize::try_from(index)
+            .ok()
+            .and_then(|at| rows.get(at))
+            .map(|(id, _)| QString::from(id.as_str()))
+            .unwrap_or_default()
+    }
+
+    /// Profile name at `index`.
+    pub fn profile_name_at(&self, index: i32) -> QString {
+        let rows = self.rust().core.profiles();
+        usize::try_from(index)
+            .ok()
+            .and_then(|at| rows.get(at))
+            .map(|(_, name)| QString::from(name.as_str()))
+            .unwrap_or_default()
+    }
+
+    /// Create a named profile.
+    pub fn create_profile(self: Pin<&mut Self>, name: &QString) -> QString {
+        match self.rust().core.create_profile(&name.to_string()) {
+            Ok(id) => QString::from(id.as_str()),
+            Err(err) => {
+                tracing::warn!(name = "library.profile_create_failed", error = %err, "profile not created");
+                QString::default()
+            }
+        }
+    }
+
+    /// Switch the active profile and reopen its index.
+    pub fn switch_profile(mut self: Pin<&mut Self>, id: &QString) {
+        if let Err(err) = self
+            .as_mut()
+            .rust_mut()
+            .core
+            .switch_profile(&id.to_string())
+        {
+            tracing::warn!(name = "library.profile_switch_failed", error = %err, "profile kept");
+        }
+    }
+
+    /// `MusicBrainz` opt-in (default off).
+    pub fn musicbrainz_on(&self) -> bool {
+        self.rust().core.musicbrainz_on()
+    }
+
+    /// Persist the `MusicBrainz` opt-in.
+    pub fn set_musicbrainz_on(self: Pin<&mut Self>, on: bool) {
+        if let Err(err) = self.rust().core.set_musicbrainz(on) {
+            tracing::warn!(name = "library.musicbrainz_persist_failed", error = %err, "setting not saved");
+        }
+    }
 }
 
 fn nonempty_str(value: &str) -> Option<String> {

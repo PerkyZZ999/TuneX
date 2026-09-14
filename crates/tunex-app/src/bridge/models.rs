@@ -841,6 +841,41 @@ pub mod qobject {
         #[cxx_name = "currentArtist"]
         fn current_artist(self: &QueueModel) -> QString;
 
+        /// Joined lyrics text. Exposed as `lyricsPlain`.
+        #[qinvokable]
+        #[cxx_name = "lyricsPlain"]
+        fn lyrics_plain(self: &QueueModel) -> QString;
+
+        /// Synced lyric count. Exposed as `lyricsLineCount`.
+        #[qinvokable]
+        #[cxx_name = "lyricsLineCount"]
+        fn lyrics_line_count(self: &QueueModel) -> i32;
+
+        /// Lyric text at `row`. Exposed as `lyricsLineAt`.
+        #[qinvokable]
+        #[cxx_name = "lyricsLineAt"]
+        fn lyrics_line_at(self: &QueueModel, row: i32) -> QString;
+
+        /// Lyric time at `row` (`-1` unsynced). Exposed as `lyricsTimeAt`.
+        #[qinvokable]
+        #[cxx_name = "lyricsTimeAt"]
+        fn lyrics_time_at(self: &QueueModel, row: i32) -> i32;
+
+        /// Active synced line. Exposed as `lyricsActiveIndex`.
+        #[qinvokable]
+        #[cxx_name = "lyricsActiveIndex"]
+        fn lyrics_active_index(self: &QueueModel, position_ms: i32) -> i32;
+
+        /// Whether lyrics are synced. Exposed as `lyricsSynced`.
+        #[qinvokable]
+        #[cxx_name = "lyricsSynced"]
+        fn lyrics_synced(self: &QueueModel) -> bool;
+
+        /// Re-read the active profile index. Exposed as `reloadIndex`.
+        #[qinvokable]
+        #[cxx_name = "reloadIndex"]
+        fn reload_index(self: Pin<&mut QueueModel>);
+
         /// Output volume as 0–100. Exposed as `volumePct`.
         #[qinvokable]
         #[cxx_name = "volumePct"]
@@ -1154,6 +1189,11 @@ pub mod qobject {
         #[cxx_name = "errorText"]
         fn error_text(self: &PlaylistModel) -> QString;
 
+        /// Re-read the active profile index. Exposed as `reloadIndex`.
+        #[qinvokable]
+        #[cxx_name = "reloadIndex"]
+        fn reload_index(self: Pin<&mut PlaylistModel>);
+
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
         #[cxx_override]
@@ -1221,6 +1261,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "errorText"]
         fn error_text(self: &PlaylistTrackModel) -> QString;
+
+        /// Re-read the active profile index. Exposed as `reloadIndex`.
+        #[qinvokable]
+        #[cxx_name = "reloadIndex"]
+        fn reload_index(self: Pin<&mut PlaylistTrackModel>);
 
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
@@ -1517,6 +1562,46 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "saveTags"]
         fn save_tags(self: Pin<&mut LibraryManager>, track_id: i32, packed: &QString) -> i32;
+
+        /// Active profile id (empty = default). Exposed as `activeProfile`.
+        #[qinvokable]
+        #[cxx_name = "activeProfile"]
+        fn active_profile(self: &LibraryManager) -> QString;
+
+        /// How many profiles (including Default). Exposed as `profileCount`.
+        #[qinvokable]
+        #[cxx_name = "profileCount"]
+        fn profile_count(self: &LibraryManager) -> i32;
+
+        /// Profile id at `index`. Exposed as `profileIdAt`.
+        #[qinvokable]
+        #[cxx_name = "profileIdAt"]
+        fn profile_id_at(self: &LibraryManager, index: i32) -> QString;
+
+        /// Profile name at `index`. Exposed as `profileNameAt`.
+        #[qinvokable]
+        #[cxx_name = "profileNameAt"]
+        fn profile_name_at(self: &LibraryManager, index: i32) -> QString;
+
+        /// Create a named profile. Exposed as `createProfile`.
+        #[qinvokable]
+        #[cxx_name = "createProfile"]
+        fn create_profile(self: Pin<&mut LibraryManager>, name: &QString) -> QString;
+
+        /// Switch the active profile and reopen its index. Exposed as `switchProfile`.
+        #[qinvokable]
+        #[cxx_name = "switchProfile"]
+        fn switch_profile(self: Pin<&mut LibraryManager>, id: &QString);
+
+        /// `MusicBrainz` opt-in (default off). Exposed as `musicbrainzOn`.
+        #[qinvokable]
+        #[cxx_name = "musicbrainzOn"]
+        fn musicbrainz_on(self: &LibraryManager) -> bool;
+
+        /// Persist the `MusicBrainz` opt-in. Exposed as `setMusicbrainzOn`.
+        #[qinvokable]
+        #[cxx_name = "setMusicbrainzOn"]
+        fn set_musicbrainz_on(self: Pin<&mut LibraryManager>, on: bool);
     }
 
     extern "RustQt" {

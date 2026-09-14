@@ -11,6 +11,8 @@
 
 pub mod artwork;
 pub mod db;
+pub mod enrich;
+pub mod lyrics;
 pub mod metadata;
 pub mod playlist;
 pub mod scan;
@@ -19,8 +21,8 @@ pub mod watch;
 
 pub use artwork::{
     CACHE_BUDGET_BYTES, CachedArt, MAX_ART_BYTES, MAX_ART_DIMENSION, THUMB_SIZES, artwork_key,
-    cached_art, default_cache_dir, find_folder_art, resolve_track_art, store_artwork,
-    store_artwork_with_budget,
+    cached_art, default_cache_dir, find_folder_art, load_remote_art, resolve_track_art,
+    store_artwork, store_artwork_with_budget, store_remote_art,
 };
 
 pub use db::{
@@ -34,6 +36,11 @@ pub use db::{
     schema_version, search_track_ids, set_missing, track_by_id, track_by_path, track_identities,
     upsert_track,
 };
+pub use enrich::{
+    Enrichment, cover_art_url, fill_missing, lookup_recording, parse_recording_search,
+    run_missing_pass,
+};
+pub use lyrics::{LyricLine, Lyrics, active_line, load_lyrics, parse_lrc};
 pub use metadata::{EmbeddedArtwork, FileMetadata, TagEdit, read_metadata, write_tags};
 pub use playlist::{
     Playlist, PlaylistEntry, SmartRule, add_to_playlist, create_playlist, create_smart_playlist,

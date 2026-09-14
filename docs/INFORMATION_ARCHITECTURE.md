@@ -60,10 +60,10 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 1. Now-playing row (pinned). 2. Ordered next rows with remove/reorder + "Play next" semantics. 3. Clear + shuffle toggles.
 
 ### NowPlayingView
-1. Large artwork (crossfading). 2. Title/artist (+ favorite). 3. Progress + times. 4. Transport + shuffle/repeat + volume. Nothing else — this view is the music, full-bleed.
+1. Large artwork (crossfading), replaced by a lyrics pane when the lyrics toggle is on. 2. Title/artist (+ favorite). 3. Progress + times. 4. Transport + shuffle/repeat + volume + lyrics toggle. Lyrics are local sidecar `.lrc` or embedded unsynced tags — not a tab farm and not a provider.
 
 ### SettingsView
-1. Library (music folders add/remove/rescan, watcher status). 2. Playback (gapless note, volume, shuffle/repeat, ReplayGain, crossfade, output device, close-to-tray). 3. Appearance (dark locked V1, accent, blur, motion). 4. Shortcuts (complete reference list of real bindings; not a rebind UI).
+1. Library (music folders add/remove/rescan, watcher status, named profiles, opt-in MusicBrainz default off). 2. Playback (gapless note, volume, shuffle/repeat, ReplayGain, crossfade, output device, close-to-tray). 3. Appearance (dark locked V1, accent, blur, motion). 4. Shortcuts (complete reference list of real bindings; not a rebind UI).
 
 ## User Flows
 
@@ -145,6 +145,7 @@ Every secondary layer below has exactly one explicit affordance and is keyboard/
 | Row actions (play, play-next, queue in Up Next, add-to-playlist, remove) | Hover/focus on row; always-visible ⋯; right-click / Menu / Shift+F10 | All TrackLists |
 | Up Next queue | Queue toggle in persistent player | Global (drawer/overlay by width) |
 | Now Playing expanded | Mini-player click or shortcut | Global overlay, same state |
+| Local lyrics overlay | Lyrics toggle on Now Playing | Replaces artwork; sidecar `.lrc` or embedded tags |
 | Full result lists | "See all" per search group | SearchView |
 | Extra genre chips | "More" overflow | HomeView strip |
 | Advanced settings | Per-section secondary level | SettingsView |

@@ -114,6 +114,15 @@
   - [x] Tag editor from the track menu writes then re-indexes that path (W-063)
 - **Validation method:** manual + test
 
+### R-022 — Lyrics, profiles, and opt-in MusicBrainz
+- **Description:** Local lyrics overlay on Now Playing from sidecar `.lrc` or embedded unsynced tags (offline-only; no providers). Named library profiles each have their own `library.db` under XDG `profiles/<id>/` and their own `library_roots`; switch from Settings without accounts. MusicBrainz / Cover Art Archive is Settings opt-in, **default off**: worker + timeout + XDG cache; only fill missing tags/art; never overwrite user edits. Core flows stay offline.
+- **Priority:** must (post-V1; promoted from L-009, L-010)
+- **Acceptance:**
+  - [x] Now Playing lyrics toggle shows synced or unsynced local lyrics (W-064)
+  - [x] Named profiles switch the index and folders (W-065)
+  - [x] MusicBrainz default off; missing-only fill; net-off rehearsal ignores it (W-066)
+- **Validation method:** manual + test
+
 ### R-012 — Playlists
 - **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing.
 - **Priority:** must
@@ -136,12 +145,13 @@
 - **Validation method:** manual
 
 ### R-015 — Settings
-- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance, animation pref, audio default, shortcuts, close-to-tray, window geometry, last library tab and sort chips.
+- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance, animation pref, audio default, shortcuts, close-to-tray, window geometry, last library tab and sort chips, named library profiles, opt-in MusicBrainz (default off).
 - **Priority:** must
 - **Acceptance:**
   - [x] Change → restart → retained (window size/position, library tab, sort chips: W-048)
   - [x] Settings list-detail (Library / Playback / Appearance / Shortcuts) binds to real config (W-046)
   - [x] Close-to-tray defaults on, persists, and hides the window only when a tray host is present; Quit is on the tray card (W-046)
+  - [x] Named library profiles and MusicBrainz toggle live in Settings → Library (W-065, W-066)
 - **Validation method:** manual + test
 
 ### R-016 — Installable PKGBUILD / AUR (MVP locked 2026-09-09)
@@ -152,7 +162,7 @@
 - **Validation method:** manual
 
 ### R-017 — Offline-first
-- **Description:** All R-001–R-015 work with networking disabled.
+- **Description:** All R-001–R-021 work with networking disabled. R-022 MusicBrainz is opt-in and default off; net-off rehearsal ignores it.
 - **Priority:** must
 - **Acceptance:**
   - [ ] Disable network → rescan/browse/search/play/queue/playlists all pass
@@ -174,7 +184,7 @@
 - **R-NFR-06 Perf (aspirational, M6 only):** 1.5s cold 50k, search p95 <50ms, 60fps scroll, <50ms controls, >500 files/min. Desired, not V1-blocking.
 
 ## Later (out of V1)
-- L-003 advanced queue (beyond named Play next / drag), L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm.
+- L-003 advanced queue (beyond named Play next / drag), L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-011 Last.fm.
 
 ## Non-goals
 - Streaming/accounts/cloud, social, podcasts, video, mobile, DAW/editor, store, AI, advanced DSP — per BRIEF.

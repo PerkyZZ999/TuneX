@@ -303,6 +303,10 @@ impl PlaylistModelRust {
     fn error_message(&self) -> Option<String> {
         self.last_error.clone()
     }
+
+    fn reload_index_path(&mut self) {
+        self.index_path = tunex_core::library_db_path();
+    }
 }
 
 /// Backend errors already carry user-readable messages; strip the
@@ -448,6 +452,11 @@ impl qobject::PlaylistModel {
             .error_message()
             .map(QString::from)
             .unwrap_or_default()
+    }
+
+    /// Re-read the active profile index.
+    pub fn reload_index(mut self: Pin<&mut Self>) {
+        self.as_mut().rust_mut().reload_index_path();
     }
 
     /// Row count override for `QAbstractListModel`.

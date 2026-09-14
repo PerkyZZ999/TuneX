@@ -224,6 +224,10 @@ impl PlaylistTrackModelRust {
         self.last_error.clone()
     }
 
+    fn reload_index_path(&mut self) {
+        self.index_path = tunex_core::library_db_path();
+    }
+
     /// Whether the row at `row` can play (present, resolved, and on disk).
     fn is_playable_at(&self, row: i32) -> bool {
         usize::try_from(row)
@@ -360,6 +364,11 @@ impl qobject::PlaylistTrackModel {
             .error_message()
             .map(QString::from)
             .unwrap_or_default()
+    }
+
+    /// Re-read the active profile index.
+    pub fn reload_index(mut self: Pin<&mut Self>) {
+        self.as_mut().rust_mut().reload_index_path();
     }
 
     /// Row count override for `QAbstractListModel`.

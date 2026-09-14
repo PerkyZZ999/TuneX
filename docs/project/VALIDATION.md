@@ -524,3 +524,10 @@
 - **Waiver:** none
 - **Follow-up:** S13 lyrics, profiles, opt-in MusicBrainz. AUR publish stays a human confirmation.
 
+### 2026-09-13 — S13 W-064–W-066 lyrics, profiles, opt-in MusicBrainz
+- **Slice:** S13
+- **Result:** pass (code + unit tests)
+- **Evidence:** Now Playing lyrics toggle shows sidecar `.lrc` (wins) or lofty unsynced tags; synced lines follow position; unsynced is a scroll pane; no providers. Named profiles each have `profiles/<id>/library.db` and their own folders; Settings switch hot-swaps the index and restores that profile's queue paused. MusicBrainz / Cover Art Archive is Settings opt-in, **default off**; worker + 5s timeout; only missing album tags and missing art (XDG `remote/` after local D-010 order); never overwrites user edits. D-010 extra source and D-014 product-loop exception documented. Tests: `parse_lrc_times_and_skips_meta`, `sidecar_wins_over_missing_tags`, `fill_missing_never_overwrites_user_tags`, `create_profile_and_musicbrainz_stay_off`, `remote_art_is_last_after_local_sources`. `scripts/qml-lint.sh` 42/42 ✓. `rust-tc doctor` ✓ (292 tests). Traceability: R-022 → S13 → W-064–W-066 → this entry.
+- **Waiver:** none
+- **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation. Sleep timer and stop-after-album stay out.
+

@@ -1,11 +1,16 @@
-# Work items (current slice: S12 — Library authorship)
+# Work items (current slice: S13 — Lyrics, profiles, MusicBrainz)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060). S12 done (W-061–W-063).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060). S12 done (W-061–W-063). S13 done (W-064–W-066).
 
 ## Current slice
-S12 — play history, smart playlists, tag editor. **Done 2026-09-13** (W-061–W-063). Does not reopen S11.
+S13 — local lyrics overlay, named library profiles, opt-in MusicBrainz. **Done 2026-09-13** (W-064–W-066). Does not reopen S12.
 
-**Done condition:** Home Recently Played from `play_history`; smart playlists from a rule builder; in-app tag editor writes then re-indexes.
+**Done condition:** Now Playing lyrics toggle from sidecar/embedded tags; Settings profile switch; MusicBrainz default off, missing-only.
+
+## Queue (S13)
+- [x] W-064 — Local lyrics overlay on Now Playing: sidecar `.lrc` wins, else lofty unsynced; synced lines follow position; unsynced is a scroll pane; toggle, not a tab farm; no providers (R-022, L-010).
+- [x] W-065 — Named library profiles (`profiles/<id>/library.db` + own `library_roots`); Settings switch; no accounts; active id in `config.toml` (R-022).
+- [x] W-066 — Opt-in MusicBrainz / Cover Art Archive, default off; worker + timeout + XDG cache; fill missing tags/art only; D-010 extra source; D-014 product-loop exception (R-022, L-009).
 
 ## Queue (S12)
 - [x] W-061 — Schema v7 `play_history` + `indexed_at`; append on URI advance (restore does not count); Home Recently Played rail (R-021).

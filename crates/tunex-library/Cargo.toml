@@ -14,9 +14,11 @@ lofty.workspace = true
 notify.workspace = true
 rusqlite.workspace = true
 rusqlite_migration.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tunex-core.workspace = true
+ureq.workspace = true
 
 [lints]
 workspace = true

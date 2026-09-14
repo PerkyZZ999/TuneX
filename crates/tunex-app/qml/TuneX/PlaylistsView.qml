@@ -41,7 +41,9 @@ Item {
     }
 
     function refreshAll() {
+        playlists.reloadIndex();
         playlists.refresh();
+        entries.reloadIndex();
         root.syncSidebarCursor();
         if (root.playlistId >= 0) {
             entries.refreshPlaylist(root.playlistId);

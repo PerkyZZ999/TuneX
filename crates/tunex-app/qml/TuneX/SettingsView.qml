@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import TuneX
 
@@ -27,6 +28,11 @@ Item {
     property bool trayAvailable: false
     property bool reduceMotionOn: false
     property bool reduceTransparencyOn: false
+    property int profileRows: 0
+    property string activeProfileId: ""
+    property bool musicbrainzOn: false
+
+    signal libraryReopened
     readonly property list<string> sections: ["library", "playback", "appearance", "shortcuts"]
     readonly property list<string> shortcutKeys: [qsTr("Space"), qsTr("Media Play / Pause / Next / Previous"), qsTr("Volume Up / Down / Mute"), qsTr("/ or Ctrl+K"), qsTr("Esc"), qsTr("Alt+Left / Alt+Right"), qsTr("↑ ↓ ← →"), qsTr("j / k"), qsTr("Enter"), qsTr("Type in Songs"), qsTr("Tab / Shift+Tab in Search")]
     readonly property list<string> shortcutActions: [qsTr("Play / pause"), qsTr("Play, next, previous"), qsTr("Volume and mute"), qsTr("Search"), qsTr("Close Now Playing, then search, then back"), qsTr("Back / forward"), qsTr("Move list and grid cursor"), qsTr("Move list and grid cursor"), qsTr("Play the current song, or open the current album or artist"), qsTr("Jump to the first title with that prefix (400 ms reset)"), qsTr("Cycle Songs, Albums, and Artists result groups")]
@@ -99,6 +105,9 @@ Item {
         root.trayAvailable = root.tray.isAvailable();
         root.reduceMotionOn = root.queue.reduceMotion();
         root.reduceTransparencyOn = root.queue.reduceTransparency();
+        root.profileRows = root.library.profileCount();
+        root.activeProfileId = root.library.activeProfile();
+        root.musicbrainzOn = root.library.musicbrainzOn();
     }
 
     function requestAddFolder() {
@@ -134,6 +143,58 @@ Item {
             const picked = decodeURIComponent(String(selectedFolder).replace("file://", ""));
             root.library.addFolder(picked);
             root.sync();
+        }
+    }
+
+    GlassDialog {
+        id: profileDialog
+
+        function openBlank() {
+            nameField.text = "";
+            profileDialog.open();
+            nameField.forceActiveFocus();
+        }
+
+        title: qsTr("New library profile")
+        acceptLabel: qsTr("Create")
+        acceptEnabled: nameField.text.trim() !== ""
+        onAccepted: {
+            const id = root.library.createProfile(nameField.text);
+            root.errorLine = root.library.errorText();
+            if (id !== "") {
+                root.library.switchProfile(id);
+                root.libraryReopened();
+                root.sync();
+            }
+        }
+
+        TextField {
+            id: nameField
+
+            width: parent.width
+            implicitHeight: Theme.targetMin
+            placeholderText: qsTr("Profile name")
+            maximumLength: 80
+            color: Theme.foreground
+            placeholderTextColor: Theme.muted
+            selectionColor: Theme.primary
+            selectedTextColor: Theme.primaryText
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
+            leftPadding: Theme.spaceMd
+            rightPadding: Theme.spaceMd
+            Accessible.name: qsTr("Profile name")
+            onAccepted: {
+                if (profileDialog.acceptEnabled)
+                    profileDialog.accept();
+            }
+
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: Theme.chrome
+                border.color: nameField.activeFocus ? Theme.focus : Theme.border
+                border.width: nameField.activeFocus ? 2 : 1
+            }
         }
     }
 
@@ -476,6 +537,69 @@ Item {
                                     root.library.rescan();
                                     root.sync();
                                 }
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("Library profile")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontTitle
+                            font.weight: Font.DemiBold
+                            color: Theme.foreground
+                            Accessible.role: Accessible.Heading
+                            Accessible.name: text
+                        }
+
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("Each profile has its own index and folders. Switching reopens the library without accounts.")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                            color: Theme.muted
+                        }
+
+                        Flow {
+                            width: parent.width
+                            spacing: Theme.spaceSm
+
+                            Repeater {
+                                model: root.profileRows
+
+                                Chip {
+                                    required property int index
+                                    label: root.library.profileNameAt(index)
+                                    selected: root.library.profileIdAt(index) === root.activeProfileId
+                                    onActivated: {
+                                        const id = root.library.profileIdAt(index);
+                                        if (id === root.activeProfileId)
+                                            return;
+                                        root.library.switchProfile(id);
+                                        root.libraryReopened();
+                                        root.sync();
+                                    }
+                                }
+                            }
+                        }
+
+                        PrimaryButton {
+                            primary: false
+                            glyph: "plus"
+                            text: qsTr("New profile")
+                            Accessible.name: qsTr("New library profile")
+                            onClicked: profileDialog.openBlank()
+                        }
+
+                        SettingsToggle {
+                            width: parent.width
+                            title: qsTr("Look up missing tags online")
+                            description: qsTr("Opt-in MusicBrainz. Off by default. Never overwrites tags you already have. Core playback stays offline.")
+                            checked: root.musicbrainzOn
+                            onToggled: {
+                                root.library.setMusicbrainzOn(!root.musicbrainzOn);
+                                root.sync();
                             }
                         }
                     }
