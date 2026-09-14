@@ -213,9 +213,14 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             from: 0
             to: Math.max(1, root.durationMs)
+            keyStep: 5000
             enabled: root.durationMs > 0 && root.hasCurrent
             Accessible.name: qsTr("Playback position %1 of %2").arg(root.positionText).arg(root.durationText)
             onMoved: root.queue.seekMs(Math.round(value))
+            onPressedChanged: {
+                if (!pressed)
+                    root.queue.seekMs(Math.round(value));
+            }
         }
     }
 
@@ -255,7 +260,7 @@ Rectangle {
         anchors.rightMargin: Theme.spaceMd
         anchors.verticalCenter: parent.verticalCenter
         iconName: "list-music"
-        accessibleName: root.queueOpen ? qsTr("Close Up Next") : qsTr("Open Up Next")
+        accessibleName: root.queueOpen ? qsTr("Close Now Playing") : qsTr("Open Now Playing")
         checkable: true
         checked: root.queueOpen
         onActivated: root.queueToggleRequested()

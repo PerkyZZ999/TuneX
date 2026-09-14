@@ -3,9 +3,8 @@ import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import TuneX
 
-// SettingsView (IA list-detail): Library, Playback, Appearance, Shortcuts.
-// Presentation only — folders/playback/appearance write through the bridged
-// models. Close-to-tray lives under Playback with the other session prefs.
+// SettingsView (IA list-detail): Library, Playback, Notifications,
+// Appearance, Shortcuts. Presentation only — models own the writes.
 Item {
     id: root
 
@@ -28,14 +27,23 @@ Item {
     property bool trayAvailable: false
     property bool reduceMotionOn: false
     property bool reduceTransparencyOn: false
+    property bool notificationsOn: true
+    property bool notifyTrackChangeOn: true
+    property bool notifyErrorsOn: true
+    property bool eqOn: false
+    property string eqPreset: "flat"
+    property bool eqMissing: false
+    property int eqStamp: 0
+    property int visualizerMode: 0
+    property int visualizerFps: 20
     property int profileRows: 0
     property string activeProfileId: ""
     property bool musicbrainzOn: false
 
     signal libraryReopened
-    readonly property list<string> sections: ["library", "playback", "appearance", "shortcuts"]
-    readonly property list<string> shortcutKeys: [qsTr("Space"), qsTr("Media Play / Pause / Next / Previous"), qsTr("Volume Up / Down / Mute"), qsTr("/ or Ctrl+K"), qsTr("Esc"), qsTr("Alt+Left / Alt+Right"), qsTr("↑ ↓ ← →"), qsTr("j / k"), qsTr("Enter"), qsTr("Type in Tracks"), qsTr("Tab / Shift+Tab in Search")]
-    readonly property list<string> shortcutActions: [qsTr("Play / pause"), qsTr("Play, next, previous"), qsTr("Volume and mute"), qsTr("Search"), qsTr("Close Now Playing, then search, then back"), qsTr("Back / forward"), qsTr("Move list and grid cursor"), qsTr("Move list and grid cursor"), qsTr("Play the current track, or open the current album or artist"), qsTr("Jump to the first title with that prefix (400 ms reset)"), qsTr("Cycle Tracks, Albums, and Artists result groups")]
+    readonly property list<string> sections: ["library", "playback", "notifications", "appearance", "shortcuts"]
+    readonly property list<string> shortcutKeys: [qsTr("Space"), qsTr("Media Play / Pause / Next / Previous"), qsTr("Volume Up / Down / Mute"), qsTr("/ or Ctrl+K"), qsTr("Esc"), qsTr("Ctrl+A"), qsTr("Shift+click / Shift+↑↓"), qsTr("Alt+Left / Alt+Right"), qsTr("↑ ↓ ← →"), qsTr("j / k"), qsTr("Enter"), qsTr("Type in Tracks"), qsTr("Tab / Shift+Tab in Search")]
+    readonly property list<string> shortcutActions: [qsTr("Play / pause"), qsTr("Play, next, previous"), qsTr("Volume and mute"), qsTr("Search"), qsTr("Clear selection, then close Now Playing, then search, then back"), qsTr("Select all loaded rows"), qsTr("Extend the track selection"), qsTr("Back / forward"), qsTr("Move list and grid cursor"), qsTr("Move list and grid cursor"), qsTr("Play the current track, or open the current album or artist"), qsTr("Jump to the first title with that prefix (400 ms reset)"), qsTr("Cycle Tracks, Albums, and Artists result groups")]
     readonly property string repeatLabel: {
         if (root.repeatModeValue === 1)
             return qsTr("All tracks");
@@ -54,6 +62,8 @@ Item {
     function sectionLabel(key) {
         if (key === "playback")
             return qsTr("Playback");
+        if (key === "notifications")
+            return qsTr("Notifications");
         if (key === "appearance")
             return qsTr("Appearance");
         if (key === "shortcuts")
@@ -64,11 +74,27 @@ Item {
     function sectionIcon(key) {
         if (key === "playback")
             return "sliders-horizontal";
+        if (key === "notifications")
+            return "bell";
         if (key === "appearance")
             return "blend";
         if (key === "shortcuts")
             return "keyboard";
         return "folder";
+    }
+
+    function cycleEqPreset() {
+        const names = ["flat", "hip-hop", "rock", "jazz", "classic", "vocals", "electronic", "pop"];
+        let at = names.indexOf(root.eqPreset);
+        at = at < 0 ? 0 : (at + 1) % names.length;
+        root.queue.setEqPreset(names[at]);
+        root.eqStamp = root.eqStamp + 1;
+        root.sync();
+    }
+
+    function cycleVisualizer() {
+        root.queue.setVisualizerMode((root.visualizerMode + 1) % 4);
+        root.sync();
     }
 
     function watcherLine() {
@@ -105,9 +131,17 @@ Item {
         root.trayAvailable = root.tray.isAvailable();
         root.reduceMotionOn = root.queue.reduceMotion();
         root.reduceTransparencyOn = root.queue.reduceTransparency();
+        root.notificationsOn = root.queue.notificationsEnabled();
+        root.notifyTrackChangeOn = root.queue.notifyTrackChange();
+        root.notifyErrorsOn = root.queue.notifyPlaybackErrors();
         root.profileRows = root.library.profileCount();
         root.activeProfileId = root.library.activeProfile();
         root.musicbrainzOn = root.library.musicbrainzOn();
+        root.eqOn = root.queue.eqEnabled();
+        root.eqPreset = String(root.queue.eqPreset());
+        root.eqMissing = root.queue.eqMissing();
+        root.visualizerMode = root.queue.visualizerMode();
+        root.visualizerFps = root.queue.visualizerFps();
     }
 
     function requestAddFolder() {
@@ -653,7 +687,7 @@ Item {
                         SettingsToggle {
                             width: parent.width
                             title: qsTr("Shuffle")
-                            description: qsTr("Play Up Next in shuffled order.")
+                            description: qsTr("Play Now Playing in shuffled order.")
                             checked: root.shuffleOn
                             onToggled: {
                                 root.queue.toggleShuffle();
@@ -856,6 +890,147 @@ Item {
                             }
                         }
 
+                        Text {
+                            text: qsTr("Equalizer")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontLabel
+                            font.weight: Font.Medium
+                            color: Theme.foreground
+                        }
+
+                        Text {
+                            visible: root.eqMissing
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("equalizer-10bands is unavailable. Playback continues flat.")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBodySm
+                            color: Theme.warning
+                        }
+
+                        SettingsToggle {
+                            width: parent.width
+                            enabled: !root.eqMissing
+                            title: qsTr("Enable equalizer")
+                            description: qsTr("Ten bands sit in the existing audio bin, before ReplayGain. Reduce motion does not turn this off.")
+                            checked: root.eqOn
+                            onToggled: {
+                                root.queue.setEqEnabled(!root.eqOn);
+                                root.sync();
+                            }
+                        }
+
+                        Item {
+                            width: parent.width
+                            height: Math.max(Theme.targetMin, eqPresetCopy.implicitHeight + Theme.spaceSm * 2)
+                            enabled: root.eqOn && !root.eqMissing
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("Equalizer preset") + ", " + root.eqPreset
+                            Keys.onSpacePressed: root.cycleEqPreset()
+                            Keys.onReturnPressed: root.cycleEqPreset()
+                            Keys.onEnterPressed: root.cycleEqPreset()
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.radiusSm
+                                color: eqPresetMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
+                                border.width: parent.activeFocus ? 2 : 0
+                                border.color: Theme.focus
+                            }
+
+                            Column {
+                                id: eqPresetCopy
+
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: Theme.spaceXs
+
+                                Text {
+                                    text: qsTr("Preset")
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBody
+                                    font.weight: Font.Medium
+                                    color: Theme.foreground
+                                }
+
+                                Text {
+                                    text: root.eqPreset
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBodySm
+                                    color: Theme.muted
+                                }
+                            }
+
+                            MouseArea {
+                                id: eqPresetMouse
+
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.cycleEqPreset()
+                            }
+                        }
+
+                        Repeater {
+                            model: 10
+
+                            Item {
+                                id: eqBandRow
+
+                                required property int index
+
+                                width: parent.width
+                                height: Theme.targetMin
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 72
+                                    text: root.queue.eqBandLabel(eqBandRow.index)
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontCaption
+                                    color: Theme.muted
+                                }
+
+                                ProgressSlider {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 80
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    from: -24
+                                    to: 12
+                                    enabled: root.eqOn && !root.eqMissing
+                                    Accessible.name: root.queue.eqBandLabel(eqBandRow.index)
+                                    value: {
+                                        root.eqStamp;
+                                        return root.queue.eqBand(eqBandRow.index);
+                                    }
+                                    onMoved: {
+                                        root.queue.setEqBand(eqBandRow.index, value);
+                                        root.eqStamp = root.eqStamp + 1;
+                                    }
+                                }
+                            }
+                        }
+
+                        PrimaryButton {
+                            primary: false
+                            text: qsTr("Reset")
+                            enabled: root.eqOn && !root.eqMissing
+                            onClicked: {
+                                root.queue.resetEq();
+                                root.eqStamp = root.eqStamp + 1;
+                                root.sync();
+                            }
+                        }
+
                         Item {
                             width: parent.width
                             height: Math.max(Theme.targetMin, outputCopy.implicitHeight + Theme.spaceSm * 2)
@@ -949,6 +1124,68 @@ Item {
                     }
 
                     Column {
+                        visible: root.section === "notifications"
+                        width: parent.width
+                        spacing: Theme.spaceMd
+
+                        Text {
+                            text: qsTr("Notifications")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontTitle
+                            font.weight: Font.DemiBold
+                            color: Theme.foreground
+                            Accessible.role: Accessible.Heading
+                            Accessible.name: text
+                        }
+
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("Track changes only toast when TuneX is in the background. Playback errors still toast while you are looking at the window.")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                            color: Theme.muted
+                        }
+
+                        SettingsToggle {
+                            width: parent.width
+                            title: qsTr("Desktop notifications")
+                            description: qsTr("Send toasts through the session notification server.")
+                            checked: root.notificationsOn
+                            onToggled: {
+                                root.queue.setNotificationsEnabled(!root.notificationsOn);
+                                root.sync();
+                            }
+                        }
+
+                        SettingsToggle {
+                            width: parent.width
+                            enabled: root.notificationsOn
+                            title: qsTr("Track changes")
+                            description: qsTr("When a new song starts and TuneX is not focused.")
+                            checked: root.notifyTrackChangeOn
+                            onToggled: {
+                                root.queue.setNotifyTrackChange(!root.notifyTrackChangeOn);
+                                root.sync();
+                            }
+                        }
+
+                        SettingsToggle {
+                            width: parent.width
+                            enabled: root.notificationsOn
+                            title: qsTr("Playback errors")
+                            description: qsTr("When a file cannot play, even if TuneX is focused.")
+                            checked: root.notifyErrorsOn
+                            onToggled: {
+                                root.queue.setNotifyPlaybackErrors(!root.notifyErrorsOn);
+                                root.sync();
+                            }
+                        }
+                    }
+
+                    Column {
                         visible: root.section === "appearance"
                         width: parent.width
                         spacing: Theme.spaceMd
@@ -994,6 +1231,81 @@ Item {
                             onToggled: {
                                 root.queue.setReduceTransparency(!root.reduceTransparencyOn);
                                 Appearance.reduceTransparency = !root.reduceTransparencyOn;
+                                root.sync();
+                            }
+                        }
+
+                        Item {
+                            width: parent.width
+                            height: Math.max(Theme.targetMin, vizCopy.implicitHeight + Theme.spaceSm * 2)
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("Now Playing view")
+                            Keys.onSpacePressed: root.cycleVisualizer()
+                            Keys.onReturnPressed: root.cycleVisualizer()
+                            Keys.onEnterPressed: root.cycleVisualizer()
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.radiusSm
+                                color: vizMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
+                                border.width: parent.activeFocus ? 2 : 0
+                                border.color: Theme.focus
+                            }
+
+                            Column {
+                                id: vizCopy
+
+                                anchors.fill: parent
+                                anchors.margins: Theme.spaceSm
+                                spacing: Theme.spaceXs
+
+                                Text {
+                                    text: qsTr("Now Playing view")
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBody
+                                    font.weight: Font.Medium
+                                    color: Theme.foreground
+                                }
+
+                                Text {
+                                    text: root.visualizerMode === 1 ? qsTr("Spectrum") : (root.visualizerMode === 2 ? qsTr("Waveform") : (root.visualizerMode === 3 ? qsTr("Visualizer") : qsTr("Artwork")))
+                                    textFormat: Text.PlainText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBodySm
+                                    color: Theme.muted
+                                }
+                            }
+
+                            MouseArea {
+                                id: vizMouse
+
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.cycleVisualizer()
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("Visualizer frame cap")
+                            textFormat: Text.PlainText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontLabel
+                            font.weight: Font.Medium
+                            color: Theme.foreground
+                        }
+
+                        ProgressSlider {
+                            width: Math.min(parent.width, 320)
+                            from: 5
+                            to: 30
+                            stepSize: 1
+                            value: root.visualizerFps
+                            Accessible.name: qsTr("Visualizer frame cap")
+                            onMoved: {
+                                root.queue.setVisualizerFps(Math.round(value));
                                 root.sync();
                             }
                         }

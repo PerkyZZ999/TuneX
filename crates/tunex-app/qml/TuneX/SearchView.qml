@@ -87,6 +87,25 @@ Item {
         }
     }
 
+    function clearSelection() {
+        return songsSelection.clear();
+    }
+
+    function songsMimeIds() {
+        const rows = songsSelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = songs.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
+    }
+
+    TrackListSelection {
+        id: songsSelection
+    }
+
     function submitAll() {
         songs.search(root.query);
         albums.search(root.query);
@@ -147,6 +166,31 @@ Item {
         return artistsView.count > 0 ? qsTr("Artists (%1)").arg(artistsView.count) : qsTr("Artists");
     }
 
+    function playAll() {
+        root.queue.clearQueue();
+        let added = 0;
+        if (root.tab === "songs") {
+            const ids = [];
+            for (let i = 0; i < songsView.count; i++) {
+                if (songs.isPlayableAt(i))
+                    ids.push(songs.trackIdAt(i));
+            }
+            added = root.queue.enqueueTrackIds(ids.join(","));
+        } else if (root.tab === "albums") {
+            const ids = [];
+            for (let i = 0; i < albumsView.count; i++)
+                ids.push(albums.albumIdAt(i));
+            added = root.queue.enqueueAlbumIds(ids.join(","));
+        } else {
+            const names = [];
+            for (let i = 0; i < artistsView.count; i++)
+                names.push(artists.nameAt(i));
+            added = root.queue.enqueueArtistNames(names.join("\n"));
+        }
+        if (added > 0)
+            root.queue.playAt(0);
+    }
+
     onTabChanged: {
         // A drill hides its Back button off the songs tab: unwind it when
         // the tab leaves (results resubmit; the target tab shows them).
@@ -162,6 +206,7 @@ Item {
         root.albumsSettled = false;
         root.artistsSettled = false;
         root.searchError = "";
+        songsSelection.clear();
         if (root.query === "") {
             root.clearAll();
         } else {
@@ -220,7 +265,16 @@ Item {
         anchors.margins: Theme.spaceLg
         spacing: Theme.spaceMd
 
-        // Header: tab strip (three Hick-compliant choices with live counts).
+        PageBanner {
+            id: searchBanner
+
+            width: parent.width
+            title: qsTr("Search")
+            source: "qrc:/qt/qml/TuneX/banner-search.png"
+        }
+
+        // Result-group chips stay — they split one query, unlike Library
+        // pages which the rail already switches.
         Item {
             id: tabRow
 
@@ -246,6 +300,26 @@ Item {
                         onActivated: root.tab = modelData
                     }
                 }
+            }
+        }
+
+        Item {
+            id: playAllRow
+
+            visible: root.showContent && !root.drilled
+            width: parent.width
+            height: visible ? playAllButton.height : 0
+
+            PrimaryButton {
+                id: playAllButton
+
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                glyph: "play"
+                text: qsTr("Play all")
+                enabled: (root.tab === "songs" && songsView.count > 0) || (root.tab === "albums" && albumsView.count > 0) || (root.tab === "artists" && artistsView.count > 0)
+                Accessible.name: qsTr("Play all results")
+                onClicked: root.playAll()
             }
         }
 
@@ -300,7 +374,7 @@ Item {
 
                 primary: false
                 text: qsTr("Queue album")
-                Accessible.name: qsTr("Add this album to Up Next")
+                Accessible.name: qsTr("Add this album to Now Playing")
                 onClicked: root.queue.enqueueAlbum(root.albumId)
             }
 
@@ -321,7 +395,7 @@ Item {
             id: content
 
             width: parent.width
-            height: parent.height - tabRow.height - errorLine.height - drillRow.height - Theme.spaceMd * 3
+            height: parent.height - searchBanner.height - tabRow.height - playAllRow.height - errorLine.height - drillRow.height - Theme.spaceMd * 5
 
             EmptyState {
                 visible: root.query === ""
@@ -399,7 +473,19 @@ Item {
                     activeFocusOnTab: true
                     clip: true
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
+                    header: SelectionBar {
+                        width: songsView.width
+                        queue: root.queue
+                        playlists: root.playlists
+                        count: songsSelection.count
+                        trackIds: {
+                            songsSelection.stamp;
+                            return root.songsMimeIds();
+                        }
+                        onCleared: songsSelection.clear()
+                    }
                     Accessible.role: Accessible.List
+                    Accessible.selectable: true
                     Accessible.name: root.drilled ? root.albumTitle : qsTr("Song results")
                     Keys.onReturnPressed: {
                         const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
@@ -412,6 +498,11 @@ Item {
                             root.queue.playTrackNow(songs.trackIdAt(at));
                     }
                     Keys.onPressed: event => {
+                        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                            songsSelection.selectAll(songsView.count);
+                            event.accepted = true;
+                            return;
+                        }
                         if (event.key === Qt.Key_Tab) {
                             root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
                             event.accepted = true;
@@ -422,9 +513,26 @@ Item {
                             if (at < songsView.count) {
                                 songsView.currentIndex = at;
                                 trackMenu.trackId = songs.trackIdAt(at);
+                                trackMenu.trackIds = songsSelection.contains(at) ? root.songsMimeIds() : "";
                                 trackMenu.popup();
                                 event.accepted = true;
                             }
+                        }
+                    }
+                    Keys.onUpPressed: event => {
+                        if (event.modifiers & Qt.ShiftModifier) {
+                            const next = Math.max(0, songsView.currentIndex - 1);
+                            songsView.currentIndex = next;
+                            songsSelection.setRange(next);
+                            event.accepted = true;
+                        }
+                    }
+                    Keys.onDownPressed: event => {
+                        if (event.modifiers & Qt.ShiftModifier) {
+                            const next = Math.min(songsView.count - 1, songsView.currentIndex + 1);
+                            songsView.currentIndex = next;
+                            songsSelection.setRange(next);
+                            event.accepted = true;
                         }
                     }
 
@@ -435,12 +543,19 @@ Item {
 
                     delegate: TrackRow {
                         trackId: model.trackId
+                        rowIndex: index
                         title: model.title
                         artist: model.artist
                         trackNumber: model.trackNumber
                         durationMs: model.durationMs
                         missing: model.missing
+                        selected: {
+                            songsSelection.stamp;
+                            return songsSelection.contains(index);
+                        }
+                        dragTrackIds: selected && root.songsMimeIds() !== "" ? root.songsMimeIds() : String(model.trackId)
                         onPlayRequested: (trackId, rowIndex, dangling) => {
+                            songsSelection.clear();
                             songsView.currentIndex = index;
                             songsView.forceActiveFocus();
                             if (!dangling && songs.isPlayableAt(index))
@@ -449,7 +564,16 @@ Item {
                         onMenuRequested: trackId => {
                             songsView.currentIndex = index;
                             trackMenu.trackId = trackId;
+                            trackMenu.trackIds = songsSelection.contains(index) ? root.songsMimeIds() : "";
                             trackMenu.popup();
+                        }
+                        onToggleSelectRequested: row => {
+                            songsView.currentIndex = row;
+                            songsSelection.toggle(row);
+                        }
+                        onRangeSelectRequested: row => {
+                            songsView.currentIndex = row;
+                            songsSelection.setRange(row);
                         }
                     }
 

@@ -17,9 +17,12 @@ use std::{
 
 use gstreamer::{self as gst, glib::object::ObjectExt as _, prelude::*};
 use tokio::sync::mpsc;
-use tunex_core::{Error, PlaybackState, PlayerEvent, ReplayGainMode, Result};
+use tunex_core::{
+    EQ_BAND_COUNT, Error, PlaybackState, PlayerEvent, ReplayGainMode, Result, SPECTRUM_BANDS,
+};
 
 use crate::{
+    audio_bin::{apply_equalizer, attach_pcm_probe, spectrum_csv, waveform_csv, wrap_audio_sink},
     path_to_uri,
     replaygain::{ReplayGainTags, read_replaygain_uri, replaygain_multiplier},
 };
@@ -91,7 +94,11 @@ impl Handoff {
 }
 
 /// Mutable engine state shared with the bus thread.
-struct Inner {
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "pause/seek/EQ flags are independent pipeline bits, not a mode enum"
+)]
+pub(crate) struct Inner {
     state: PlaybackState,
     has_track: bool,
     last_duration: Option<Duration>,
@@ -108,6 +115,10 @@ struct Inner {
     /// The control method only *posts* the seek event — it never waits for
     /// the streaming thread, so an EOS-wedged pipeline cannot hang the caller.
     seek_pending: bool,
+    /// Latest scrub target waiting for the in-flight flush to finish.
+    /// Live dragging posts many seeks; overlapping FLUSH events refuse or
+    /// snap the playhead, so intermediates are dropped here.
+    queued_seek: Option<gst::ClockTime>,
     /// Gapless handoff state, shared between the preload hook, the swap
     /// report ([`connect_source_removed`]), and teardown.
     handoff: Handoff,
@@ -117,8 +128,14 @@ struct Inner {
     lofty_album: Option<f64>,
     gst_track: Option<f64>,
     gst_album: Option<f64>,
-    rg_volume: gst::Element,
-    xfade_volume: gst::Element,
+    pub(crate) rg_volume: gst::Element,
+    pub(crate) xfade_volume: gst::Element,
+    pub(crate) eq: Option<gst::Element>,
+    pub(crate) eq_enabled: bool,
+    pub(crate) eq_bands: [f32; EQ_BAND_COUNT],
+    pub(crate) eq_missing: bool,
+    pub(crate) spectrum: [f32; SPECTRUM_BANDS],
+    pub(crate) pcm: Vec<f32>,
 }
 
 impl std::fmt::Debug for Inner {
@@ -131,8 +148,11 @@ impl std::fmt::Debug for Inner {
             .field("queued_uri", &self.queued_uri)
             .field("pause_requested", &self.pause_requested)
             .field("seek_pending", &self.seek_pending)
+            .field("queued_seek", &self.queued_seek)
             .field("handoff", &self.handoff)
             .field("rg_mode", &self.rg_mode)
+            .field("eq_enabled", &self.eq_enabled)
+            .field("eq_missing", &self.eq_missing)
             .finish_non_exhaustive()
     }
 }
@@ -183,8 +203,9 @@ impl PlayerEngine {
             .build()
             .or_else(|_| gst::ElementFactory::make("fakesink").build())
             .map_err(|err| Error::Player(format!("no audio sink: {err}")))?;
-        let (audio_bin, rg_volume, xfade_volume) = wrap_audio_sink(&terminal)?;
-        playbin.set_property("audio-sink", &audio_bin);
+        let chain = wrap_audio_sink(&terminal)?;
+        playbin.set_property("audio-sink", &chain.bin);
+        let pcm_pad = chain.pcm_pad.clone();
 
         let inner = Arc::new(Mutex::new(Inner {
             state: PlaybackState::Stopped,
@@ -194,15 +215,25 @@ impl PlayerEngine {
             queued_uri: None,
             pause_requested: false,
             seek_pending: false,
+            queued_seek: None,
             handoff: Handoff::Idle,
             rg_mode: ReplayGainMode::Off,
             lofty_track: None,
             lofty_album: None,
             gst_track: None,
             gst_album: None,
-            rg_volume,
-            xfade_volume,
+            rg_volume: chain.rg,
+            xfade_volume: chain.xfade,
+            eq: chain.eq,
+            eq_enabled: false,
+            eq_bands: [0.0; EQ_BAND_COUNT],
+            eq_missing: chain.eq_missing,
+            spectrum: [0.0; SPECTRUM_BANDS],
+            pcm: Vec::new(),
         }));
+        if let Some(pad) = pcm_pad {
+            attach_pcm_probe(&pad, &inner);
+        }
         let handoff_settled = Arc::new(Condvar::new());
         let shutdown = Arc::new(AtomicBool::new(false));
         let about_to_finish = connect_about_to_finish(&playbin, &inner);
@@ -349,22 +380,28 @@ impl PlayerEngine {
         let start = gst::ClockTime::try_from(position).map_err(|err| {
             Error::Player(format!("position out of range: {position:?} ({err:?})"))
         })?;
-        let event = gst::event::Seek::new(
-            1.0,
-            gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT,
-            gst::SeekType::Set,
-            start,
-            gst::SeekType::End,
-            gst::ClockTime::ZERO,
-        );
-        if let Ok(mut inner) = self.inner.lock() {
-            inner.seek_pending = true;
+        let pending = match self.inner.lock() {
+            Ok(mut inner) => {
+                if inner.seek_pending {
+                    inner.queued_seek = Some(start);
+                    true
+                } else {
+                    inner.seek_pending = true;
+                    inner.queued_seek = None;
+                    false
+                }
+            }
+            Err(_) => false,
+        };
+        if pending {
+            return Ok(());
         }
-        if self.playbin.send_event(event) {
+        if post_flush_seek(&self.playbin, &self.inner, start) {
             return Ok(());
         }
         if let Ok(mut inner) = self.inner.lock() {
             inner.seek_pending = false;
+            inner.queued_seek = None;
         }
         Err(Error::Player("seek refused".to_owned()))
     }
@@ -396,11 +433,11 @@ impl PlayerEngine {
     /// pipeline with no sound server). The `ReplayGain` and crossfade volumes
     /// wrap the new terminal so they stay downstream of user volume.
     pub fn set_audio_sink(&self, sink: &gst::Element) {
-        let Ok((bin, rg, xfade)) = wrap_audio_sink(sink) else {
+        let Ok(chain) = wrap_audio_sink(sink) else {
             tracing::warn!(name: "player.audio_sink.wrap_failed", "cannot wrap audio sink");
             return;
         };
-        self.install_audio_bin(&bin, rg, xfade);
+        self.install_audio_bin(chain);
     }
 
     /// Current queued URI, if the pipeline has been told to play one.
@@ -456,20 +493,69 @@ impl PlayerEngine {
             .map_or(1.0, |inner| inner.xfade_volume.property("volume"))
     }
 
-    fn install_audio_bin(&self, bin: &gst::Bin, rg: gst::Element, xfade: gst::Element) {
-        let (rg_vol, xf_vol) = self.inner.lock().ok().map_or((1.0, 1.0), |inner| {
-            (
-                inner.rg_volume.property::<f64>("volume"),
-                inner.xfade_volume.property::<f64>("volume"),
-            )
-        });
-        rg.set_property("volume", rg_vol);
-        xfade.set_property("volume", xf_vol);
-        self.playbin.set_property("audio-sink", bin);
+    fn install_audio_bin(&self, chain: crate::audio_bin::AudioChain) {
+        let (rg_vol, xf_vol, eq_enabled, eq_bands) =
+            self.inner
+                .lock()
+                .ok()
+                .map_or((1.0, 1.0, false, [0.0; EQ_BAND_COUNT]), |inner| {
+                    (
+                        inner.rg_volume.property::<f64>("volume"),
+                        inner.xfade_volume.property::<f64>("volume"),
+                        inner.eq_enabled,
+                        inner.eq_bands,
+                    )
+                });
+        chain.rg.set_property("volume", rg_vol);
+        chain.xfade.set_property("volume", xf_vol);
+        let pcm_pad = chain.pcm_pad.clone();
+        self.playbin.set_property("audio-sink", &chain.bin);
         if let Ok(mut inner) = self.inner.lock() {
-            inner.rg_volume = rg;
-            inner.xfade_volume = xfade;
+            inner.rg_volume = chain.rg;
+            inner.xfade_volume = chain.xfade;
+            inner.eq = chain.eq;
+            inner.eq_missing = chain.eq_missing;
+            inner.eq_enabled = eq_enabled;
+            inner.eq_bands = eq_bands;
+            apply_equalizer(&inner);
         }
+        if let Some(pad) = pcm_pad {
+            attach_pcm_probe(&pad, &self.inner);
+        }
+    }
+
+    /// Ten-band gains. Missing `equalizer-10bands` stays flat and records
+    /// [`PlayerEngine::equalizer_missing`].
+    pub fn set_equalizer(&self, enabled: bool, bands: [f32; EQ_BAND_COUNT]) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.eq_enabled = enabled;
+            inner.eq_bands = bands;
+            apply_equalizer(&inner);
+        }
+    }
+
+    /// Whether the bin had to skip `equalizer-10bands`.
+    #[must_use]
+    pub fn equalizer_missing(&self) -> bool {
+        self.inner.lock().is_ok_and(|inner| inner.eq_missing)
+    }
+
+    /// Latest spectrum bars (0…1) for the Qt thread.
+    #[must_use]
+    pub fn spectrum_csv(&self) -> String {
+        self.inner
+            .lock()
+            .ok()
+            .map_or_else(String::new, |inner| spectrum_csv(&inner.spectrum))
+    }
+
+    /// Latest oscilloscope samples for the Qt thread.
+    #[must_use]
+    pub fn waveform_csv(&self) -> String {
+        self.inner
+            .lock()
+            .ok()
+            .map_or_else(String::new, |inner| waveform_csv(&inner.pcm))
     }
 
     /// Install (or clear) the gapless lookahead consulted when
@@ -725,9 +811,10 @@ fn handle_message(
             emit(events, PlayerEvent::PlaybackError(err.error().to_string()));
         }
         MessageView::StateChanged(..) => on_state_changed(playbin, inner, events),
-        MessageView::DurationChanged(..) | MessageView::AsyncDone(..) => {
-            if let Ok(mut guard) = inner.lock() {
-                guard.seek_pending = false;
+        MessageView::DurationChanged(..) => on_duration_discovery(playbin, inner, events),
+        MessageView::AsyncDone(..) => {
+            if async_done_from_playbin(playbin, message) {
+                apply_queued_seek(playbin, inner);
             }
             on_duration_discovery(playbin, inner, events);
         }
@@ -810,45 +897,78 @@ fn on_replaygain_tags(inner: &Arc<Mutex<Inner>>, tags: &gst::TagList) {
     apply_replaygain(&guard);
 }
 
+/// One `KEY_UNIT` flush seek. Shared by the control method and the coalesced
+/// follow-up posted from `AsyncDone`.
+fn flush_seek_event(start: gst::ClockTime) -> gst::Event {
+    gst::event::Seek::new(
+        1.0,
+        gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT,
+        gst::SeekType::Set,
+        start,
+        gst::SeekType::End,
+        gst::ClockTime::ZERO,
+    )
+}
+
+/// Child elements also post `AsyncDone`; only playbin's means the flush landed.
+fn async_done_from_playbin(playbin: &gst::Element, message: &gst::Message) -> bool {
+    message
+        .src()
+        .is_some_and(|src| *src == *playbin.upcast_ref::<gst::Object>())
+}
+
+/// `fakesink async=false` (tests) completes a flush synchronously, so there
+/// is no `AsyncDone` to drain the coalesced target.
+fn seek_still_async(playbin: &gst::Element) -> bool {
+    matches!(
+        playbin.state(gst::ClockTime::ZERO).0,
+        Ok(gst::StateChangeSuccess::Async)
+    )
+}
+
+/// Post a flush seek and, if it completed inline, drain any newer target.
+fn post_flush_seek(
+    playbin: &gst::Element,
+    inner: &Arc<Mutex<Inner>>,
+    start: gst::ClockTime,
+) -> bool {
+    if !playbin.send_event(flush_seek_event(start)) {
+        return false;
+    }
+    if !seek_still_async(playbin) {
+        apply_queued_seek(playbin, inner);
+    }
+    true
+}
+
+/// Post the latest scrub target once the in-flight flush completes.
+fn apply_queued_seek(playbin: &gst::Element, inner: &Arc<Mutex<Inner>>) {
+    let start = {
+        let Ok(mut guard) = inner.lock() else {
+            return;
+        };
+        guard.seek_pending = false;
+        let Some(start) = guard.queued_seek.take() else {
+            return;
+        };
+        guard.seek_pending = true;
+        start
+    };
+    if post_flush_seek(playbin, inner, start) {
+        return;
+    }
+    if let Ok(mut guard) = inner.lock() {
+        guard.seek_pending = false;
+        guard.queued_seek = Some(start);
+    }
+}
+
 /// User-volume is playbin; this element is downstream so `ReplayGain` is post-fader.
 fn apply_replaygain(inner: &Inner) {
     let track = inner.lofty_track.or(inner.gst_track);
     let album = inner.lofty_album.or(inner.gst_album);
     let linear = replaygain_multiplier(inner.rg_mode, track, album);
     inner.rg_volume.set_property("volume", linear);
-}
-
-/// `volume(rg) ! volume(xfade) ! terminal` with a ghost sink pad.
-fn wrap_audio_sink(terminal: &gst::Element) -> Result<(gst::Bin, gst::Element, gst::Element)> {
-    let terminal = terminal.clone();
-    let bin = gst::Bin::builder().name("tunex-audio").build();
-    let rg = gst::ElementFactory::make("volume")
-        .name("tunex-rg")
-        .build()
-        .map_err(|err| Error::Player(format!("volume element unavailable: {err}")))?;
-    let xfade = gst::ElementFactory::make("volume")
-        .name("tunex-xfade")
-        .build()
-        .map_err(|err| Error::Player(format!("volume element unavailable: {err}")))?;
-    rg.set_property("volume", 1.0_f64);
-    xfade.set_property("volume", 1.0_f64);
-    bin.add_many([&rg, &xfade, &terminal])
-        .map_err(|err| Error::Player(format!("audio bin add failed: {err}")))?;
-    rg.link(&xfade)
-        .map_err(|err| Error::Player(format!("replaygain link failed: {err}")))?;
-    xfade
-        .link(&terminal)
-        .map_err(|err| Error::Player(format!("crossfade link failed: {err}")))?;
-    let sink_pad = rg
-        .static_pad("sink")
-        .ok_or_else(|| Error::Player("replaygain volume has no sink pad".to_owned()))?;
-    let ghost = gst::GhostPad::builder_with_target(&sink_pad)
-        .map_err(|err| Error::Player(format!("audio ghost pad: {err}")))?
-        .name("sink")
-        .build();
-    bin.add_pad(&ghost)
-        .map_err(|err| Error::Player(format!("audio ghost pad add: {err}")))?;
-    Ok((bin, rg, xfade))
 }
 
 #[cfg(test)]
@@ -1073,6 +1193,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rapid_seeks_land_on_the_latest_target() {
+        let dir = std::env::temp_dir().join(format!("tunex-seek-coalesce-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        let clip = dir.join("two-seconds.wav");
+        write_sine_wav(&clip, 2000, 440.0);
+
+        let (engine, mut receiver) = test_engine();
+        engine.load_path(&clip).expect("fixture loads");
+        engine.play().expect("playback starts");
+        wait_for_state(&mut receiver, PlaybackState::Playing).await;
+        engine.pause().expect("pause works");
+        wait_for_state(&mut receiver, PlaybackState::Paused).await;
+
+        engine
+            .seek(Duration::from_millis(200))
+            .expect("first seek posts");
+        engine
+            .seek(Duration::from_millis(400))
+            .expect("second seek coalesces");
+        engine
+            .seek(Duration::from_millis(1500))
+            .expect("latest seek is kept");
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(position) = engine.position() {
+                if position >= Duration::from_millis(1400) {
+                    assert!(
+                        position <= Duration::from_millis(1600),
+                        "coalesced seek lands at the last target, got {position:?}"
+                    );
+                    break;
+                }
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "coalesced seek never landed"
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[tokio::test]
     async fn seek_after_eos_returns_without_hanging() {
         let dir = std::env::temp_dir().join(format!("tunex-seek-eos-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("fixture dir");
@@ -1162,6 +1325,14 @@ mod tests {
             "gapless handoff without intermediate stop"
         );
         std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn equalizer_set_does_not_break_playback() {
+        let (engine, _receiver) = test_engine();
+        engine.set_equalizer(true, tunex_core::preset_bands("rock").unwrap_or([0.0; 10]));
+        let csv = engine.spectrum_csv();
+        assert_eq!(csv.split(',').count(), SPECTRUM_BANDS);
     }
 
     #[test]

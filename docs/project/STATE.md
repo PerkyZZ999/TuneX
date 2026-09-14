@@ -5,10 +5,10 @@
 - **Source spec:** docs/SPEC.md (v1.1 patched 2026-09-09)
 - **Workflow profile:** product
 - **Profile rationale:** Shipping Linux desktop app with native audio/DB/GPU surface. Not disposable (prototype rejected), not regulated (high-risk rejected). Full gates + decision locks + release/observe loops required.
-- **Current phase:** 6 — Implement (S7–S13 done 2026-09-13)
+- **Current phase:** 6 — Implement (S7–S16 done 2026-09-14)
 - **Status:** active
 - **MVP success signal:** User installs TuneX on Arch via AUR PKGBUILD, adds music dir, scans without UI freeze, browses/searches/plays with artwork, controls via app + MPRIS, manages queue + playlists, restarts without state loss, all offline.
-- **Last updated:** 2026-09-13
+- **Last updated:** 2026-09-14
 
 ## Authority boundaries
 - Agent may decide: stack-local reversible implementation details consistent with locked decisions (crate-internal APIs, QML component names, channel types, test layout).
@@ -16,7 +16,7 @@
 
 ## Current evidence
 - Latest passed gate: `rust-tc sonar` for the W-042 S6 gate (QG OK, 81.9% coverage, 0 violations)
-- Latest validation entry: 2026-09-13 W-064–W-066 lyrics, profiles, opt-in MusicBrainz — see VALIDATION.md
+- Latest validation entry: 2026-09-14 W-067–W-073 / W-071 / W-072 player UX, EQ, visualizers — see VALIDATION.md
 - M6 numbers (R-NFR-06, measured not estimated): cold start 850 ms windowed at 50k (<1.5 s) · search p95 6.8–9.2 ms at 50k (<50 ms) · scroll p50 16 ms with 0.36 ms app-side work per frame (60 fps) · transport control ≤8 ms (<50 ms) · scan 52,400 files/min (>500) · no app-side frame cost during scans
 - Visual identity: charcoal-black neutrals (`#0B0B0B` content/canvas, `#1A1A1A` chrome, `#222222` / `#2A2A2A` surfaces) with royal blue `#2B5CE6` as the only brand family; chrome is tinted-translucent over an artwork-derived ambient wash, real blur reserved for overlays
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
@@ -34,17 +34,17 @@
 - MPRIS (W-008 done): bus name owned, transport round-trip live-verified; QG OK
 - CI + DoD (W-009 done): Arch-container workflow + `dod-demo.sh` 5/5 green
 - Metadata (W-011 done): `read_metadata` + artwork bytes, 70 tests green, QG OK
-- Repo reality: S1–S13 done. Post-S13 polish recovers missing titles from non-primary tags and filenames, relabels Songs → Tracks, and compact chrome with a Sort menu. Visual identity is charcoal + royal blue with tinted-translucent chrome over an artwork wash; glass stays hierarchical; glow appears exactly twice. M6 numbers remain aspirational and were met. Maintainer follow-ups before AUR publish are unchanged from S5.
+- Repo reality: S1–S16 done. Post-S13 polish recovers missing titles from non-primary tags and filenames, relabels Songs → Tracks, and compact chrome with a Sort menu. S14–S16 add a working seek, unfocused notifications, Now Playing chrome, playlist/Now Playing DnD, TrackRow multi-select, a ten-band EQ, and artwork-well visualizers. Visual identity is charcoal + royal blue with tinted-translucent chrome over an artwork wash; glass stays hierarchical; glow appears exactly twice. M6 numbers remain aspirational and were met. Maintainer follow-ups before AUR publish are unchanged from S5.
 
 ## Open loops
 - S7 W-046 KWin/Plasma tray hover + close-to-tray visual proof (this environment has no StatusNotifierWatcher / isolated Plasma session)
-- Library UX (Tracks sort menu / Folders browse / click-to-play). Scanned-folder add/remove lives in Settings → Library.
+- Library UX: per-page content banners, Play all of the shown list, Sort By on the trailing edge; folder add/remove stays in Settings → Library.
 
 ## Blockers
 - None (gst-plugins-good installed by user; W-005 unblocked and green).
 
 ## Next action
-- Continue at Phase 7 Release: AUR publish still waits on human confirmation. Sleep timer and stop-after-album stay out. Dogfood: after this polish, rescan so recovered tags land.
+- Continue at Phase 7 Release: AUR publish still waits on human confirmation. Sleep timer and stop-after-album stay out. Rebindable shortcuts (L-007) and Last.fm (L-011) stay out.
 
 ## Phase checklist
 - [x] 0 Intake

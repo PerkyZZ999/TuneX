@@ -1,11 +1,24 @@
-# Work items (current slice: S13 — Lyrics, profiles, MusicBrainz)
+# Work items (current slice: S16 — Artwork / visualizer modes)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060). S12 done (W-061–W-063). S13 done (W-064–W-066).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060). S12 done (W-061–W-063). S13 done (W-064–W-066). S14 done (W-067–W-070, W-073). S15 done (W-071). S16 done (W-072).
 
 ## Current slice
-S13 — local lyrics overlay, named library profiles, opt-in MusicBrainz. **Done 2026-09-13** (W-064–W-066). Does not reopen S12.
+S16 — Artwork / Spectrum / Waveform / Visualizer on the Now Playing well. **Done 2026-09-14** (W-072). Depends on S15's audio bin; does not reopen S14/S15.
 
-**Done condition:** Now Playing lyrics toggle from sidecar/embedded tags; Settings profile switch; MusicBrainz default off, missing-only.
+**Done condition:** Artwork well modes switch while playing; reduce-motion forces Artwork; analysis is a pad probe after EQ.
+
+## Queue (S16)
+- [x] W-072 — Promote L-008: spectrum/PCM tap after EQ; Artwork | Spectrum | Waveform | Visualizer + View menu + Settings → Appearance; lyrics still wins on the overlay; `reduce_motion` → Artwork (R-023).
+
+## Queue (S15)
+- [x] W-071 — `equalizer-10bands` in the tunex-audio bin (before ReplayGain); named presets; Settings → Playback; missing element stays flat; D-005 note (R-020).
+
+## Queue (S14)
+- [x] W-067 — Coalesce FLUSH seeks, 44px ProgressSlider grab, debounce session persist, Left/Right ±5 s (R-009, R-011).
+- [x] W-068 — NotifyConfig + Window.active gate; Settings Notifications; track-change unfocused only; playback errors still toast when focused (R-015, R-017).
+- [x] W-069 — Right rail copy Now Playing; overlay keeps the name; IA glossary Queue = Now Playing (R-010).
+- [x] W-070 — Playlist reorder + mime drag (`application/x-tunex-trackids` comma ids) onto Now Playing and playlists; smart playlists refuse (R-010, R-012).
+- [x] W-073 — TrackRow multi-select (Ctrl/Shift, Ctrl+A); SelectionBar Play / Add to Now Playing / New playlist; drag the set (R-007, R-010, R-012, R-014).
 
 ## Queue (S13)
 - [x] W-064 — Local lyrics overlay on Now Playing: sidecar `.lrc` wins, else lofty unsynced; synced lines follow position; unsynced is a scroll pane; toggle, not a tab farm; no providers (R-022, L-010).

@@ -61,13 +61,13 @@
 - **Date:** 2026-09-09
 - **Owner:** user
 - **Context:** Need codecs/seek/gapless without hand-rolled engine.
-- **Decision:** playbin3 + about-to-finish preload; volume/tag tap used for ReplayGain and a short crossfade envelope; PipeWire default output with an optional device picker (empty id = System). Changing device must not drop the queue.
-- **Rationale:** Mature gapless path; PipeWire via GStreamer sinks.
-- **Evidence:** SPEC §3.4–3.5, §12.1; S11 W-058–W-060.
-- **Consequences:** GStreamer + plugins are hard pacman deps in PKGBUILD; Settings → Playback lists sinks from `GstDeviceMonitor`.
+- **Decision:** playbin3 + about-to-finish preload; volume/tag tap used for ReplayGain and a short crossfade envelope; `equalizer-10bands` lives in the same `tunex-audio` sink bin (before ReplayGain; missing element stays flat); PCM/spectrum analysis is a pad probe after EQ, never a second sink/tee (FLUSH seeks must not stall); PipeWire default output with an optional device picker (empty id = System). Changing device must not drop the queue and must re-apply EQ.
+- **Rationale:** Mature gapless path; PipeWire via GStreamer sinks; one audio bin so device rebuilds stay in one place.
+- **Evidence:** SPEC §3.4–3.5, §12.1; S11 W-058–W-060; S15 W-071; S16 W-072.
+- **Consequences:** GStreamer + plugins are hard pacman deps in PKGBUILD; Settings → Playback lists sinks from `GstDeviceMonitor` and the ten-band EQ; Settings → Appearance lists Now Playing view modes.
 - **Alternatives:** Rodio/Symphonia direct (rejected: codec burden), QtMultimedia (rejected: control/licensing).
 - **Reopen criteria:** Proven gapless failure across target codecs with no pipeline fix.
-- **Confirmed by / date:** user, 2026-09-09; picker added 2026-09-13 (post-V1, same lock).
+- **Confirmed by / date:** user, 2026-09-09; picker added 2026-09-13 (post-V1, same lock); EQ + analysis probe 2026-09-14 (same lock, not a second decoder).
 - **Supersedes / superseded by:** —
 
 ## D-006 — SQLite WAL + rusqlite_migration + FTS5

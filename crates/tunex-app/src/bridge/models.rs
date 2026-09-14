@@ -940,6 +940,41 @@ pub mod qobject {
         #[cxx_name = "setReduceMotion"]
         fn set_reduce_motion(self: Pin<&mut QueueModel>, enabled: bool);
 
+        /// Whether the TuneX window is focused. Exposed as `setWindowActive`.
+        #[qinvokable]
+        #[cxx_name = "setWindowActive"]
+        fn set_window_active(self: Pin<&mut QueueModel>, active: bool);
+
+        /// Master notification switch. Exposed as `notificationsEnabled`.
+        #[qinvokable]
+        #[cxx_name = "notificationsEnabled"]
+        fn notifications_enabled(self: &QueueModel) -> bool;
+
+        /// Persist the master notification switch. Exposed as `setNotificationsEnabled`.
+        #[qinvokable]
+        #[cxx_name = "setNotificationsEnabled"]
+        fn set_notifications_enabled(self: Pin<&mut QueueModel>, enabled: bool);
+
+        /// Track-change toast preference. Exposed as `notifyTrackChange`.
+        #[qinvokable]
+        #[cxx_name = "notifyTrackChange"]
+        fn notify_track_change(self: &QueueModel) -> bool;
+
+        /// Persist track-change toasts. Exposed as `setNotifyTrackChange`.
+        #[qinvokable]
+        #[cxx_name = "setNotifyTrackChange"]
+        fn set_notify_track_change(self: Pin<&mut QueueModel>, enabled: bool);
+
+        /// Playback-error toast preference. Exposed as `notifyPlaybackErrors`.
+        #[qinvokable]
+        #[cxx_name = "notifyPlaybackErrors"]
+        fn notify_playback_errors(self: &QueueModel) -> bool;
+
+        /// Persist playback-error toasts. Exposed as `setNotifyPlaybackErrors`.
+        #[qinvokable]
+        #[cxx_name = "setNotifyPlaybackErrors"]
+        fn set_notify_playback_errors(self: Pin<&mut QueueModel>, enabled: bool);
+
         /// `ReplayGain` mode: 0 off, 1 track, 2 album. Exposed as `replayGainMode`.
         #[qinvokable]
         #[cxx_name = "replayGainMode"]
@@ -990,10 +1025,91 @@ pub mod qobject {
         #[cxx_name = "cycleOutput"]
         fn cycle_output(self: Pin<&mut QueueModel>) -> i32;
 
+        /// Whether the equalizer is engaged. Exposed as `eqEnabled`.
+        #[qinvokable]
+        #[cxx_name = "eqEnabled"]
+        fn eq_enabled(self: &QueueModel) -> bool;
+
+        /// Engage or bypass the equalizer. Exposed as `setEqEnabled`.
+        #[qinvokable]
+        #[cxx_name = "setEqEnabled"]
+        fn set_eq_enabled(self: Pin<&mut QueueModel>, enabled: bool);
+
+        /// Current equalizer preset id. Exposed as `eqPreset`.
+        #[qinvokable]
+        #[cxx_name = "eqPreset"]
+        fn eq_preset(self: &QueueModel) -> QString;
+
+        /// Apply a named preset (`flat`, `rock`, …). Exposed as `setEqPreset`.
+        #[qinvokable]
+        #[cxx_name = "setEqPreset"]
+        fn set_eq_preset(self: Pin<&mut QueueModel>, name: &QString);
+
+        /// Gain for band `index` (0–9). Exposed as `eqBand`.
+        #[qinvokable]
+        #[cxx_name = "eqBand"]
+        fn eq_band(self: &QueueModel, index: i32) -> f32;
+
+        /// Set one equalizer band in dB. Exposed as `setEqBand`.
+        #[qinvokable]
+        #[cxx_name = "setEqBand"]
+        fn set_eq_band(self: Pin<&mut QueueModel>, index: i32, gain: f32);
+
+        /// Hertz label for band `index`. Exposed as `eqBandLabel`.
+        #[qinvokable]
+        #[cxx_name = "eqBandLabel"]
+        fn eq_band_label(self: &QueueModel, index: i32) -> QString;
+
+        /// Reset to Flat. Exposed as `resetEq`.
+        #[qinvokable]
+        #[cxx_name = "resetEq"]
+        fn reset_eq(self: Pin<&mut QueueModel>);
+
+        /// True when `equalizer-10bands` was missing. Exposed as `eqMissing`.
+        #[qinvokable]
+        #[cxx_name = "eqMissing"]
+        fn eq_missing(self: &QueueModel) -> bool;
+
+        /// Spectrum bars CSV. Exposed as `spectrumCsv`.
+        #[qinvokable]
+        #[cxx_name = "spectrumCsv"]
+        fn spectrum_csv(self: &QueueModel) -> QString;
+
+        /// Waveform samples CSV. Exposed as `waveformCsv`.
+        #[qinvokable]
+        #[cxx_name = "waveformCsv"]
+        fn waveform_csv(self: &QueueModel) -> QString;
+
+        /// Artwork well mode: 0 art, 1 spectrum, 2 waveform, 3 visualizer.
+        /// Exposed as `visualizerMode`.
+        #[qinvokable]
+        #[cxx_name = "visualizerMode"]
+        fn visualizer_mode(self: &QueueModel) -> i32;
+
+        /// Persist the artwork well mode. Exposed as `setVisualizerMode`.
+        #[qinvokable]
+        #[cxx_name = "setVisualizerMode"]
+        fn set_visualizer_mode(self: Pin<&mut QueueModel>, mode: i32);
+
+        /// Visualizer paint cap. Exposed as `visualizerFps`.
+        #[qinvokable]
+        #[cxx_name = "visualizerFps"]
+        fn visualizer_fps(self: &QueueModel) -> i32;
+
+        /// Persist the visualizer FPS cap. Exposed as `setVisualizerFps`.
+        #[qinvokable]
+        #[cxx_name = "setVisualizerFps"]
+        fn set_visualizer_fps(self: Pin<&mut QueueModel>, fps: i32);
+
         /// Cursor position (-1 when idle). Exposed as `currentIndex`.
         #[qinvokable]
         #[cxx_name = "currentIndex"]
         fn current_index(self: &QueueModel) -> i32;
+
+        /// Library track id at a queue row. Exposed as `trackIdAt`.
+        #[qinvokable]
+        #[cxx_name = "trackIdAt"]
+        fn track_id_at(self: &QueueModel, row: i32) -> i32;
 
         /// Last failure, or empty when clear. Exposed as `errorText`.
         #[qinvokable]
@@ -1047,6 +1163,50 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "enqueuePlaylist"]
         fn enqueue_playlist(self: Pin<&mut QueueModel>, playlist_id: i32) -> i32;
+
+        /// Enqueue the visible library list for `kind` (`songs`, `albums`,
+        /// `artists`, `folders`, `genres`, `composers`, `genre`, `composer`).
+        /// `key` is the drilled genre/composer name; ignored otherwise.
+        /// Exposed as `enqueueLibraryList`.
+        #[qinvokable]
+        #[cxx_name = "enqueueLibraryList"]
+        fn enqueue_library_list(
+            self: Pin<&mut QueueModel>,
+            kind: &QString,
+            key: &QString,
+            sort_key: &QString,
+            descending: bool,
+        ) -> i32;
+
+        /// Enqueue library tracks by comma-separated row ids. Exposed as
+        /// `enqueueTrackIds`.
+        #[qinvokable]
+        #[cxx_name = "enqueueTrackIds"]
+        fn enqueue_track_ids(self: Pin<&mut QueueModel>, ids: &QString) -> i32;
+
+        /// Play comma-separated library ids now, with the rest inserted to
+        /// play next in order. Exposed as `playTrackIds`.
+        #[qinvokable]
+        #[cxx_name = "playTrackIds"]
+        fn play_track_ids(self: Pin<&mut QueueModel>, ids: &QString) -> i32;
+
+        /// Insert comma-separated library ids to play next, in order.
+        /// Exposed as `playTrackIdsNext`.
+        #[qinvokable]
+        #[cxx_name = "playTrackIdsNext"]
+        fn play_track_ids_next(self: Pin<&mut QueueModel>, ids: &QString) -> i32;
+
+        /// Enqueue albums by comma-separated ids, concatenating disc order.
+        /// Exposed as `enqueueAlbumIds`.
+        #[qinvokable]
+        #[cxx_name = "enqueueAlbumIds"]
+        fn enqueue_album_ids(self: Pin<&mut QueueModel>, ids: &QString) -> i32;
+
+        /// Enqueue artists by newline-separated names. Exposed as
+        /// `enqueueArtistNames`.
+        #[qinvokable]
+        #[cxx_name = "enqueueArtistNames"]
+        fn enqueue_artist_names(self: Pin<&mut QueueModel>, names: &QString) -> i32;
 
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
@@ -1193,6 +1353,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "addTrack"]
         fn add_track(self: Pin<&mut PlaylistModel>, playlist_id: i32, track_id: i32) -> i32;
+
+        /// Add comma-separated library ids to a playlist. Exposed as `addTracks`.
+        #[qinvokable]
+        #[cxx_name = "addTracks"]
+        fn add_tracks(self: Pin<&mut PlaylistModel>, playlist_id: i32, ids: &QString) -> i32;
 
         /// Playlist id at `row` (-1 when out of range).
         /// Exposed to QML as `playlistIdAt`.

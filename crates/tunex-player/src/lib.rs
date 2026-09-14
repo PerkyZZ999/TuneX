@@ -5,6 +5,7 @@
 //! channel for state changes, errors, and end-of-track. The `GStreamer` bus is
 //! polled on its own thread; the queue (W-005) advances on `EndOfTrack`.
 
+pub mod audio_bin;
 pub mod engine;
 pub mod output;
 pub mod playback;

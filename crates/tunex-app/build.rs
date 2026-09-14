@@ -21,6 +21,14 @@ fn main() {
     println!("cargo:rerun-if-changed=../../assets/art-placeholder.png");
     println!("cargo:rerun-if-changed=../../assets/empty-library.png");
     println!("cargo:rerun-if-changed=../../assets/empty-search.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-tracks.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-albums.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-artists.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-genres.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-composers.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-folders.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-search.png");
+    println!("cargo:rerun-if-changed=../../assets/banner-playlists.png");
     CxxQtBuilder::new_qml_module(
         QmlModule::new("TuneX")
             .version(1, 0)
@@ -28,6 +36,7 @@ fn main() {
                 "qml/TuneX/App.qml",
                 "qml/TuneX/HomeView.qml",
                 "qml/TuneX/HeroCard.qml",
+                "qml/TuneX/PageBanner.qml",
                 "qml/TuneX/SectionStub.qml",
                 "qml/TuneX/NavItem.qml",
                 "qml/TuneX/Icon.qml",
@@ -38,7 +47,11 @@ fn main() {
                 "qml/TuneX/AlbumDetailView.qml",
                 "qml/TuneX/ArtistDetailView.qml",
                 "qml/TuneX/TrackRow.qml",
+                "qml/TuneX/TrackListSelection.qml",
+                "qml/TuneX/SelectionBar.qml",
+                "qml/TuneX/TrackDropArea.qml",
                 "qml/TuneX/Artwork.qml",
+                "qml/TuneX/ArtStage.qml",
                 "qml/TuneX/AlbumCard.qml",
                 "qml/TuneX/ArtistCard.qml",
                 "qml/TuneX/PlaylistCard.qml",

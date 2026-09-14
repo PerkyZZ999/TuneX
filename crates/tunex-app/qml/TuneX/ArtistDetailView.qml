@@ -38,6 +38,22 @@ Item {
         albums.refreshForArtist(root.artistName, -1);
         songs.refreshArtist(root.artistName);
         artPump.start();
+        trackSelection.clear();
+    }
+
+    function clearSelection() {
+        return trackSelection.clear();
+    }
+
+    function trackMimeIds() {
+        const rows = trackSelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = songs.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
     }
 
     function openSongMenu(at) {
@@ -45,6 +61,7 @@ Item {
             return;
         tracksView.currentIndex = at;
         trackMenu.trackId = songs.trackIdAt(at);
+        trackMenu.trackIds = trackSelection.contains(at) ? root.trackMimeIds() : "";
         trackMenu.popup();
     }
 
@@ -56,6 +73,10 @@ Item {
 
     LibraryTrackModel {
         id: songs
+    }
+
+    TrackListSelection {
+        id: trackSelection
     }
 
     Timer {
@@ -207,25 +228,53 @@ Item {
 
                 visible: count > 0
                 width: parent.width
-                height: visible ? count * Theme.trackRowHeight : 0
+                height: visible ? count * Theme.trackRowHeight + (trackSelection.count > 0 ? Theme.targetMin : 0) : 0
                 model: songs
                 interactive: false
                 clip: true
+                activeFocusOnTab: true
+                header: SelectionBar {
+                    width: tracksView.width
+                    queue: root.queue
+                    playlists: root.playlists
+                    count: trackSelection.count
+                    trackIds: {
+                        trackSelection.stamp;
+                        return root.trackMimeIds();
+                    }
+                    onCleared: trackSelection.clear()
+                }
                 Accessible.role: Accessible.List
+                Accessible.selectable: true
                 Accessible.name: qsTr("Artist tracks")
+                Keys.onPressed: event => {
+                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                        trackSelection.selectAll(tracksView.count);
+                        event.accepted = true;
+                    }
+                }
 
                 delegate: TrackRow {
                     trackId: model.trackId
+                    rowIndex: index
                     title: model.title
                     artist: model.artist
                     trackNumber: model.trackNumber
                     durationMs: model.durationMs
                     missing: model.missing
+                    selected: {
+                        trackSelection.stamp;
+                        return trackSelection.contains(index);
+                    }
+                    dragTrackIds: selected && root.trackMimeIds() !== "" ? root.trackMimeIds() : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
+                        trackSelection.clear();
                         if (!dangling && songs.isPlayableAt(index))
                             root.queue.playTrackNow(trackId);
                     }
                     onMenuRequested: (trackId, rowIndex, dangling) => root.openSongMenu(index)
+                    onToggleSelectRequested: row => trackSelection.toggle(row)
+                    onRangeSelectRequested: row => trackSelection.setRange(row)
                 }
             }
         }

@@ -23,7 +23,8 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
   - Settings `SettingsView`
     - Library `SettingsLibraryView`
     - Playback `SettingsPlaybackView`
-    - Appearance `SettingsAppearanceView` (theme, accent, blur/motion toggles)
+    - Notifications `SettingsNotificationsView`
+    - Appearance `SettingsAppearanceView` (theme, accent, blur/motion toggles, Now Playing view)
     - Shortcuts `SettingsShortcutsView` (V1: view bindings; customization deferred)
 
 ## Navigation Model
@@ -31,7 +32,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 - **Primary navigation (left rail, max 9 items + playlists, labels per the mockup):** Home · Search · Your Library section (Artists · Albums · Songs · Genres · Composers · Folders) · Playlists section (+ New → Favorites · user playlists, scrollable). Selected item gets accent indicator bar + selected surface; everything else muted. Rail never exceeds two visual groups plus playlists.
 - **Secondary navigation:** in-view tabs/segmented headers only where content genuinely splits — Search results groups (Songs/Albums/Artists), Playlist detail (fixed header + rows, no tabs in V1), Settings sections (left list + detail pane). No secondary nav inside Artist/Album detail beyond back.
 - **Utility navigation (top bar + window):** back/forward (view history), global SearchBar (focus via `/` or Ctrl+K, Esc restores), settings gear, window controls. Queue toggle and Now Playing expand live in the persistent player, not the top bar.
-- **Persistent player:** right Now Playing/Up Next panel at ≥1280px (as in the mockup); bottom mini-player bar on every view below that width. Expanded Now Playing is a full overlay at any width. Player state is global — navigation never interrupts playback.
+- **Persistent player:** right Now Playing panel at ≥1280px (as in the mockup); bottom mini-player bar on every view below that width. Expanded Now Playing is a full overlay at any width (same session playlist). Player state is global — navigation never interrupts playback.
 - **Window-size adaptation (no mobile):** ≥1280px three-column; 1024–1279px right panel becomes overlay drawer; 800–1023px rail collapses to 64px icon strip; <960×640 not allowed (min window). Meaning never changes across sizes, only placement.
 
 ## Content Hierarchy
@@ -51,19 +52,19 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 1. Header: art, name, one primary Play, key meta (albums count / year / duration). 2. Track list (virtualized rows). 3. More-by context (other albums by artist) on album view. Artist card activation opens this page; Play is the header primary (it does not enqueue from the grid).
 
 ### SongListView / FolderListView / GenreListView
-1. Filter/sort bar (text filter V1; V1-basic sort on Songs/Albums/Artists: title/name, artist, album, date). 2. Virtualized TrackList. 3. Folder view: directory list → tracks in that folder (library-root add/remove, rescan, and watcher status live in Settings → Library, not this view). Missing-file states stay on the track rows.
+1. Page banner (unique per library page) + Play all (primary, leading) and Sort By (secondary, trailing; Songs/Albums/Artists). Rail items switch Tracks / Albums / Artists / Genres / Composers / Folders — no in-content tab chips. 2. Virtualized TrackList or artwork grid. 3. Folder view: directory list → tracks in that folder (library-root add/remove, rescan, and watcher status live in Settings → Library, not this view). Missing-file states stay on the track rows.
 
 ### PlaylistDetailView
 1. Header: mosaic art, name, play/shuffle, edit actions. 2. Ordered TrackList with remove/reorder affordances. 3. Missing-track rows preserved as dimmed (never silently dropped).
 
-### QueuePanel (Up Next)
-1. Now-playing row (pinned). 2. Ordered next rows with remove/reorder + "Play next" semantics. 3. Clear + shuffle toggles.
+### QueuePanel (Now Playing)
+1. Session playlist header "Now Playing (n)". 2. Ordered rows with remove/reorder + "Play next" semantics. 3. Drop songs onto the list (including empty). 4. Clear + shuffle toggles. The expanded overlay is the same session playlist, larger.
 
 ### NowPlayingView
-1. Large artwork (crossfading), replaced by a lyrics pane when the lyrics toggle is on. 2. Title/artist (+ favorite). 3. Progress + times. 4. Transport + shuffle/repeat + volume + lyrics toggle. Lyrics are local sidecar `.lrc` or embedded unsynced tags — not a tab farm and not a provider.
+1. Large artwork well (Artwork / Spectrum / Waveform / Visualizer; lyrics pane still replaces it when the lyrics toggle is on). 2. Title/artist (+ favorite). 3. Progress + times. 4. Transport + shuffle/repeat + volume + lyrics toggle. Lyrics are local sidecar `.lrc` or embedded unsynced tags — not a tab farm and not a provider.
 
 ### SettingsView
-1. Library (music folders add/remove/rescan, watcher status, named profiles, opt-in MusicBrainz default off). 2. Playback (gapless note, volume, shuffle/repeat, ReplayGain, crossfade, output device, close-to-tray). 3. Appearance (dark locked V1, accent, blur, motion). 4. Shortcuts (complete reference list of real bindings; not a rebind UI).
+1. Library (music folders add/remove/rescan, watcher status, named profiles, opt-in MusicBrainz default off). 2. Playback (gapless note, volume, shuffle/repeat, ReplayGain, equalizer, crossfade, output device, close-to-tray). 3. Notifications (desktop toasts; track-change only when unfocused). 4. Appearance (dark locked V1, accent, blur, motion, Now Playing view). 5. Shortcuts (complete reference list of real bindings; not a rebind UI).
 
 ## User Flows
 
@@ -79,8 +80,8 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 3. Esc clears query → previous view + scroll position restored.
 
 ### Build an evening queue (queue-as-instrument)
-1. From any row: ⋯ → "Play next" / "Add to Up Next".
-2. Open QueuePanel → reorder via drag/keyboard; playing row marked.
+1. From any row: ⋯ → "Play next" / "Add to Now Playing". Ctrl/Shift select several TrackRows, then Play selected / Add to Now Playing / New playlist.
+2. Open QueuePanel → reorder via drag/keyboard; playing row marked; drop songs onto the list.
 3. Gapless handoff between consecutive albums (about-to-finish preload, no user action).
 
 ### Curate a playlist
@@ -102,10 +103,10 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 | Concept | Label in UI | Notes |
 |---------|-------------|-------|
 | Track (domain) | Track / Tracks | Code says Track (D-008). View title "Tracks". |
-| Queue (domain) | Up Next | Panel header "Up Next"; settings/docs say queue. |
+| Queue (domain) | Now Playing | Right-rail header "Now Playing"; the overlay is the expanded player of the same session playlist (`playback_queue`). Settings/docs may still say queue. |
 | Favorites | Favorites | Heart toggle; a local collection, never a service ("Liked Songs" wording banned). |
 | Library roots | Music folders | Settings label; "Library Root" never shown. |
-| Now Playing | Now Playing | Expanded overlay title; the collapsed player (panel or bar) shows no title. |
+| Now Playing overlay | Now Playing | Expanded overlay title; same state as the rail. |
 | Playlists | Playlists | User collections; "Mix/Weekly/Discover" algorithmic names banned in V1. |
 | Genres | Genres | Filter list → songs; untagged group is Unknown. |
 | Composers | Composers | Same shape as Genres; untagged group is Unknown. |
@@ -117,7 +118,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 |-----------|---------|---------------------|
 | NavigationRail | All views (shell) | Icon-strip variant <1024px; same selection model |
 | TopBar + SearchBar | All views (shell) | Search text persists per session; Esc scope-aware |
-| TrackList / TrackRow | Tracks, Artist/Album detail, Playlist detail, Search tracks, Favorites, Folders | Playlist adds drag-reorder + remove; missing rows dimmed everywhere |
+| TrackList / TrackRow | Tracks, Artist/Album detail, Playlist detail, Search tracks, Favorites, Folders, Now Playing | Playlist + Now Playing add drag-reorder + remove + drop; library lists Sort By only; missing rows dimmed everywhere |
 | AlbumCard / ArtistCard grid | Home rails, Artists, Albums, Search groups | Fixed card contract; column count fluid by width |
 | HeroCard | Home only | Greeting variant: empty-state vs. continue-listening |
 | MiniPlayer | Narrow widths (panel hidden) | Bottom transport bar; hidden pre-first-play (empty state instead) |
@@ -142,9 +143,11 @@ Every secondary layer below has exactly one explicit affordance and is keyboard/
 
 | Hidden layer | Revealed by | Context |
 |--------------|-------------|---------|
-| Row actions (play, play-next, queue in Up Next, add-to-playlist, remove) | Hover/focus on row; always-visible ⋯; right-click / Menu / Shift+F10 | All TrackLists |
-| Up Next queue | Queue toggle in persistent player | Global (drawer/overlay by width) |
+| Row actions (play, play-next, add to Now Playing, add-to-playlist, remove) | Hover/focus on row; always-visible ⋯; right-click / Menu / Shift+F10 | All TrackLists |
+| Multi-select bar | Ctrl/Shift/Ctrl+A on TrackRows; Esc clears | TrackRow lists only (not album/artist grids) |
+| Now Playing list | Queue toggle in persistent player | Global (drawer/overlay by width); same session playlist as the overlay |
 | Now Playing expanded | Mini-player click or shortcut | Global overlay, same state |
+| Artwork / Spectrum / Waveform / Visualizer | Artwork well context menu View; Settings → Appearance | QueuePanel + overlay; lyrics still wins |
 | Local lyrics overlay | Lyrics toggle on Now Playing | Replaces artwork; sidecar `.lrc` or embedded tags |
 | Full result lists | "See all" per search group | SearchView |
 | Extra genre chips | "More" overflow | HomeView strip |

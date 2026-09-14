@@ -1,10 +1,12 @@
 // GlassBackdrop (S6 W-038): the subtle-glass surface behind transient
 // overlays — drawers, dialogs, and context menus (DESIGN.md Elevation &
-// Depth). Normative stack, bottom to top: shadow → canvas snapshot → ~16px
-// blur → 70% dark tint → 1px edge → host content. Strong glass stays
-// exclusive to Now Playing; rows, rail, cards, and the mini-player stay
-// opaque. With Appearance.reduceTransparency it renders the solid
-// glass-panel contract (surface + border) and samples nothing.
+// Depth). Normative stack, bottom to top: shadow → opaque surface backstop
+// → canvas snapshot → ~16px blur (low opacity) → dark tint → 1px edge →
+// host content. The backstop is what stops sharp list text punching
+// through menus. Strong glass stays exclusive to Now Playing; rows, rail,
+// cards, and the mini-player stay opaque. With Appearance.reduceTransparency
+// it renders the solid glass-panel contract (surface + border) and samples
+// nothing.
 //
 // The snapshot is taken once per show/resize (live: false), so an open
 // overlay costs one blur pass, not one per frame, and closed overlays cost
@@ -58,6 +60,14 @@ Item {
         color: Qt.alpha(Theme.shadow, Theme.shadowOverlayOpacity)
     }
 
+    // Opaque fill first: a 70% tint over a failed/empty capture would
+    // otherwise show the live list through the menu.
+    Rectangle {
+        anchors.fill: parent
+        radius: root.cornerRadius
+        color: Theme.surface
+    }
+
     ShaderEffectSource {
         id: capture
 
@@ -83,6 +93,7 @@ Item {
     MultiEffect {
         anchors.fill: parent
         visible: root.glass
+        opacity: Theme.glassTint / 2
         source: capture
         autoPaddingEnabled: false
         blurEnabled: true
@@ -95,7 +106,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: root.cornerRadius
-        color: root.glass ? Qt.alpha(Theme.background, Theme.glassTint) : Theme.surface
+        color: root.glass ? Qt.alpha(Theme.background, Theme.glassTint) : "transparent"
         border.color: Theme.border
         border.width: 1
     }

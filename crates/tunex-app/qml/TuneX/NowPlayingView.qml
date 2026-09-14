@@ -35,6 +35,9 @@ Popup {
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
     // Cached cover of the playing track, empty until it resolves.
     property url artUrl
+    property int visualizerMode: 0
+    property string spectrumCsv: ""
+    property string waveformCsv: ""
     readonly property string monogram: {
         const words = root.shownTitle.split(/\s+/).filter(function (word) {
             return word.length > 0;
@@ -76,6 +79,9 @@ Popup {
         root.titleText = root.queue.currentTitle();
         root.artistText = root.queue.currentArtist();
         root.artUrl = root.queue.currentArtUrl();
+        root.visualizerMode = root.queue.visualizerMode();
+        root.spectrumCsv = root.queue.spectrumCsv();
+        root.waveformCsv = root.queue.waveformCsv();
         root.positionMs = root.queue.positionMs();
         root.durationMs = root.queue.durationMs();
         root.muted = root.queue.isMuted();
@@ -100,6 +106,20 @@ Popup {
         root.open();
     }
     onClosed: root.closeRequested()
+
+    Timer {
+        interval: 50
+        running: root.opened
+        repeat: true
+        onTriggered: {
+            root.visualizerMode = root.queue.visualizerMode();
+            if (root.visualizerMode === 0 || Appearance.reduceMotion)
+                return;
+            interval = Math.round(1000 / Math.max(5, root.queue.visualizerFps()));
+            root.spectrumCsv = root.queue.spectrumCsv();
+            root.waveformCsv = root.queue.waveformCsv();
+        }
+    }
     onTitleTextChanged: {
         if (root.opened && !Appearance.reduceMotion)
             artCrossfade.restart();
@@ -287,10 +307,11 @@ Popup {
 
                         // Missing art is the one circular shape in V1: the
                         // monogram crest (DESIGN.md Shapes).
-                        Artwork {
+                        ArtStage {
                             id: art
 
                             visible: !root.lyricsOn
+                            queue: root.queue
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: Theme.nowPlayingArt
                             height: Theme.nowPlayingArt
@@ -298,14 +319,14 @@ Popup {
                             monogram: root.hasCurrent ? root.monogram : ""
                             monogramSize: Theme.fontDisplay
                             radius: Theme.radiusMd
-                            // Artwork is square at the card radius; the one
-                            // circular shape in V1 is the monogram crest that
-                            // stands in for missing art (DESIGN.md Shapes).
-                            circular: !art.showingArt
+                            circular: false
+                            mode: root.visualizerMode
+                            spectrumCsv: root.spectrumCsv
+                            waveformCsv: root.waveformCsv
                             Accessible.ignored: true
 
                             Icon {
-                                visible: !root.hasCurrent && !art.showingArt && !root.lyricsOn
+                                visible: !root.hasCurrent && root.visualizerMode === 0 && !root.lyricsOn
                                 anchors.centerIn: parent
                                 name: "music"
                                 iconSize: 48
@@ -447,9 +468,14 @@ Popup {
                             anchors.verticalCenter: parent.verticalCenter
                             from: 0
                             to: Math.max(1, root.durationMs)
+                            keyStep: 5000
                             enabled: root.durationMs > 0
                             Accessible.name: qsTr("Playback position %1 of %2").arg(root.positionText).arg(root.durationText)
                             onMoved: root.queue.seekMs(Math.round(value))
+                            onPressedChanged: {
+                                if (!pressed)
+                                    root.queue.seekMs(Math.round(value));
+                            }
                         }
                     }
 
@@ -550,7 +576,7 @@ Popup {
                             id: queueButton
 
                             iconName: "list-music"
-                            accessibleName: qsTr("Open Up Next")
+                            accessibleName: qsTr("Open Now Playing list")
                             onActivated: root.queueToggleRequested()
                         }
                     }

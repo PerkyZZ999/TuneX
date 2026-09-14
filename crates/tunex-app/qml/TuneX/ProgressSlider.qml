@@ -2,33 +2,48 @@ import QtQuick
 import QtQuick.Controls.Basic
 import TuneX
 
-// ProgressSlider (S6 W-038): the ProgressBar / VolumeControl track from the
-// DESIGN_BRIEF inventory — 4px `hover` track, cyan `accentSecondary` fill,
-// thumb 12px on hover/focus/drag and 8px at rest. Seek and volume share it.
-// Hosts act on `moved` only, so model polls that set `value` never echo
-// back as commands; the fill never animates (progress follows the engine).
+// ProgressSlider (S6 W-038, S14 W-067): the ProgressBar / VolumeControl
+// track — 4px hover track, accent-secondary fill, 12px thumb on
+// hover/focus/drag and 8px at rest. The control itself is 44px tall so
+// the groove is a real grab, not a 4px target. Hosts act on `moved` only.
 Slider {
     id: root
 
     readonly property bool engaged: root.hovered || root.pressed || root.activeFocus
+    // Seek hosts set this to 5000 so Left/Right skip five seconds.
+    // Volume leaves it at 1 (percent steps).
+    property real keyStep: 1
 
     implicitHeight: Theme.targetMin
+    padding: 0
+    live: true
+    wheelEnabled: true
+    stepSize: root.keyStep
+    snapMode: Slider.NoSnap
 
-    background: Rectangle {
+    background: Item {
         x: root.leftPadding
-        y: root.topPadding + (root.availableHeight - height) / 2
+        y: root.topPadding
         implicitWidth: 96
-        implicitHeight: Theme.progressTrack
+        implicitHeight: Theme.targetMin
         width: root.availableWidth
-        height: Theme.progressTrack
-        radius: Theme.radiusXs
-        color: Theme.hover
+        height: root.availableHeight
 
         Rectangle {
-            width: root.visualPosition * parent.width
-            height: parent.height
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            implicitHeight: Theme.progressTrack
+            height: Theme.progressTrack
             radius: Theme.radiusXs
-            color: Theme.accentSecondary
+            color: Theme.hover
+
+            Rectangle {
+                width: root.visualPosition * parent.width
+                height: parent.height
+                radius: Theme.radiusXs
+                color: Theme.accentSecondary
+            }
         }
     }
 

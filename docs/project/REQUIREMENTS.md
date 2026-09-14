@@ -49,13 +49,14 @@
 - **Validation method:** test + manual
 
 ### R-007 — Browse library
-- **Description:** Browse tracks/albums/artists/folders with artwork grid + track lists, virtualized for large libs. V1-basic sort on Tracks (title/artist/album/date), Albums (title/artist/date), Artists (name/tracks). Clicking a track plays it now; queueing is a row-menu "Queue in Up Next" action. Album cards open `AlbumDetailView`; artist cards open `ArtistDetailView` (play is the header primary).
+- **Description:** Browse tracks/albums/artists/folders with artwork grid + track lists, virtualized for large libs. V1-basic sort on Tracks (title/artist/album/date), Albums (title/artist/date), Artists (name/tracks). Clicking a track plays it now; queueing is a row-menu "Add to Now Playing" action. Ctrl/Shift multi-select on TrackRows (not album/artist grids) plays, queues, or makes a playlist from the set. Album cards open `AlbumDetailView`; artist cards open `ArtistDetailView` (play is the header primary). Library lists stay Sort By only — no Custom order, no intra-list reorder.
 - **Priority:** must
 - **Acceptance:**
   - [ ] 50k-track seed browsable, scroll holds, album → tracks correct
   - [ ] Tracks/Albums/Artists Sort menu reorders the Rust models (session-stable, including direction)
   - [ ] Folders rail opens a folder browse (not scanned-root management)
-  - [ ] Track click plays now; context menu queues in Up Next
+  - [x] Track click plays now; context menu adds to Now Playing (W-069)
+  - [x] Ctrl/Shift/Ctrl+A multi-select on TrackRows; Play selected / Add to Now Playing / New playlist (W-073)
   - [x] Album click opens the album landing page; artist click opens the artist landing page (W-052, W-053)
 - **Validation method:** manual + test
 
@@ -78,16 +79,18 @@
 - **Description:** load/play/pause/stop/seek via playbin3 PlayerEngine abstraction.
 - **Priority:** must
 - **Acceptance:**
-  - [ ] Play → pause → seek → resume sample-accurate UI position; corrupt file → actionable error, app survives
+  - [x] Play → pause → seek → resume; coalesced FLUSH scrub on MiniPlayer, Now Playing rail, and overlay (W-067)
+  - [ ] Corrupt file → actionable error, app survives
 - **Validation method:** manual + test
 
 ### R-010 — Queue + modes
-- **Description:** Independent queue: add/remove/reorder (including drag)/clear/play-next/play-now/shuffle/repeat; gapless via about-to-finish; survives navigation and restart (paused restore, missing files stay as dangling rows, no auto-play).
+- **Description:** Independent session playlist (UI: Now Playing): add/remove/reorder (including drag)/clear/play-next/play-now/shuffle/repeat; gapless via about-to-finish; survives navigation and restart (paused restore, missing files stay as dangling rows, no auto-play). Drop songs onto the list; reorder one row at a time.
 - **Priority:** must
 - **Acceptance:**
   - [x] Queue ops reflect instantly; gapless transition has no audible gap on album fixture
-  - [x] Drag-reorder and Play next / Move to end / Remove on Up Next rows (W-056)
+  - [x] Drag-reorder and Play next / Move to end / Remove on Now Playing rows (W-056)
   - [x] Queue ordered URIs + cursor persist in SQLite and restore paused (W-057, promoted L-012)
+  - [x] Drop TrackRow mime (comma track ids) onto Now Playing; playlist detail reorder + drop (W-070)
 - **Validation method:** manual + test
 
 ### R-011 — Volume / mute / position
@@ -98,11 +101,12 @@
 - **Validation method:** manual
 
 ### R-020 — Playback enrichment
-- **Description:** ReplayGain (off / track / album) from tags, applied downstream of user volume; missing tags stay at unity. Crossfade 0–12 s is a volume envelope on the existing about-to-finish handoff (not a second decoder); 0 s is the gapless cut; reduce-motion does not disable the audio fade. Output-device picker enumerates PipeWire/GStreamer sinks (default System); changing device does not drop the queue.
+- **Description:** ReplayGain (off / track / album) from tags, applied downstream of user volume; missing tags stay at unity. Crossfade 0–12 s is a volume envelope on the existing about-to-finish handoff (not a second decoder); 0 s is the gapless cut; reduce-motion does not disable the audio fade. Ten-band equalizer (`equalizer-10bands`) sits in the same `tunex-audio` sink bin, before ReplayGain; named presets persist; missing element stays flat. Output-device picker enumerates PipeWire/GStreamer sinks (default System); changing device does not drop the queue and re-applies EQ.
 - **Priority:** must (post-V1; promoted from L-001, L-002, L-013)
 - **Acceptance:**
-  - [x] Settings → Playback exposes ReplayGain, crossfade, and output (W-058–W-060)
-  - [x] ReplayGain missing tags = unity; device change keeps Up Next
+  - [x] Settings → Playback exposes ReplayGain, crossfade, output, and equalizer (W-058–W-060, W-071)
+  - [x] ReplayGain missing tags = unity; device change keeps Now Playing
+  - [x] Missing `equalizer-10bands` continues playback flat (W-071)
 - **Validation method:** manual + test
 
 ### R-021 — Library authorship
@@ -123,11 +127,20 @@
   - [x] MusicBrainz default off; missing-only fill; net-off rehearsal ignores it (W-066)
 - **Validation method:** manual + test
 
+### R-023 — Artwork / visualizer modes
+- **Description:** Now Playing rail and overlay artwork well can show Artwork (default), Spectrum, Waveform, or Visualizer. Analysis is a pad probe after EQ (not a second sink). Lyrics toggle still wins on the overlay. `reduce_motion` forces Artwork. Unknown art stays the monogram; visualizers are not fake covers.
+- **Priority:** must (post-V1; promoted from L-008)
+- **Acceptance:**
+  - [x] View menu + Settings → Appearance switch modes; FPS cap 5–30 (W-072)
+  - [x] Reduce-motion falls back to Artwork (W-072)
+- **Validation method:** manual + test
+
 ### R-012 — Playlists
-- **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing.
+- **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing. Manual playlists drag-reorder and accept dropped TrackRows; smart playlists do not.
 - **Priority:** must
 - **Acceptance:**
   - [x] Full CRUD + play persists across restart
+  - [x] Playlist detail drag-reorder + drop-add; New playlist from a TrackRow selection (W-070, W-073)
 - **Validation method:** manual + test
 
 ### R-013 — MPRIS + media keys
@@ -138,20 +151,21 @@
 - **Validation method:** manual
 
 ### R-014 — Keyboard
-- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, list/grid arrows and j/k, Enter to play or open, type-to-select in Tracks, Tab/Shift+Tab cycles Search groups, standard text editing. Settings → Shortcuts is a complete reference list of real bindings (not a rebind UI).
+- **Description:** Space play/pause, media next/prev/volume, search shortcut, nav + esc/back, list/grid arrows and j/k, Enter to play or open, type-to-select in Tracks, Tab/Shift+Tab cycles Search groups, Ctrl+A / Shift+click / Shift+arrows for TrackRow selection, Esc clears selection then unwinds, standard text editing. Settings → Shortcuts is a complete reference list of real bindings (not a rebind UI).
 - **Priority:** must
 - **Acceptance:**
-  - [x] All bindings work focused in library/search/player; list documented (W-029, W-050)
+  - [x] All bindings work focused in library/search/player; list documented (W-029, W-050, W-073)
 - **Validation method:** manual
 
 ### R-015 — Settings
-- **Description:** XDG settings: library paths, playback, volume, shuffle/repeat, appearance, animation pref, audio default, shortcuts, close-to-tray, window geometry, last library tab and sort (key + direction), named library profiles, opt-in MusicBrainz (default off).
+- **Description:** XDG settings: library paths, playback (including EQ), volume, shuffle/repeat, notifications (unfocused track-change + playback errors), appearance (including Now Playing view mode), animation pref, audio default, shortcuts, close-to-tray, window geometry, last library tab and sort (key + direction), named library profiles, opt-in MusicBrainz (default off).
 - **Priority:** must
 - **Acceptance:**
   - [x] Change → restart → retained (window size/position, library tab, sort: W-048)
-  - [x] Settings list-detail (Library / Playback / Appearance / Shortcuts) binds to real config (W-046)
+  - [x] Settings list-detail (Library / Playback / Notifications / Appearance / Shortcuts) binds to real config (W-046, W-068)
   - [x] Close-to-tray defaults on, persists, and hides the window only when a tray host is present; Quit is on the tray card (W-046)
   - [x] Named library profiles and MusicBrainz toggle live in Settings → Library (W-065, W-066)
+  - [x] Track-change toasts only when unfocused; playback errors toast even if focused (W-068)
 - **Validation method:** manual + test
 
 ### R-016 — Installable PKGBUILD / AUR (MVP locked 2026-09-09)
@@ -162,7 +176,7 @@
 - **Validation method:** manual
 
 ### R-017 — Offline-first
-- **Description:** All R-001–R-021 work with networking disabled. R-022 MusicBrainz is opt-in and default off; net-off rehearsal ignores it.
+- **Description:** All R-001–R-023 work with networking disabled. R-022 MusicBrainz is opt-in and default off; net-off rehearsal ignores it.
 - **Priority:** must
 - **Acceptance:**
   - [ ] Disable network → rescan/browse/search/play/queue/playlists all pass
@@ -184,7 +198,7 @@
 - **R-NFR-06 Perf (aspirational, M6 only):** 1.5s cold 50k, search p95 <50ms, 60fps scroll, <50ms controls, >500 files/min. Desired, not V1-blocking.
 
 ## Later (out of V1)
-- L-003 advanced queue (beyond named Play next / drag), L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-011 Last.fm.
+- L-003 advanced queue (beyond named Play next / drag / multi-select), L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-011 Last.fm.
 
 ## Non-goals
 - Streaming/accounts/cloud, social, podcasts, video, mobile, DAW/editor, store, AI, advanced DSP — per BRIEF.

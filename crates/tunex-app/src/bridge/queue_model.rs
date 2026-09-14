@@ -28,7 +28,7 @@ use crate::mpris::{
     take_inbox, unmap_loop,
 };
 use crate::playback::queue_item_from_row;
-use tunex_core::ReplayGainMode;
+use tunex_core::{ReplayGainMode, VisualizerMode, matching_preset, preset_bands};
 use tunex_player::{PlaybackController, list_audio_outputs, uri_to_path};
 
 /// How often the same-track position is flushed to disk.
@@ -136,6 +136,8 @@ pub struct QueueModelRust {
     lyrics_uri: String,
     lyrics_plain: String,
     lyrics_lines: Vec<(i32, String)>,
+    /// True while the `TuneX` window is focused (QML `Window.active`).
+    window_active: bool,
 }
 
 impl Default for QueueModelRust {
@@ -159,6 +161,7 @@ impl Default for QueueModelRust {
             lyrics_uri: String::new(),
             lyrics_plain: String::new(),
             lyrics_lines: Vec::new(),
+            window_active: true,
         }
     }
 }
@@ -244,6 +247,9 @@ impl QueueModelRust {
                         );
                     }
                     self.controller = Some(controller);
+                    if let Some(live) = &mut self.controller {
+                        live.set_equalizer(config.playback.eq_enabled, config.playback.eq_bands);
+                    }
                     self.restore_session(&config);
                 }
                 Err(err) => {
@@ -300,7 +306,10 @@ impl QueueModelRust {
         for event in &drained {
             if let tunex_core::PlayerEvent::PlaybackError(message) = event {
                 self.last_error = Some(message.clone());
-                crate::notify::post("Playback error".to_owned(), message.clone());
+                let notify = self.notify_config();
+                if crate::notify::should_notify_error(notify.enabled, notify.playback_errors) {
+                    crate::notify::post("Playback error".to_owned(), message.clone());
+                }
             }
         }
         let unchanged = {
@@ -363,7 +372,14 @@ impl QueueModelRust {
             .as_ref()
             .and_then(PlaybackController::current_item);
         let current_uri = current.as_ref().map(|item| item.uri.clone());
-        if crate::notify::should_notify(self.last_notified_uri.as_deref(), current_uri.as_deref()) {
+        let notify = self.notify_config();
+        if crate::notify::should_notify(
+            self.last_notified_uri.as_deref(),
+            current_uri.as_deref(),
+            self.window_active,
+            notify.enabled,
+            notify.track_change,
+        ) {
             if let Some(item) = &current {
                 crate::notify::post(
                     item.title.clone(),
@@ -930,7 +946,8 @@ impl QueueModelRust {
                 Err(err) => self.last_error = Some(err.to_string()),
             }
         }
-        self.maybe_persist_session(true);
+        // Scrub fires this every pixel; coalesce with the 2 s session window.
+        self.maybe_persist_session(false);
     }
 
     /// Snapshot engine truth for the MPRIS thread. Honest when idle
@@ -1134,6 +1151,64 @@ impl QueueModelRust {
         }
     }
 
+    fn notify_config(&self) -> tunex_core::NotifyConfig {
+        tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .notify
+    }
+
+    fn set_window_active(&mut self, active: bool) {
+        self.window_active = active;
+    }
+
+    fn notifications_enabled(&self) -> bool {
+        self.notify_config().enabled
+    }
+
+    fn set_notifications_enabled(&self, enabled: bool) {
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.notify.enabled = enabled;
+        }) {
+            tracing::warn!(
+                name = "queue.notify_persist_failed",
+                error = %err,
+                "notifications master not saved"
+            );
+        }
+    }
+
+    fn notify_track_change(&self) -> bool {
+        self.notify_config().track_change
+    }
+
+    fn set_notify_track_change(&self, enabled: bool) {
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.notify.track_change = enabled;
+        }) {
+            tracing::warn!(
+                name = "queue.notify_persist_failed",
+                error = %err,
+                "track-change toast pref not saved"
+            );
+        }
+    }
+
+    fn notify_playback_errors(&self) -> bool {
+        self.notify_config().playback_errors
+    }
+
+    fn set_notify_playback_errors(&self, enabled: bool) {
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.notify.playback_errors = enabled;
+        }) {
+            tracing::warn!(
+                name = "queue.notify_persist_failed",
+                error = %err,
+                "error toast pref not saved"
+            );
+        }
+    }
+
     fn replaygain_mode(&self) -> i32 {
         match tunex_core::load_from(&self.config_path)
             .unwrap_or_default()
@@ -1197,6 +1272,167 @@ impl QueueModelRust {
                 name = "queue.crossfade_persist_failed",
                 error = %err,
                 "crossfade not saved"
+            );
+        }
+    }
+
+    fn playback_config(&self) -> tunex_core::PlaybackConfig {
+        tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .playback
+    }
+
+    fn apply_live_eq(&mut self, enabled: bool, bands: [f32; 10]) {
+        if self.ensure_controller()
+            && let Some(controller) = &mut self.controller
+        {
+            controller.set_equalizer(enabled, bands);
+        }
+    }
+
+    fn persist_eq(&self, enabled: bool, preset: &str, bands: [f32; 10]) {
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.playback.eq_enabled = enabled;
+            preset.clone_into(&mut config.playback.eq_preset);
+            config.playback.eq_bands = bands;
+        }) {
+            tracing::warn!(
+                name = "queue.eq_persist_failed",
+                error = %err,
+                "equalizer not saved"
+            );
+        }
+    }
+
+    fn eq_enabled(&self) -> bool {
+        self.playback_config().eq_enabled
+    }
+
+    fn set_eq_enabled(&mut self, enabled: bool) {
+        let playback = self.playback_config();
+        self.apply_live_eq(enabled, playback.eq_bands);
+        self.persist_eq(enabled, &playback.eq_preset, playback.eq_bands);
+    }
+
+    fn eq_preset(&self) -> String {
+        let preset = self.playback_config().eq_preset;
+        if preset.is_empty() {
+            "flat".to_owned()
+        } else {
+            preset
+        }
+    }
+
+    fn set_eq_preset(&mut self, name: &str) {
+        let Some(bands) = preset_bands(name) else {
+            return;
+        };
+        let enabled = self.playback_config().eq_enabled;
+        self.apply_live_eq(enabled, bands);
+        self.persist_eq(enabled, name, bands);
+    }
+
+    fn eq_band(&self, index: i32) -> f32 {
+        usize::try_from(index)
+            .ok()
+            .and_then(|slot| self.playback_config().eq_bands.get(slot).copied())
+            .unwrap_or(0.0)
+    }
+
+    fn set_eq_band(&mut self, index: i32, gain: f32) {
+        let Ok(slot) = usize::try_from(index) else {
+            return;
+        };
+        if slot >= 10 {
+            return;
+        }
+        let mut playback = self.playback_config();
+        playback.eq_bands[slot] = tunex_core::clamp_gain(gain);
+        let preset = matching_preset(playback.eq_bands);
+        self.apply_live_eq(playback.eq_enabled, playback.eq_bands);
+        self.persist_eq(playback.eq_enabled, preset, playback.eq_bands);
+    }
+
+    #[expect(clippy::unused_self, reason = "cxx-qt invokable on the QObject")]
+    fn eq_band_label(&self, index: i32) -> String {
+        usize::try_from(index)
+            .ok()
+            .and_then(|slot| tunex_core::EQ_BAND_LABELS.get(slot).copied())
+            .unwrap_or("")
+            .to_owned()
+    }
+
+    fn reset_eq(&mut self) {
+        self.set_eq_preset("flat");
+    }
+
+    fn eq_missing(&self) -> bool {
+        self.controller
+            .as_ref()
+            .is_some_and(PlaybackController::equalizer_missing)
+    }
+
+    fn spectrum_csv(&self) -> String {
+        self.controller
+            .as_ref()
+            .map_or_else(String::new, PlaybackController::spectrum_csv)
+    }
+
+    fn waveform_csv(&self) -> String {
+        self.controller
+            .as_ref()
+            .map_or_else(String::new, PlaybackController::waveform_csv)
+    }
+
+    fn visualizer_mode(&self) -> i32 {
+        match tunex_core::load_from(&self.config_path)
+            .unwrap_or_default()
+            .appearance
+            .visualizer
+        {
+            VisualizerMode::Artwork => 0,
+            VisualizerMode::Spectrum => 1,
+            VisualizerMode::Waveform => 2,
+            VisualizerMode::Visualizer => 3,
+        }
+    }
+
+    fn set_visualizer_mode(&self, mode: i32) {
+        let visualizer = match mode {
+            1 => VisualizerMode::Spectrum,
+            2 => VisualizerMode::Waveform,
+            3 => VisualizerMode::Visualizer,
+            _ => VisualizerMode::Artwork,
+        };
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.appearance.visualizer = visualizer;
+        }) {
+            tracing::warn!(
+                name = "queue.visualizer_persist_failed",
+                error = %err,
+                "visualizer mode not saved"
+            );
+        }
+    }
+
+    fn visualizer_fps(&self) -> i32 {
+        i32::from(
+            tunex_core::load_from(&self.config_path)
+                .unwrap_or_default()
+                .appearance
+                .visualizer_fps,
+        )
+    }
+
+    fn set_visualizer_fps(&self, fps: i32) {
+        let fps = u8::try_from(fps.clamp(5, 30)).unwrap_or(20);
+        if let Err(err) = tunex_core::update(&self.config_path, |config| {
+            config.appearance.visualizer_fps = fps;
+        }) {
+            tracing::warn!(
+                name = "queue.visualizer_persist_failed",
+                error = %err,
+                "visualizer fps not saved"
             );
         }
     }
@@ -1390,6 +1626,14 @@ impl QueueModelRust {
             .and_then(PlaybackController::current_index)
             .and_then(|index| i32::try_from(index).ok())
             .unwrap_or(-1)
+    }
+
+    /// Library track id at a queue row (`-1` when missing/dangling).
+    fn track_id_at(&self, row: i32) -> i32 {
+        usize::try_from(row)
+            .ok()
+            .and_then(|index| self.rows.get(index))
+            .map_or(-1, |row| row.5)
     }
 
     /// Last failure, if any (cleared by the next success).
@@ -1619,6 +1863,246 @@ impl QueueModelRust {
         self.last_error = None;
         added
     }
+
+    /// Enqueue one library browse list (Play all). Returns the number added.
+    fn do_enqueue_library_list(
+        &mut self,
+        kind: &str,
+        key: &str,
+        sort_key: &str,
+        descending: bool,
+    ) -> i32 {
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let count = self.controller.as_mut().map(|controller| {
+            crate::playback::enqueue_library_list(
+                controller,
+                &db,
+                kind,
+                key,
+                sort_key,
+                descending,
+                crate::bridge::library_track_model::SONGS_CAP,
+            )
+        });
+        match count {
+            Some(Ok(count)) if count > 0 => {
+                self.sync_rows();
+                self.last_error = None;
+                i32::try_from(count).unwrap_or(i32::MAX)
+            }
+            Some(Ok(_)) => {
+                self.last_error = Some("Nothing playable in that list.".to_owned());
+                0
+            }
+            Some(Err(err)) => {
+                tracing::warn!(name = "queue.play_all_failed", error = %err, "library list lookup failed");
+                self.last_error = Some("That list is no longer in the library.".to_owned());
+                0
+            }
+            None => 0,
+        }
+    }
+
+    /// Play ids now: first starts, the rest insert immediately after it.
+    fn do_play_track_ids(&mut self, ids: &[i64]) -> i32 {
+        if ids.is_empty() {
+            return 0;
+        }
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let mut items = Vec::new();
+        for track_id in ids {
+            if let Some(item) = self.resolve_track(&db, *track_id) {
+                items.push(item);
+            }
+        }
+        if items.is_empty() {
+            self.last_error = Some("Nothing playable in that list.".to_owned());
+            return 0;
+        }
+        let first = items.remove(0);
+        let added = i32::try_from(items.len() + 1).unwrap_or(i32::MAX);
+        if let Some(controller) = &mut self.controller {
+            if let Err(err) = controller.play_now(first) {
+                self.last_error = Some(err.to_string());
+                return 0;
+            }
+            for item in items.into_iter().rev() {
+                controller.enqueue_next(item);
+            }
+        }
+        self.sync_rows();
+        self.last_error = None;
+        self.maybe_persist_session(true);
+        added
+    }
+
+    /// Insert ids after the cursor, preserving list order.
+    fn do_play_track_ids_next(&mut self, ids: &[i64]) -> i32 {
+        if ids.is_empty() {
+            return 0;
+        }
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let mut items = Vec::new();
+        for track_id in ids {
+            if let Some(item) = self.resolve_track(&db, *track_id) {
+                items.push(item);
+            }
+        }
+        if items.is_empty() {
+            self.last_error = Some("Nothing playable in that list.".to_owned());
+            return 0;
+        }
+        let added = i32::try_from(items.len()).unwrap_or(i32::MAX);
+        if let Some(controller) = &mut self.controller {
+            for item in items.into_iter().rev() {
+                controller.enqueue_next(item);
+            }
+        }
+        self.sync_rows();
+        self.last_error = None;
+        self.maybe_persist_session(true);
+        added
+    }
+
+    /// Enqueue tracks by database id, one model reset at the end.
+    fn do_enqueue_track_ids(&mut self, ids: &[i64]) -> i32 {
+        if ids.is_empty() {
+            return 0;
+        }
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let mut items = Vec::new();
+        for track_id in ids {
+            if let Some(item) = self.resolve_track(&db, *track_id) {
+                items.push(item);
+            }
+        }
+        let mut added = 0;
+        if let Some(controller) = &mut self.controller {
+            for item in items {
+                controller.enqueue(item);
+                added += 1;
+            }
+        }
+        if added > 0 {
+            self.sync_rows();
+            self.last_error = None;
+        } else {
+            self.last_error = Some("Nothing playable in that list.".to_owned());
+        }
+        added
+    }
+
+    /// Enqueue albums by id, concatenating each album's disc order.
+    fn do_enqueue_album_ids(&mut self, album_ids: &[i64]) -> i32 {
+        if album_ids.is_empty() {
+            return 0;
+        }
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let count = self
+            .controller
+            .as_mut()
+            .map(|controller| crate::playback::enqueue_album_ids(controller, &db, album_ids));
+        match count {
+            Some(Ok(count)) if count > 0 => {
+                self.sync_rows();
+                self.last_error = None;
+                i32::try_from(count).unwrap_or(i32::MAX)
+            }
+            Some(Ok(_)) => {
+                self.last_error = Some("Nothing playable in that list.".to_owned());
+                0
+            }
+            Some(Err(err)) => {
+                tracing::warn!(name = "queue.albums_failed", error = %err, "album list lookup failed");
+                self.last_error = Some("Those albums are no longer in the library.".to_owned());
+                0
+            }
+            None => 0,
+        }
+    }
+
+    /// Enqueue artists by name, concatenating each artist's album order.
+    fn do_enqueue_artist_names(&mut self, names: &[String]) -> i32 {
+        if names.is_empty() {
+            return 0;
+        }
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let count = self
+            .controller
+            .as_mut()
+            .map(|controller| crate::playback::enqueue_artist_names(controller, &db, names));
+        match count {
+            Some(Ok(count)) if count > 0 => {
+                self.sync_rows();
+                self.last_error = None;
+                i32::try_from(count).unwrap_or(i32::MAX)
+            }
+            Some(Ok(_)) => {
+                self.last_error = Some("Nothing playable in that list.".to_owned());
+                0
+            }
+            Some(Err(err)) => {
+                tracing::warn!(name = "queue.artists_failed", error = %err, "artist list lookup failed");
+                self.last_error = Some("Those artists are no longer in the library.".to_owned());
+                0
+            }
+            None => 0,
+        }
+    }
+}
+
+/// Comma-separated library ids from QML Play all on a visible model.
+fn parse_id_list(csv: &str) -> Vec<i64> {
+    csv.split(',')
+        .filter_map(|part| {
+            let part = part.trim();
+            if part.is_empty() {
+                None
+            } else {
+                part.parse().ok()
+            }
+        })
+        .collect()
+}
+
+/// Newline-separated artist names from QML Play all on a visible model.
+fn parse_name_list(block: &str) -> Vec<String> {
+    block
+        .split('\n')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
 }
 
 /// Queue item type for [`resolve_track`](QueueModelRust::resolve_track).
@@ -1895,6 +2379,41 @@ impl qobject::QueueModel {
         self.rust().set_reduce_motion(enabled);
     }
 
+    /// Whether the `TuneX` window is the active window.
+    pub fn set_window_active(mut self: Pin<&mut Self>, active: bool) {
+        self.as_mut().rust_mut().set_window_active(active);
+    }
+
+    /// Master notification switch.
+    pub fn notifications_enabled(&self) -> bool {
+        self.rust().notifications_enabled()
+    }
+
+    /// Persist the master notification switch.
+    pub fn set_notifications_enabled(self: Pin<&mut Self>, enabled: bool) {
+        self.rust().set_notifications_enabled(enabled);
+    }
+
+    /// Track-change toast preference.
+    pub fn notify_track_change(&self) -> bool {
+        self.rust().notify_track_change()
+    }
+
+    /// Persist track-change toasts.
+    pub fn set_notify_track_change(self: Pin<&mut Self>, enabled: bool) {
+        self.rust().set_notify_track_change(enabled);
+    }
+
+    /// Playback-error toast preference.
+    pub fn notify_playback_errors(&self) -> bool {
+        self.rust().notify_playback_errors()
+    }
+
+    /// Persist playback-error toasts.
+    pub fn set_notify_playback_errors(self: Pin<&mut Self>, enabled: bool) {
+        self.rust().set_notify_playback_errors(enabled);
+    }
+
     /// `ReplayGain` mode as 0 (off), 1 (track), 2 (album).
     pub fn replaygain_mode(&self) -> i32 {
         self.rust().replaygain_mode()
@@ -1947,9 +2466,74 @@ impl qobject::QueueModel {
         self.as_mut().rust_mut().do_cycle_output()
     }
 
+    pub fn eq_enabled(&self) -> bool {
+        self.rust().eq_enabled()
+    }
+
+    pub fn set_eq_enabled(mut self: Pin<&mut Self>, enabled: bool) {
+        self.as_mut().rust_mut().set_eq_enabled(enabled);
+    }
+
+    pub fn eq_preset(&self) -> QString {
+        QString::from(self.rust().eq_preset().as_str())
+    }
+
+    pub fn set_eq_preset(mut self: Pin<&mut Self>, name: &QString) {
+        self.as_mut().rust_mut().set_eq_preset(&name.to_string());
+    }
+
+    pub fn eq_band(&self, index: i32) -> f32 {
+        self.rust().eq_band(index)
+    }
+
+    pub fn set_eq_band(mut self: Pin<&mut Self>, index: i32, gain: f32) {
+        self.as_mut().rust_mut().set_eq_band(index, gain);
+    }
+
+    pub fn eq_band_label(&self, index: i32) -> QString {
+        QString::from(self.rust().eq_band_label(index).as_str())
+    }
+
+    pub fn reset_eq(mut self: Pin<&mut Self>) {
+        self.as_mut().rust_mut().reset_eq();
+    }
+
+    pub fn eq_missing(&self) -> bool {
+        self.rust().eq_missing()
+    }
+
+    pub fn spectrum_csv(&self) -> QString {
+        QString::from(self.rust().spectrum_csv().as_str())
+    }
+
+    pub fn waveform_csv(&self) -> QString {
+        QString::from(self.rust().waveform_csv().as_str())
+    }
+
+    pub fn visualizer_mode(&self) -> i32 {
+        self.rust().visualizer_mode()
+    }
+
+    pub fn set_visualizer_mode(self: Pin<&mut Self>, mode: i32) {
+        self.rust().set_visualizer_mode(mode);
+    }
+
+    pub fn visualizer_fps(&self) -> i32 {
+        self.rust().visualizer_fps()
+    }
+
+    pub fn set_visualizer_fps(self: Pin<&mut Self>, fps: i32) {
+        self.rust().set_visualizer_fps(fps);
+    }
+
     /// Cursor position (-1 when idle).
     pub fn current_index(&self) -> i32 {
         self.rust().current_index()
+    }
+
+    /// Library track id at a queue row (`-1` when missing).
+    pub fn track_id_at(&self, row: i32) -> i32 {
+        self.rust().track_id_at(row)
     }
 
     /// Last failure, or empty when clear.
@@ -2056,7 +2640,81 @@ impl qobject::QueueModel {
         added
     }
 
-    /// Row count override for `QAbstractListModel`.
+    /// Enqueue the visible library list for `kind`. Returns the number added.
+    #[must_use]
+    pub fn enqueue_library_list(
+        mut self: Pin<&mut Self>,
+        kind: &QString,
+        key: &QString,
+        sort_key: &QString,
+        descending: bool,
+    ) -> i32 {
+        let added = self.as_mut().rust_mut().do_enqueue_library_list(
+            &kind.to_string(),
+            &key.to_string(),
+            &sort_key.to_string(),
+            descending,
+        );
+        if added > 0 {
+            self.as_mut().apply_rows();
+        }
+        added
+    }
+
+    /// Enqueue library tracks by comma-separated row ids.
+    #[must_use]
+    pub fn enqueue_track_ids(mut self: Pin<&mut Self>, ids: &QString) -> i32 {
+        let parsed = parse_id_list(&ids.to_string());
+        let added = self.as_mut().rust_mut().do_enqueue_track_ids(&parsed);
+        if added > 0 {
+            self.as_mut().apply_rows();
+        }
+        added
+    }
+
+    /// Play comma-separated library ids now; the rest play next in order.
+    #[must_use]
+    pub fn play_track_ids(mut self: Pin<&mut Self>, ids: &QString) -> i32 {
+        let parsed = parse_id_list(&ids.to_string());
+        let added = self.as_mut().rust_mut().do_play_track_ids(&parsed);
+        if added > 0 {
+            self.as_mut().apply_rows();
+        }
+        added
+    }
+
+    /// Insert comma-separated library ids to play next, in order.
+    #[must_use]
+    pub fn play_track_ids_next(mut self: Pin<&mut Self>, ids: &QString) -> i32 {
+        let parsed = parse_id_list(&ids.to_string());
+        let added = self.as_mut().rust_mut().do_play_track_ids_next(&parsed);
+        if added > 0 {
+            self.as_mut().apply_rows();
+        }
+        added
+    }
+
+    /// Enqueue albums by comma-separated ids.
+    #[must_use]
+    pub fn enqueue_album_ids(mut self: Pin<&mut Self>, ids: &QString) -> i32 {
+        let parsed = parse_id_list(&ids.to_string());
+        let added = self.as_mut().rust_mut().do_enqueue_album_ids(&parsed);
+        if added > 0 {
+            self.as_mut().apply_rows();
+        }
+        added
+    }
+
+    /// Enqueue artists by newline-separated names.
+    #[must_use]
+    pub fn enqueue_artist_names(mut self: Pin<&mut Self>, names: &QString) -> i32 {
+        let parsed = parse_name_list(&names.to_string());
+        let added = self.as_mut().rust_mut().do_enqueue_artist_names(&parsed);
+        if added > 0 {
+            self.as_mut().apply_rows();
+        }
+        added
+    }
     pub fn row_count_queue(&self, _parent: &QModelIndex) -> i32 {
         self.rust().row_count()
     }
@@ -2165,7 +2823,7 @@ fn us_to_ms_saturating(micros: i64) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::qobject::QueueRoles;
-    use super::{QueueModelRust, QueueRow, RowChange, row_change};
+    use super::{QueueModelRust, QueueRow, RowChange, parse_id_list, row_change};
     use crate::bridge::test_support::seeded_index;
     use cxx_qt_lib::{QString, QVariant};
 
@@ -2269,6 +2927,28 @@ mod tests {
         assert_eq!(model.row_count(), 1);
         assert!(model.error_message().is_none());
         assert!(!model.poll_queue(), "no drift without playback");
+    }
+
+    #[test]
+    fn enqueue_track_ids_batches_every_seeded_row() {
+        let (mut model, _guard) = model_with_seeded_library("queue-ids");
+        let db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        let ids: Vec<i64> = tunex_library::list_tracks(&db)
+            .expect("list works")
+            .into_iter()
+            .map(|track| track.id)
+            .collect();
+        assert!(!ids.is_empty());
+        let added = model.do_enqueue_track_ids(&ids);
+        assert_eq!(added, i32::try_from(ids.len()).expect("fits"));
+        assert_eq!(model.row_count(), added);
+        assert!(model.error_message().is_none());
+    }
+
+    #[test]
+    fn parse_id_list_skips_junk() {
+        assert_eq!(parse_id_list("1, 2,x,3,"), vec![1, 2, 3]);
+        assert!(parse_id_list("").is_empty());
     }
 
     #[test]
@@ -2480,6 +3160,41 @@ mod tests {
         let loaded = tunex_core::load_from(&model.config_path).expect("appearance saved");
         assert!(loaded.appearance.reduce_motion);
         assert!(loaded.appearance.reduce_transparency);
+    }
+
+    #[test]
+    fn notify_prefs_default_on_and_persist() {
+        let (mut model, _guard) = model_with_seeded_library("queue-notify");
+        assert!(model.notifications_enabled());
+        assert!(model.notify_track_change());
+        assert!(model.notify_playback_errors());
+        assert!(model.window_active);
+        model.set_window_active(false);
+        assert!(!model.window_active);
+        model.set_notifications_enabled(false);
+        model.set_notify_track_change(false);
+        model.set_notify_playback_errors(false);
+        let loaded = tunex_core::load_from(&model.config_path).expect("notify saved");
+        assert!(!loaded.notify.enabled);
+        assert!(!loaded.notify.track_change);
+        assert!(!loaded.notify.playback_errors);
+    }
+
+    #[test]
+    fn equalizer_and_visualizer_persist() {
+        let (mut model, _guard) = model_with_seeded_library("queue-eq-viz");
+        model.set_eq_enabled(true);
+        model.set_eq_preset("rock");
+        model.set_visualizer_mode(1);
+        model.set_visualizer_fps(24);
+        let loaded = tunex_core::load_from(&model.config_path).expect("eq saved");
+        assert!(loaded.playback.eq_enabled);
+        assert_eq!(loaded.playback.eq_preset, "rock");
+        assert_eq!(
+            loaded.appearance.visualizer,
+            tunex_core::VisualizerMode::Spectrum
+        );
+        assert_eq!(loaded.appearance.visualizer_fps, 24);
     }
 
     #[test]

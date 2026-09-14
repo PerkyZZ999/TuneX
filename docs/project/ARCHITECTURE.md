@@ -12,7 +12,7 @@ Fast Rust engine + beautiful Qt Quick shell. QML renders; Rust decides. `tunex-a
 | tunex-player | PlayerEngine over playbin3, queue + shuffle/repeat, volume/mute, position/bus events | Emits TrackChanged/State/Position/Duration/Error/EndOfTrack as AppEvents |
 | tunex-core | Domain types (Track/Album/Artist/Queue/Playlist/...), PlayerState machine, errors, AppEvent enum, config schema | No Qt/GStreamer/SQLite/notify deps |
 | SQLite | artists/albums/tracks/genres/folders/playlists/playlist_tracks/favorites/play_history/library_roots/scan_state/artwork/settings + FTS5 external-content | WAL, versioned migrations, BM25 |
-| GStreamer playbin3 | Decode/seek/buffer/gapless/volume | about-to-finish preload; ReplayGain + crossfade volumes wrap the audio sink |
+| GStreamer playbin3 | Decode/seek/buffer/gapless/volume | about-to-finish preload; `tunex-audio` bin is equalizer → ReplayGain → crossfade → sink; PCM probe after EQ |
 | notify watcher | FS events → enqueue paths | Debounce/coalesce in app; never heavy work on callback |
 
 ## Data flow

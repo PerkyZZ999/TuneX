@@ -299,6 +299,15 @@ impl PlaylistModelRust {
         }
     }
 
+    /// Add many library ids to one playlist.
+    fn do_add_tracks(&mut self, playlist_id: i64, ids: &[i64]) -> i32 {
+        let mut added = 0;
+        for track_id in ids {
+            added += self.do_add_track(playlist_id, *track_id);
+        }
+        added
+    }
+
     /// Last failure, if any (cleared by the next success).
     fn error_message(&self) -> Option<String> {
         self.last_error.clone()
@@ -423,6 +432,35 @@ impl qobject::PlaylistModel {
             .as_mut()
             .rust_mut()
             .do_add_track(i64::from(playlist_id), i64::from(track_id));
+        if added > 0 {
+            // SAFETY: reset pair strictly paired on this single path.
+            unsafe {
+                self.as_mut().begin_reset_model_playlists();
+                self.as_mut().end_reset_model_playlists();
+            };
+        }
+        added
+    }
+
+    /// Add comma-separated library ids to a playlist.
+    #[must_use]
+    pub fn add_tracks(mut self: Pin<&mut Self>, playlist_id: i32, ids: &QString) -> i32 {
+        let parsed = ids
+            .to_string()
+            .split(',')
+            .filter_map(|part| {
+                let part = part.trim();
+                if part.is_empty() {
+                    None
+                } else {
+                    part.parse::<i64>().ok()
+                }
+            })
+            .collect::<Vec<_>>();
+        let added = self
+            .as_mut()
+            .rust_mut()
+            .do_add_tracks(i64::from(playlist_id), &parsed);
         if added > 0 {
             // SAFETY: reset pair strictly paired on this single path.
             unsafe {

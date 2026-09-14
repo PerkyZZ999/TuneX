@@ -150,6 +150,10 @@ Window {
         tray.setWindowGeometry(root.x, root.y, root.width, root.height);
     }
 
+    function clearSelections() {
+        return libraryView.clearSelection() || searchView.clearSelection() || playlistsView.clearSelection() || dockedQueue.clearSelection() || drawerQueue.clearSelection();
+    }
+
     minimumWidth: Theme.windowMinWidth
     minimumHeight: Theme.windowMinHeight
     width: 1280
@@ -157,6 +161,8 @@ Window {
     visible: true
     title: qsTr("TuneX")
     color: Theme.background
+    onActiveChanged: queueModel.setWindowActive(root.active && root.visible)
+    onVisibleChanged: queueModel.setWindowActive(root.active && root.visible)
     // Token palette: any Basic-style chrome that is not custom-built
     // (tooltips, scroll indicators, text selection, fallback dims) follows
     // the theme instead of stock greys.
@@ -296,8 +302,13 @@ Window {
     // Remaining Esc walks view history.
     Shortcut {
         sequence: "Esc"
-        enabled: !root.editingText && !root.nowPlayingOpen && root.canGoBack
-        onActivated: root.goBack()
+        enabled: !root.editingText && !root.nowPlayingOpen
+        onActivated: {
+            if (root.clearSelections())
+                return;
+            if (root.canGoBack)
+                root.goBack();
+        }
     }
 
     // Up Next queue, owned by the shell so playback and rows survive
@@ -366,6 +377,7 @@ Window {
 
             anchors.fill: parent
             queue: queueModel
+            playlists: playlistModel
             embedded: false
             tracking: queueDrawer.opened
             onBrowseRequested: {
@@ -761,7 +773,7 @@ Window {
                             anchors.rightMargin: Theme.spaceXs
                             anchors.verticalCenter: parent.verticalCenter
                             iconName: "list-music"
-                            accessibleName: queueDrawer.opened ? qsTr("Close Up Next") : qsTr("Open Up Next")
+                            accessibleName: queueDrawer.opened ? qsTr("Close Now Playing") : qsTr("Open Now Playing")
                             checkable: true
                             checked: queueDrawer.opened
                             onActivated: root.toggleQueue()
@@ -880,6 +892,7 @@ Window {
                             width: visible ? Theme.panelWidth : 0
                             height: parent.height
                             queue: queueModel
+                            playlists: playlistModel
                             embedded: true
                             tracking: visible
                             onBrowseRequested: root.navigate("library")

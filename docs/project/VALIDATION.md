@@ -538,3 +538,24 @@
 - **Waiver:** none
 - **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
 
+### 2026-09-14 — S14 W-067–W-070, W-073 seek, notifications, Now Playing, DnD, multi-select
+- **Slice:** S14
+- **Result:** pass
+- **Evidence:** FLUSH seeks coalesce to the latest target (`rapid_seeks_land_on_the_latest_target`); ProgressSlider is a 44px hit target with a 12px thumb when engaged; session persist uses the geometry quiet window instead of a write per pixel. Isolated KWin (`isolate_home`, fixture library): overlay scrub 0:03 → 0:00 while playing (`docs/project/evidence/w067-overlay-playing.png`, `w067-overlay-scrub.png`); docked rail shows live 0:00/0:05 + Pause (`w067-docked-playing.png`). MPRIS `Seek` returned while playing. A FLUSH after EOS on these 2–5 s fixtures surfaces `playback error: seek refused` — mid-play scrub is the product path; not a new requirement. Notifications: `NotifyConfig` (enabled / track_change / playback_errors, defaults on); track-change gated on `!Window.active`; playback errors still toast when focused. Settings gained a fifth **Notifications** section. Tests: `should_notify` focused skip silent, unfocused advance toasts, same URI/stop quiet; `should_notify_error_ignores_focus`. Isolated home has no notification daemon — no toast pixels; gate is the unit test + Settings walk. Right rail copy is **Now Playing** including the empty state (`w069-now-playing-empty.png`); overlay title stays Now Playing. TrackRow mime `application/x-tunex-trackids` (comma ids). Now Playing grew 3→4 when a queue row was dragged over the list (`w070-w073-playlist-queue.png`). Nested KWin/EIS did not complete a Qt MIME drop onto the playlist sidebar tile (harness limit; same class as W-036 dialog accept). Playlist detail `reorderable` is on for user lists; smart playlists still refuse. Ctrl+click SelectionBar → **New playlist** created a 1-song playlist (`w070-w073-playlist-queue.png`). Unmodified click still plays now. `scripts/qml-lint.sh` 47/47 ✓. `rust-tc doctor` ✓ (315 tests). Traceability: R-007/R-009/R-010/R-011/R-012/R-014/R-015 → S14 → W-067–W-070, W-073 → this entry.
+- **Waiver:** none
+- **Follow-up:** MIME drop onto playlist tiles wants a live Plasma session (nested KWin DnD). AUR publish stays a human confirmation.
+
+### 2026-09-14 — S15 W-071 ten-band equalizer
+- **Slice:** S15
+- **Result:** pass
+- **Evidence:** `equalizer-10bands` sits in the existing `tunex-audio` sink bin before ReplayGain (D-005). Missing element stays flat and playback continues. Presets Flat / Hip-hop / Rock / Jazz / Classic / Vocals / Electronic / Pop plus Custom when a band moves; `PlaybackConfig` persists `eq_enabled`, `eq_preset`, `[f32; 10]`. Settings → Playback shows Enable equalizer + Preset (`docs/project/evidence/w071-settings-eq.png`). Reduce-motion does not disable audio EQ. The playing-row equalizer tick is unrelated motion chrome. Tests: preset round-trip / clamp / matching_preset; engine rebuilds the bin on device change. `scripts/qml-lint.sh` 47/47 ✓. `rust-tc doctor` ✓ (315 tests). Traceability: R-020 → S15 → W-071 → this entry.
+- **Waiver:** none
+- **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
+
+### 2026-09-14 — S16 W-072 artwork / visualizer modes
+- **Slice:** S16
+- **Result:** pass
+- **Evidence:** L-008 promoted to R-023. Analysis is a pad probe after EQ (a tee/second sink stalled FLUSH seeks). Modes Artwork | Spectrum | Waveform | Visualizer on the QueuePanel and Now Playing overlay wells only; lyrics toggle still wins on the overlay. Settings → Appearance default mode + FPS cap; `reduce_motion` forces Artwork. Isolated KWin: Spectrum on the docked well (`docs/project/evidence/w072-spectrum-rail.png`), Spectrum overlay while playing (`w067-overlay-playing.png`), Visualizer on the docked well while playing (`w072-visualizer-playing.png`). Artwork context menu View list walked (Artwork / Spectrum / Waveform / Visualizer). Unknown art stays the monogram; visualizers are not fake covers. No extra glow. Tests: spectrum/PCM parse helpers. `scripts/qml-lint.sh` 47/47 ✓. `npx @google/design.md lint docs/DESIGN.md` 0 errors. `rust-tc doctor` ✓ (315 tests). Traceability: R-023 → S16 → W-072 → this entry.
+- **Waiver:** none
+- **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
+

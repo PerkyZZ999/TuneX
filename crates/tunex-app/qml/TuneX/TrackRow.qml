@@ -5,7 +5,7 @@ import TuneX
 // now-playing marker. Solid text on the canvas behind the list (never glass). Left-click (or keyboard press)
 // plays the row now; right-click, the Menu key, Shift+F10, or the always-
 // visible ⋯ button opens the container-owned row menu (queueing is
-// "Queue in Up Next", never the click).
+// "Add to Now Playing", never the click).
 // Edge-anchored layout: the middle column fills whatever the fixed edges
 // leave, so no spacing is hand-counted and nothing depends on sibling
 // creation order.
@@ -26,6 +26,8 @@ Item {
     property bool isCurrent: false
     property bool isPlaying: false
     property bool reorderable: false
+    property bool selected: false
+    property string dragTrackIds: root.trackId >= 0 ? String(root.trackId) : ""
     // m:ss, em dash when unknown. Numbers need no translation.
     readonly property string durationText: root.durationMs > 0 ? Math.floor(root.durationMs / 60000) + ":" + String(Math.floor(root.durationMs / 1000) % 60).padStart(2, "0") : "—"
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
@@ -33,7 +35,18 @@ Item {
     signal playRequested(int trackId, int rowIndex, bool dangling)
     signal menuRequested(int trackId, int rowIndex, bool dangling)
     signal reorderRequested(int from, int to)
+    signal toggleSelectRequested(int rowIndex)
+    signal rangeSelectRequested(int rowIndex)
 
+    Drag.keys: ["application/x-tunex-trackids"]
+    Drag.mimeData: {
+        "text/plain": root.dragTrackIds,
+        "application/x-tunex-trackids": root.dragTrackIds
+    }
+    Drag.dragType: Drag.Automatic
+    Drag.active: rowArea.drag.active
+    Drag.hotSpot.x: root.width / 2
+    Drag.hotSpot.y: root.height / 2
     width: ListView.view.width
     height: Theme.trackRowHeight
     Accessible.role: Accessible.ListItem
@@ -57,7 +70,13 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: Theme.radiusSm
-        color: rowArea.containsMouse || root.activeFocus ? Theme.hover : "transparent"
+        color: {
+            if (root.selected)
+                return Theme.selected;
+            if (rowArea.containsMouse || root.activeFocus)
+                return Theme.hover;
+            return "transparent";
+        }
 
         Behavior on color {
             ColorAnimation {
@@ -129,30 +148,53 @@ Item {
         id: rowArea
 
         anchors.fill: parent
-        enabled: !root.dangling && !root.missing
+        enabled: true
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        cursorShape: Qt.PointingHandCursor
-        drag.target: root.reorderable ? root : undefined
-        drag.axis: Drag.YAxis
+        cursorShape: root.dangling || root.missing ? Qt.ArrowCursor : Qt.PointingHandCursor
+        drag.target: root.reorderable ? root : dragGhost
+        drag.axis: root.reorderable ? Drag.YAxis : Drag.XAndYAxis
         drag.threshold: 12
         onReleased: mouse => {
             if (mouse.button === Qt.RightButton) {
                 root.menuRequested(root.trackId, root.rowIndex, root.dangling);
                 return;
             }
-            if (root.reorderable && rowArea.drag.active) {
-                const view = root.ListView.view;
-                if (view) {
-                    const point = root.mapToItem(view.contentItem, root.width / 2, root.height / 2);
-                    const to = view.indexAt(point.x, point.y);
-                    if (to >= 0 && to !== root.rowIndex)
-                        root.reorderRequested(root.rowIndex, to);
+            if (mouse.modifiers & Qt.ControlModifier) {
+                root.toggleSelectRequested(root.rowIndex);
+                return;
+            }
+            if (mouse.modifiers & Qt.ShiftModifier) {
+                root.rangeSelectRequested(root.rowIndex);
+                return;
+            }
+            if (rowArea.drag.active) {
+                const action = root.Drag.drop();
+                if (action !== Qt.IgnoreAction)
+                    return;
+                if (root.reorderable) {
+                    const view = root.ListView.view;
+                    if (view) {
+                        const point = root.mapToItem(view.contentItem, root.width / 2, root.height / 2);
+                        const to = view.indexAt(point.x, point.y);
+                        if (to >= 0 && to !== root.rowIndex)
+                            root.reorderRequested(root.rowIndex, to);
+                    }
                 }
                 return;
             }
+            if (root.dangling || root.missing)
+                return;
             root.playRequested(root.trackId, root.rowIndex, root.dangling);
         }
+    }
+
+    Item {
+        id: dragGhost
+
+        width: 1
+        height: 1
+        visible: false
     }
 
     Text {

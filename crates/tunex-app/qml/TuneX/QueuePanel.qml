@@ -1,7 +1,7 @@
 import QtQuick
 import TuneX
 
-// QueuePanel: Up Next list plus the persistent-player summary. Docked as
+// QueuePanel: Now Playing list plus the persistent-player summary. Docked as
 // the 288px right column at ≥1280px (chrome at 76%); inside the compact
 // Drawer it is transparent so the drawer's subtle glass shows through
 // (rows stay transparent over it, never glass).
@@ -11,6 +11,7 @@ Rectangle {
     id: root
 
     required property QueueModel queue
+    required property PlaylistModel playlists
     // Docked in the shell (no Close); false when hosted in the compact drawer.
     property bool embedded: false
     // Drive the display-sync timer. The compact drawer host sets this to
@@ -30,6 +31,9 @@ Rectangle {
     property bool muted: false
     // Cached cover of the playing track, empty until it resolves.
     property url artUrl
+    property int visualizerMode: 0
+    property string spectrumCsv: ""
+    property string waveformCsv: ""
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
     readonly property string monogram: {
@@ -44,6 +48,10 @@ Rectangle {
     readonly property string positionText: root.formatTime(root.positionMs)
     readonly property string durationText: root.durationMs > 0 ? root.formatTime(root.durationMs) : "—"
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
+    readonly property string mimeIds: {
+        queueSelection.stamp;
+        return root.queueMimeIds();
+    }
 
     signal browseRequested
     signal closeRequested
@@ -66,6 +74,33 @@ Rectangle {
         return qsTr("Repeat: Off");
     }
 
+    function clearSelection() {
+        return queueSelection.clear();
+    }
+
+    function queueMimeIds() {
+        const stamp = queueSelection.stamp;
+        const rows = queueSelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = root.queue.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return stamp >= 0 ? ids.join(",") : ids.join(",");
+    }
+
+    function removeSelected() {
+        const rows = queueSelection.sorted().reverse();
+        for (let i = 0; i < rows.length; i++)
+            root.queue.removeAt(rows[i]);
+        queueSelection.clear();
+    }
+
+    TrackListSelection {
+        id: queueSelection
+    }
+
     function sync() {
         root.transportState = root.queue.playbackState();
         root.shuffleOn = root.queue.isShuffle();
@@ -75,6 +110,9 @@ Rectangle {
         root.titleText = root.queue.currentTitle();
         root.artistText = root.queue.currentArtist();
         root.artUrl = root.queue.currentArtUrl();
+        root.visualizerMode = root.queue.visualizerMode();
+        root.spectrumCsv = root.queue.spectrumCsv();
+        root.waveformCsv = root.queue.waveformCsv();
         root.positionMs = root.queue.positionMs();
         root.durationMs = root.queue.durationMs();
         root.muted = root.queue.isMuted();
@@ -121,6 +159,20 @@ Rectangle {
         onTriggered: root.sync()
     }
 
+    Timer {
+        interval: 50
+        running: root.tracking
+        repeat: true
+        onTriggered: {
+            root.visualizerMode = root.queue.visualizerMode();
+            if (root.visualizerMode === 0 || Appearance.reduceMotion)
+                return;
+            interval = Math.round(1000 / Math.max(5, root.queue.visualizerFps()));
+            root.spectrumCsv = root.queue.spectrumCsv();
+            root.waveformCsv = root.queue.waveformCsv();
+        }
+    }
+
     // Dismiss the row menu on any model reset: it captures a positional
     // index that resets, reorders, and track advances invalidate.
     Connections {
@@ -152,7 +204,7 @@ Rectangle {
         }
 
         GlassMenuItem {
-            text: qsTr("Remove from Up Next")
+            text: qsTr("Remove from Now Playing")
             onTriggered: root.queue.removeAt(rowMenu.rowIndex)
         }
     }
@@ -172,7 +224,7 @@ Rectangle {
             IconButton {
                 anchors.right: parent.right
                 iconName: "x"
-                accessibleName: qsTr("Close Up Next")
+                accessibleName: qsTr("Close Now Playing")
                 onActivated: root.closeRequested()
             }
         }
@@ -196,9 +248,10 @@ Rectangle {
             Accessible.name: qsTr("Open Now Playing")
             onClicked: root.expandRequested()
 
-            Artwork {
+            ArtStage {
                 id: artWell
 
+                queue: root.queue
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: root.embedded ? parent.height : Theme.artThumb
                 height: width
@@ -206,6 +259,9 @@ Rectangle {
                 monogram: root.hasCurrent ? root.monogram : qsTr("TuneX")
                 monogramSize: root.embedded ? Theme.fontHeadline : Theme.fontTitle
                 radius: Theme.radiusMd
+                mode: root.visualizerMode
+                spectrumCsv: root.spectrumCsv
+                waveformCsv: root.waveformCsv
                 Accessible.ignored: true
             }
         }
@@ -213,7 +269,7 @@ Rectangle {
         Column {
             visible: root.embedded
             width: parent.width
-            spacing: Theme.spaceXs
+            spacing: 0
 
             // Left-aligned under the artwork, as the mockup sets them: the
             // title reads as a heading for the panel rather than a caption
@@ -281,9 +337,14 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 from: 0
                 to: Math.max(1, root.durationMs)
+                keyStep: 5000
                 enabled: root.durationMs > 0 && root.hasCurrent
                 Accessible.name: qsTr("Playback position %1 of %2").arg(root.positionText).arg(root.durationText)
                 onMoved: root.queue.seekMs(Math.round(value))
+                onPressedChanged: {
+                    if (!pressed)
+                        root.queue.seekMs(Math.round(value));
+                }
             }
         }
 
@@ -398,7 +459,7 @@ Rectangle {
                 width: parent.width - clearButton.width - Theme.spaceSm
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
-                text: queueList.count > 0 ? qsTr("Up Next (%1)").arg(queueList.count) : qsTr("Up Next")
+                text: queueList.count > 0 ? qsTr("Now Playing (%1)").arg(queueList.count) : qsTr("Now Playing")
                 textFormat: Text.PlainText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontTitle
@@ -436,11 +497,35 @@ Rectangle {
             id: content
 
             width: parent.width
-            height: parent.height - headerRow.height - nowPlayingHit.height - progressItem.height - volumeRow.height - transportRow.height - togglesRow.height - upNextHeader.height - errorText.height - Theme.spaceMd * 8
+            height: parent.height - headerRow.height - nowPlayingHit.height - progressItem.height - volumeRow.height - transportRow.height - togglesRow.height - upNextHeader.height - errorText.height - selectionBar.height - Theme.spaceMd * 8
+
+            SelectionBar {
+                id: selectionBar
+
+                anchors.top: parent.top
+                width: parent.width
+                queue: root.queue
+                playlists: root.playlists
+                count: queueSelection.count
+                trackIds: root.mimeIds
+                showRemove: true
+                fromLibrary: false
+                onCleared: queueSelection.clear()
+                onRemoveRequested: root.removeSelected()
+                onPlayInPlaceRequested: {
+                    const rows = queueSelection.sorted();
+                    if (rows.length > 0)
+                        root.queue.playAt(rows[0]);
+                }
+            }
 
             EmptyState {
                 visible: queueList.count === 0 && !root.embedded
-                title: qsTr("Up Next is empty")
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: selectionBar.bottom
+                anchors.bottom: parent.bottom
+                title: qsTr("Now Playing is empty")
                 note: qsTr("Play any song, album, or artist and it will queue up here.")
                 actionLabel: qsTr("Browse library")
                 onActionRequested: root.browseRequested()
@@ -448,6 +533,9 @@ Rectangle {
 
             Text {
                 visible: queueList.count === 0 && root.embedded
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: selectionBar.bottom
                 width: parent.width
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
@@ -457,11 +545,22 @@ Rectangle {
                 color: Theme.muted
             }
 
+            TrackDropArea {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: selectionBar.bottom
+                anchors.bottom: parent.bottom
+                onTracksDropped: ids => root.queue.enqueueTrackIds(ids)
+            }
+
             ListView {
                 id: queueList
 
                 visible: count > 0
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: selectionBar.bottom
+                anchors.bottom: parent.bottom
                 model: root.queue
                 activeFocusOnTab: true
                 clip: true
@@ -495,7 +594,8 @@ Rectangle {
                     }
                 }
                 Accessible.role: Accessible.List
-                Accessible.name: qsTr("Up Next")
+                Accessible.selectable: true
+                Accessible.name: qsTr("Now Playing")
                 Keys.onReturnPressed: {
                     const at = queueList.currentIndex >= 0 ? queueList.currentIndex : 0;
                     if (at < queueList.count)
@@ -507,8 +607,18 @@ Rectangle {
                         root.queue.playAt(at);
                 }
                 Keys.onDeletePressed: {
+                    if (queueSelection.count > 0) {
+                        root.removeSelected();
+                        return;
+                    }
                     if (queueList.currentIndex >= 0 && queueList.currentIndex < queueList.count)
                         root.queue.removeAt(queueList.currentIndex);
+                }
+                Keys.onPressed: event => {
+                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                        queueSelection.selectAll(queueList.count);
+                        event.accepted = true;
+                    }
                 }
                 Keys.onUpPressed: event => {
                     if (event.modifiers & Qt.AltModifier) {
@@ -517,6 +627,13 @@ Rectangle {
                             root.queue.moveItem(from, from - 1);
                             queueList.currentIndex = from - 1;
                         }
+                        event.accepted = true;
+                        return;
+                    }
+                    if (event.modifiers & Qt.ShiftModifier) {
+                        const next = Math.max(0, queueList.currentIndex - 1);
+                        queueList.currentIndex = next;
+                        queueSelection.setRange(next);
                         event.accepted = true;
                     }
                 }
@@ -527,6 +644,13 @@ Rectangle {
                             root.queue.moveItem(from, from + 1);
                             queueList.currentIndex = from + 1;
                         }
+                        event.accepted = true;
+                        return;
+                    }
+                    if (event.modifiers & Qt.ShiftModifier) {
+                        const next = Math.min(queueList.count - 1, queueList.currentIndex + 1);
+                        queueList.currentIndex = next;
+                        queueSelection.setRange(next);
                         event.accepted = true;
                     }
                 }
@@ -546,7 +670,13 @@ Rectangle {
                     isPlaying: model.isCurrent && root.transportState === 2
                     missing: model.missing
                     reorderable: true
+                    selected: {
+                        queueSelection.stamp;
+                        return queueSelection.contains(index);
+                    }
+                    dragTrackIds: selected && root.mimeIds !== "" ? root.mimeIds : (model.trackId >= 0 ? String(model.trackId) : "")
                     onPlayRequested: (trackId, rowIndex) => {
+                        queueSelection.clear();
                         queueList.currentIndex = rowIndex;
                         queueList.forceActiveFocus();
                         root.queue.playAt(rowIndex);
@@ -559,6 +689,14 @@ Rectangle {
                     onReorderRequested: (from, to) => {
                         queueList.currentIndex = to;
                         root.queue.moveItem(from, to);
+                    }
+                    onToggleSelectRequested: row => {
+                        queueList.currentIndex = row;
+                        queueSelection.toggle(row);
+                    }
+                    onRangeSelectRequested: row => {
+                        queueList.currentIndex = row;
+                        queueSelection.setRange(row);
                     }
                 }
             }

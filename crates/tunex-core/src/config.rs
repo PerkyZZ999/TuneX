@@ -12,8 +12,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use super::playback::{RepeatMode, ReplayGainMode};
-use crate::{Error, Result};
+use super::playback::{RepeatMode, ReplayGainMode, VisualizerMode};
+use crate::{Error, Result, clamp_bands, matching_preset};
 
 /// Playback behavior settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -38,16 +38,68 @@ pub struct PlaybackConfig {
     /// `PipeWire`/`GStreamer` sink id. Empty means the system default.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub output_device: String,
+    /// Whether the 10-band equalizer is engaged. Bypass is all bands at 0 dB.
+    #[serde(default)]
+    pub eq_enabled: bool,
+    /// Named preset id (`flat`, `rock`, …) or `custom`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub eq_preset: String,
+    /// Per-band gains in dB (`equalizer-10bands` `band0`…`band9`).
+    #[serde(default)]
+    pub eq_bands: [f32; 10],
+}
+
+/// Desktop notification preferences.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NotifyConfig {
+    /// Master switch for every desktop toast.
+    pub enabled: bool,
+    /// Track-change toasts (only while the window is unfocused).
+    pub track_change: bool,
+    /// Playback-error toasts (always, even while focused).
+    pub playback_errors: bool,
+}
+
+impl Default for NotifyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            track_change: true,
+            playback_errors: true,
+        }
+    }
+}
+
+fn notify_is_default(config: &NotifyConfig) -> bool {
+    *config == NotifyConfig::default()
 }
 
 /// Appearance and accessibility settings.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppearanceConfig {
     /// Honor the OS reduce-motion preference (disables crossfades).
     pub reduce_motion: bool,
     /// Fall back to opaque surfaces (disables blur/transparency).
     pub reduce_transparency: bool,
+    /// Default Now Playing artwork well (Settings → Appearance).
+    #[serde(default)]
+    pub visualizer: VisualizerMode,
+    /// Analysis paint cap (5–30). The engine still samples at ~20 fps.
+    #[serde(default)]
+    pub visualizer_fps: u8,
+}
+
+impl Default for AppearanceConfig {
+    fn default() -> Self {
+        Self {
+            reduce_motion: false,
+            reduce_transparency: false,
+            visualizer: VisualizerMode::Artwork,
+            visualizer_fps: 20,
+        }
+    }
 }
 
 /// Window and desktop-shell settings.
@@ -201,6 +253,9 @@ pub struct TunexConfig {
     /// Opt-in online enrichment (default off).
     #[serde(default, skip_serializing_if = "enrichment_is_off")]
     pub enrichment: EnrichmentConfig,
+    /// Desktop notifications (track change + playback errors).
+    #[serde(default, skip_serializing_if = "notify_is_default")]
+    pub notify: NotifyConfig,
 }
 
 impl Default for TunexConfig {
@@ -215,6 +270,7 @@ impl Default for TunexConfig {
             active_profile: String::new(),
             profiles: Vec::new(),
             enrichment: EnrichmentConfig::default(),
+            notify: NotifyConfig::default(),
         }
     }
 }
@@ -224,6 +280,15 @@ impl TunexConfig {
     fn normalize(&mut self) {
         self.volume = self.volume.clamp(0.0, 1.0);
         self.playback.crossfade_secs = self.playback.crossfade_secs.min(12);
+        self.playback.eq_bands = clamp_bands(self.playback.eq_bands);
+        if self.playback.eq_preset.is_empty() {
+            matching_preset(self.playback.eq_bands).clone_into(&mut self.playback.eq_preset);
+        }
+        if self.appearance.visualizer_fps == 0 {
+            self.appearance.visualizer_fps = 20;
+        } else {
+            self.appearance.visualizer_fps = self.appearance.visualizer_fps.clamp(5, 30);
+        }
         if self.window.width > 0 {
             self.window.width = self.window.width.max(WindowConfig::MIN_WIDTH);
         }
@@ -408,10 +473,15 @@ mod tests {
                 replaygain: ReplayGainMode::Track,
                 crossfade_secs: 4,
                 output_device: "alsa_output.pci-0.analog-stereo".to_owned(),
+                eq_enabled: true,
+                eq_preset: "rock".to_owned(),
+                eq_bands: crate::preset_bands("rock").unwrap_or([0.0; 10]),
             },
             appearance: AppearanceConfig {
                 reduce_motion: true,
                 reduce_transparency: false,
+                visualizer: VisualizerMode::Spectrum,
+                visualizer_fps: 20,
             },
             window: WindowConfig {
                 close_to_tray: false,
@@ -433,6 +503,7 @@ mod tests {
             active_profile: String::new(),
             profiles: Vec::new(),
             enrichment: EnrichmentConfig::default(),
+            notify: NotifyConfig::default(),
         };
         save_to(&path, &config).expect("save works");
         let back = load_from(&path).expect("reload works");
@@ -560,6 +631,22 @@ mod tests {
         std::fs::write(&path, "volume = 0.5\n").expect("setup works");
         let loaded = load_from(&path).expect("legacy file loads");
         assert!(!loaded.enrichment.musicbrainz);
+        assert!(loaded.notify.enabled, "legacy files keep notifications on");
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn notify_prefs_round_trip_and_legacy_files_default() {
+        let dir = scratch_dir("notify-prefs");
+        let path = dir.join("config.toml");
+        let mut config = TunexConfig::default();
+        config.notify.enabled = false;
+        config.notify.track_change = false;
+        save_to(&path, &config).expect("save works");
+        let back = load_from(&path).expect("reload works");
+        assert!(!back.notify.enabled);
+        assert!(!back.notify.track_change);
+        assert!(back.notify.playback_errors);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

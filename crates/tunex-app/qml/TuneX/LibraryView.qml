@@ -2,11 +2,12 @@ import QtQuick
 import TuneX
 
 // LibraryView (S2 W-016, S9 landing pages): browse the indexed library —
-// Tracks, Albums, Artists, Genres, Composers, Folders. Album and artist
-// cards open detail views; genre/composer rows filter tracks. Models load
-// from the index on completion; a missing index shows the empty state
-// (never an error). A Sort menu drives Rust ORDER BY. Scanned-folder
-// add/remove lives in Settings → Library.
+// Tracks, Albums, Artists, Genres, Composers, Folders. The left rail
+// switches those pages; this view's header is a per-page banner plus
+// Play all / Sort By. Album and artist cards open detail views;
+// genre/composer rows filter tracks. Models load from the index on
+// completion; a missing index shows the empty state (never an error).
+// Scanned-folder add/remove lives in Settings → Library.
 Item {
     id: root
 
@@ -55,6 +56,84 @@ Item {
         return qsTr("Tracks");
     }
 
+    function bannerSource() {
+        if (root.tab === "albums")
+            return "qrc:/qt/qml/TuneX/banner-albums.png";
+        if (root.tab === "artists")
+            return "qrc:/qt/qml/TuneX/banner-artists.png";
+        if (root.tab === "genres")
+            return "qrc:/qt/qml/TuneX/banner-genres.png";
+        if (root.tab === "composers")
+            return "qrc:/qt/qml/TuneX/banner-composers.png";
+        if (root.tab === "folders")
+            return "qrc:/qt/qml/TuneX/banner-folders.png";
+        return "qrc:/qt/qml/TuneX/banner-tracks.png";
+    }
+
+    function playAll() {
+        root.queue.clearQueue();
+        let added = 0;
+        if (root.tab === "folders" && root.folderDrilled)
+            added = root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc);
+        else if (root.tab === "songs")
+            added = root.queue.enqueueLibraryList("songs", "", root.songsSort, root.songsSortDesc);
+        else if (root.tab === "albums")
+            added = root.queue.enqueueLibraryList("albums", "", root.albumsSort, root.albumsSortDesc);
+        else if (root.tab === "artists")
+            added = root.queue.enqueueLibraryList("artists", "", root.artistsSort, root.artistsSortDesc);
+        else if (root.tab === "folders")
+            added = root.queue.enqueueLibraryList("folders", "", root.songsSort, root.songsSortDesc);
+        else if (root.tab === "genres")
+            added = root.queue.enqueueLibraryList("genres", "", "", false);
+        else if (root.tab === "composers")
+            added = root.queue.enqueueLibraryList("composers", "", "", false);
+
+        if (added > 0)
+            root.queue.playAt(0);
+    }
+
+    function playFacet() {
+        root.queue.clearQueue();
+        const kind = root.page === "composer" ? "composer" : "genre";
+        const added = root.queue.enqueueLibraryList(kind, root.facetName, root.songsSort, root.songsSortDesc);
+        if (added > 0)
+            root.queue.playAt(0);
+    }
+
+    function clearSelection() {
+        return songsSelection.clear() || facetSelection.clear() || albumDetail.clearSelection() || artistDetail.clearSelection();
+    }
+
+    function songsMimeIds() {
+        const rows = songsSelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = songs.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
+    }
+
+    function facetMimeIds() {
+        const rows = facetSelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = songs.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
+    }
+
+    TrackListSelection {
+        id: songsSelection
+    }
+
+    TrackListSelection {
+        id: facetSelection
+    }
+
     function sortSongs(key, descending) {
         root.songsSort = key;
         root.songsSortDesc = descending;
@@ -62,6 +141,7 @@ Item {
         songs.setSortDescending(descending);
         root.library.setSongsSort(key);
         root.library.setSongsSortDescending(descending);
+        songsSelection.clear();
     }
 
     function sortAlbums(key, descending) {
@@ -82,23 +162,6 @@ Item {
         root.library.setArtistsSortDescending(descending);
     }
 
-    function currentSortDesc() {
-        if (sortRow.showAlbumsSort)
-            return root.albumsSortDesc;
-        if (sortRow.showArtistsSort)
-            return root.artistsSortDesc;
-        return root.songsSortDesc;
-    }
-
-    function setSortDir(descending) {
-        if (sortRow.showAlbumsSort)
-            root.sortAlbums(root.albumsSort, descending);
-        else if (sortRow.showArtistsSort)
-            root.sortArtists(root.artistsSort, descending);
-        else
-            root.sortSongs(root.songsSort, descending);
-    }
-
     function showTab(key) {
         if (root.page !== "browse") {
             root.page = "browse";
@@ -108,6 +171,7 @@ Item {
             root.facetName = "";
         }
         root.tab = key;
+        root.clearSelection();
     }
 
     function applyRestoredPrefs() {
@@ -153,6 +217,7 @@ Item {
 
         songsView.currentIndex = at;
         trackMenu.trackId = songs.trackIdAt(at);
+        trackMenu.trackIds = songsSelection.contains(at) ? root.songsMimeIds() : "";
         trackMenu.popup();
     }
 
@@ -358,74 +423,75 @@ Item {
         anchors.margins: Theme.spaceLg
         spacing: Theme.spaceMd
 
-        // Header: tab strip (Songs / Albums / Artists / Folders browse) plus
-        // a shortcut into Settings → Library for scanned-folder management.
-        Item {
-            id: tabRow
-
+        PageBanner {
             width: parent.width
-            height: foldersButton.height
-
-            Row {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.spaceXs
-
-                Repeater {
-                    // Keys only, so the model stays a typed string list; the
-                    // translated label comes from `root.tabLabel`.
-                    model: ["songs", "albums", "artists", "genres", "composers", "folders"]
-
-                    Chip {
-                        required property string modelData
-
-                        label: root.tabLabel(modelData)
-                        selected: root.tab === modelData
-                        onActivated: root.showTab(modelData)
-                    }
-                }
-            }
-
-            PrimaryButton {
-                id: foldersButton
-
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                primary: false
-                text: qsTr("Music folders")
-                Accessible.name: qsTr("Manage music folders")
-                onClicked: root.settingsRequested(false)
-            }
+            title: root.tabLabel(root.tab)
+            source: root.bannerSource()
         }
 
-        // V1-basic sort: one compact Sort menu; order is applied in Rust.
-        Row {
+        // Play all is the one primary on browse; Sort By is secondary and
+        // trailing. Keys live in separate menus so hidden items cannot
+        // punch empty rows through the popup.
+        Item {
             id: sortRow
 
             readonly property bool showSongsSort: (root.tab === "songs" && !root.albumDrilled) || (root.tab === "folders" && root.folderDrilled)
             readonly property bool showAlbumsSort: root.tab === "albums"
             readonly property bool showArtistsSort: root.tab === "artists"
+            readonly property bool showSort: showSongsSort || showAlbumsSort || showArtistsSort
+            readonly property bool canPlayAll: {
+                if (root.tab === "songs" || (root.tab === "folders" && root.folderDrilled))
+                    return songsView.count > 0;
+                if (root.tab === "albums")
+                    return albumsView.count > 0;
+                if (root.tab === "artists")
+                    return artistsView.count > 0;
+                if (root.tab === "folders")
+                    return foldersView.count > 0;
+                return facetsView.count > 0;
+            }
 
-            visible: !root.libraryEmpty && (showSongsSort || showAlbumsSort || showArtistsSort)
+            visible: !root.libraryEmpty && root.showingBrowse
             width: parent.width
-            height: visible ? implicitHeight : 0
-            spacing: Theme.spaceXs
+            height: visible ? playAllButton.height : 0
+
+            PrimaryButton {
+                id: playAllButton
+
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                glyph: "play"
+                text: qsTr("Play all")
+                enabled: sortRow.canPlayAll
+                Accessible.name: qsTr("Play all shown")
+                onClicked: root.playAll()
+            }
 
             PrimaryButton {
                 id: sortButton
 
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                visible: sortRow.showSort
                 primary: false
                 glyph: "chevron-down"
                 glyphTrailing: true
-                text: qsTr("Sort")
-                Accessible.name: qsTr("Sort")
-                onClicked: sortMenu.popup(sortButton, 0, sortButton.height)
+                text: qsTr("Sort By")
+                Accessible.name: qsTr("Sort By")
+                onClicked: {
+                    if (sortRow.showAlbumsSort)
+                        albumsSortMenu.popup(sortButton, 0, sortButton.height);
+                    else if (sortRow.showArtistsSort)
+                        artistsSortMenu.popup(sortButton, 0, sortButton.height);
+                    else
+                        songsSortMenu.popup(sortButton, 0, sortButton.height);
+                }
             }
 
             GlassMenu {
-                id: sortMenu
+                id: songsSortMenu
 
                 GlassMenuItem {
-                    visible: sortRow.showSongsSort
                     text: qsTr("Title")
                     checkable: true
                     checked: root.songsSort === "title"
@@ -433,7 +499,6 @@ Item {
                 }
 
                 GlassMenuItem {
-                    visible: sortRow.showSongsSort
                     text: qsTr("Artist")
                     checkable: true
                     checked: root.songsSort === "artist"
@@ -441,7 +506,6 @@ Item {
                 }
 
                 GlassMenuItem {
-                    visible: sortRow.showSongsSort
                     text: qsTr("Album")
                     checkable: true
                     checked: root.songsSort === "album"
@@ -449,15 +513,33 @@ Item {
                 }
 
                 GlassMenuItem {
-                    visible: sortRow.showSongsSort
                     text: qsTr("Date")
                     checkable: true
                     checked: root.songsSort === "date"
                     onTriggered: root.sortSongs("date", root.songsSortDesc)
                 }
 
+                GlassMenuSeparator {}
+
                 GlassMenuItem {
-                    visible: sortRow.showAlbumsSort
+                    text: qsTr("Ascending")
+                    checkable: true
+                    checked: !root.songsSortDesc
+                    onTriggered: root.sortSongs(root.songsSort, false)
+                }
+
+                GlassMenuItem {
+                    text: qsTr("Descending")
+                    checkable: true
+                    checked: root.songsSortDesc
+                    onTriggered: root.sortSongs(root.songsSort, true)
+                }
+            }
+
+            GlassMenu {
+                id: albumsSortMenu
+
+                GlassMenuItem {
                     text: qsTr("Title")
                     checkable: true
                     checked: root.albumsSort === "title"
@@ -465,7 +547,6 @@ Item {
                 }
 
                 GlassMenuItem {
-                    visible: sortRow.showAlbumsSort
                     text: qsTr("Artist")
                     checkable: true
                     checked: root.albumsSort === "artist"
@@ -473,15 +554,33 @@ Item {
                 }
 
                 GlassMenuItem {
-                    visible: sortRow.showAlbumsSort
                     text: qsTr("Date")
                     checkable: true
                     checked: root.albumsSort === "date"
                     onTriggered: root.sortAlbums("date", root.albumsSortDesc)
                 }
 
+                GlassMenuSeparator {}
+
                 GlassMenuItem {
-                    visible: sortRow.showArtistsSort
+                    text: qsTr("Ascending")
+                    checkable: true
+                    checked: !root.albumsSortDesc
+                    onTriggered: root.sortAlbums(root.albumsSort, false)
+                }
+
+                GlassMenuItem {
+                    text: qsTr("Descending")
+                    checkable: true
+                    checked: root.albumsSortDesc
+                    onTriggered: root.sortAlbums(root.albumsSort, true)
+                }
+            }
+
+            GlassMenu {
+                id: artistsSortMenu
+
+                GlassMenuItem {
                     text: qsTr("Name")
                     checkable: true
                     checked: root.artistsSort === "name"
@@ -489,7 +588,6 @@ Item {
                 }
 
                 GlassMenuItem {
-                    visible: sortRow.showArtistsSort
                     text: qsTr("Tracks")
                     checkable: true
                     checked: root.artistsSort === "songs"
@@ -501,15 +599,15 @@ Item {
                 GlassMenuItem {
                     text: qsTr("Ascending")
                     checkable: true
-                    checked: !root.currentSortDesc()
-                    onTriggered: root.setSortDir(false)
+                    checked: !root.artistsSortDesc
+                    onTriggered: root.sortArtists(root.artistsSort, false)
                 }
 
                 GlassMenuItem {
                     text: qsTr("Descending")
                     checkable: true
-                    checked: root.currentSortDesc()
-                    onTriggered: root.setSortDir(true)
+                    checked: root.artistsSortDesc
+                    onTriggered: root.sortArtists(root.artistsSort, true)
                 }
             }
         }
@@ -552,7 +650,7 @@ Item {
 
                 primary: false
                 text: qsTr("Queue album")
-                Accessible.name: qsTr("Add this album to Up Next")
+                Accessible.name: qsTr("Add this album to Now Playing")
                 onClicked: root.queue.enqueueAlbum(root.albumId)
             }
 
@@ -603,7 +701,7 @@ Item {
 
                 primary: false
                 text: qsTr("Queue folder")
-                Accessible.name: qsTr("Queue this folder in Up Next")
+                Accessible.name: qsTr("Queue this folder in Now Playing")
                 onClicked: root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc)
             }
 
@@ -653,7 +751,19 @@ Item {
             activeFocusOnTab: true
             clip: true
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
+            header: SelectionBar {
+                width: songsView.width
+                queue: root.queue
+                playlists: root.playlists
+                count: songsSelection.count
+                trackIds: {
+                    songsSelection.stamp;
+                    return root.songsMimeIds();
+                }
+                onCleared: songsSelection.clear()
+            }
             Accessible.role: Accessible.List
+            Accessible.selectable: true
             Accessible.name: root.albumDrilled ? root.albumTitle : (root.folderDrilled ? root.folderTitle : qsTr("Tracks"))
             Keys.onReturnPressed: {
                 const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
@@ -666,6 +776,11 @@ Item {
                     root.queue.playTrackNow(songs.trackIdAt(at));
             }
             Keys.onPressed: event => {
+                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                    songsSelection.selectAll(songsView.count);
+                    event.accepted = true;
+                    return;
+                }
                 if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
                     root.openSongMenu(songsView.currentIndex >= 0 ? songsView.currentIndex : 0);
                     event.accepted = true;
@@ -686,6 +801,22 @@ Item {
                     event.accepted = true;
                 }
             }
+            Keys.onUpPressed: event => {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    const next = Math.max(0, songsView.currentIndex - 1);
+                    songsView.currentIndex = next;
+                    songsSelection.setRange(next);
+                    event.accepted = true;
+                }
+            }
+            Keys.onDownPressed: event => {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    const next = Math.min(songsView.count - 1, songsView.currentIndex + 1);
+                    songsView.currentIndex = next;
+                    songsSelection.setRange(next);
+                    event.accepted = true;
+                }
+            }
 
             highlight: Rectangle {
                 color: Theme.selected
@@ -694,12 +825,19 @@ Item {
 
             delegate: TrackRow {
                 trackId: model.trackId
+                rowIndex: index
                 title: model.title
                 artist: model.artist
                 trackNumber: model.trackNumber
                 durationMs: model.durationMs
                 missing: model.missing
+                selected: {
+                    songsSelection.stamp;
+                    return songsSelection.contains(index);
+                }
+                dragTrackIds: selected && root.songsMimeIds() !== "" ? root.songsMimeIds() : String(model.trackId)
                 onPlayRequested: (trackId, rowIndex, dangling) => {
+                    songsSelection.clear();
                     songsView.currentIndex = index;
                     songsView.forceActiveFocus();
                     if (!dangling && songs.isPlayableAt(index))
@@ -708,7 +846,16 @@ Item {
                 onMenuRequested: trackId => {
                     songsView.currentIndex = index;
                     trackMenu.trackId = trackId;
+                    trackMenu.trackIds = songsSelection.contains(index) ? root.songsMimeIds() : "";
                     trackMenu.popup();
+                }
+                onToggleSelectRequested: row => {
+                    songsView.currentIndex = row;
+                    songsSelection.toggle(row);
+                }
+                onRangeSelectRequested: row => {
+                    songsView.currentIndex = row;
+                    songsSelection.setRange(row);
                 }
             }
 
@@ -1141,14 +1288,25 @@ Item {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - Theme.targetMin - Theme.spaceSm
+                    width: parent.width - Theme.targetMin - playFacetButton.width - Theme.spaceSm * 2
                     elide: Text.ElideRight
                     text: root.facetName
                     textFormat: Text.PlainText
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontHeadline
-                    font.weight: Font.DemiBold
+                    font.weight: Font.Bold
                     color: Theme.foreground
+                }
+
+                PrimaryButton {
+                    id: playFacetButton
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    glyph: "play"
+                    text: qsTr("Play all")
+                    enabled: facetTracksView.count > 0
+                    Accessible.name: qsTr("Play all in %1").arg(root.facetName)
+                    onClicked: root.playFacet()
                 }
             }
 
@@ -1161,7 +1319,19 @@ Item {
                 clip: true
                 activeFocusOnTab: true
                 highlightMoveDuration: Appearance.duration(Theme.motionHover)
+                header: SelectionBar {
+                    width: facetTracksView.width
+                    queue: root.queue
+                    playlists: root.playlists
+                    count: facetSelection.count
+                    trackIds: {
+                        facetSelection.stamp;
+                        return root.facetMimeIds();
+                    }
+                    onCleared: facetSelection.clear()
+                }
                 Accessible.role: Accessible.List
+                Accessible.selectable: true
                 Accessible.name: root.facetName
                 Keys.onReturnPressed: {
                     const at = facetTracksView.currentIndex >= 0 ? facetTracksView.currentIndex : 0;
@@ -1173,6 +1343,28 @@ Item {
                     if (at < facetTracksView.count && songs.isPlayableAt(at))
                         root.queue.playTrackNow(songs.trackIdAt(at));
                 }
+                Keys.onPressed: event => {
+                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                        facetSelection.selectAll(facetTracksView.count);
+                        event.accepted = true;
+                    }
+                }
+                Keys.onUpPressed: event => {
+                    if (event.modifiers & Qt.ShiftModifier) {
+                        const next = Math.max(0, facetTracksView.currentIndex - 1);
+                        facetTracksView.currentIndex = next;
+                        facetSelection.setRange(next);
+                        event.accepted = true;
+                    }
+                }
+                Keys.onDownPressed: event => {
+                    if (event.modifiers & Qt.ShiftModifier) {
+                        const next = Math.min(facetTracksView.count - 1, facetTracksView.currentIndex + 1);
+                        facetTracksView.currentIndex = next;
+                        facetSelection.setRange(next);
+                        event.accepted = true;
+                    }
+                }
 
                 highlight: Rectangle {
                     color: Theme.selected
@@ -1181,12 +1373,19 @@ Item {
 
                 delegate: TrackRow {
                     trackId: model.trackId
+                    rowIndex: index
                     title: model.title
                     artist: model.artist
                     trackNumber: model.trackNumber
                     durationMs: model.durationMs
                     missing: model.missing
+                    selected: {
+                        facetSelection.stamp;
+                        return facetSelection.contains(index);
+                    }
+                    dragTrackIds: selected && root.facetMimeIds() !== "" ? root.facetMimeIds() : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
+                        facetSelection.clear();
                         facetTracksView.currentIndex = index;
                         if (!dangling && songs.isPlayableAt(index))
                             root.queue.playTrackNow(trackId);
@@ -1194,7 +1393,16 @@ Item {
                     onMenuRequested: (trackId, rowIndex, dangling) => {
                         facetTracksView.currentIndex = index;
                         trackMenu.trackId = trackId;
+                        trackMenu.trackIds = facetSelection.contains(index) ? root.facetMimeIds() : "";
                         trackMenu.popup();
+                    }
+                    onToggleSelectRequested: row => {
+                        facetTracksView.currentIndex = row;
+                        facetSelection.toggle(row);
+                    }
+                    onRangeSelectRequested: row => {
+                        facetTracksView.currentIndex = row;
+                        facetSelection.setRange(row);
                     }
                 }
             }

@@ -64,6 +64,22 @@ Item {
         songs.refreshAlbum(root.albumId);
         more.refreshForArtist(root.artistText, root.albumId);
         moreArtPump.start();
+        trackSelection.clear();
+    }
+
+    function clearSelection() {
+        return trackSelection.clear();
+    }
+
+    function trackMimeIds() {
+        const rows = trackSelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = songs.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
     }
 
     function openSongMenu(at) {
@@ -71,6 +87,7 @@ Item {
             return;
         tracksView.currentIndex = at;
         trackMenu.trackId = songs.trackIdAt(at);
+        trackMenu.trackIds = trackSelection.contains(at) ? root.trackMimeIds() : "";
         trackMenu.popup();
     }
 
@@ -78,6 +95,10 @@ Item {
 
     LibraryTrackModel {
         id: songs
+    }
+
+    TrackListSelection {
+        id: trackSelection
     }
 
     AlbumListModel {
@@ -202,7 +223,19 @@ Item {
             clip: true
             activeFocusOnTab: true
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
+            header: SelectionBar {
+                width: tracksView.width
+                queue: root.queue
+                playlists: root.playlists
+                count: trackSelection.count
+                trackIds: {
+                    trackSelection.stamp;
+                    return root.trackMimeIds();
+                }
+                onCleared: trackSelection.clear()
+            }
             Accessible.role: Accessible.List
+            Accessible.selectable: true
             Accessible.name: qsTr("Album tracks")
             Keys.onReturnPressed: {
                 const at = tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0;
@@ -214,6 +247,28 @@ Item {
                 if (at < tracksView.count && songs.isPlayableAt(at))
                     root.queue.playTrackNow(songs.trackIdAt(at));
             }
+            Keys.onPressed: event => {
+                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                    trackSelection.selectAll(tracksView.count);
+                    event.accepted = true;
+                }
+            }
+            Keys.onUpPressed: event => {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    const next = Math.max(0, tracksView.currentIndex - 1);
+                    tracksView.currentIndex = next;
+                    trackSelection.setRange(next);
+                    event.accepted = true;
+                }
+            }
+            Keys.onDownPressed: event => {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    const next = Math.min(tracksView.count - 1, tracksView.currentIndex + 1);
+                    tracksView.currentIndex = next;
+                    trackSelection.setRange(next);
+                    event.accepted = true;
+                }
+            }
 
             highlight: Rectangle {
                 color: Theme.selected
@@ -222,12 +277,19 @@ Item {
 
             delegate: TrackRow {
                 trackId: model.trackId
+                rowIndex: index
                 title: model.title
                 artist: model.artist
                 trackNumber: model.trackNumber
                 durationMs: model.durationMs
                 missing: model.missing
+                selected: {
+                    trackSelection.stamp;
+                    return trackSelection.contains(index);
+                }
+                dragTrackIds: selected && root.trackMimeIds() !== "" ? root.trackMimeIds() : String(model.trackId)
                 onPlayRequested: (trackId, rowIndex, dangling) => {
+                    trackSelection.clear();
                     tracksView.currentIndex = index;
                     if (!dangling && songs.isPlayableAt(index))
                         root.queue.playTrackNow(trackId);
@@ -235,6 +297,14 @@ Item {
                 onMenuRequested: (trackId, rowIndex, dangling) => {
                     tracksView.currentIndex = index;
                     root.openSongMenu(index);
+                }
+                onToggleSelectRequested: row => {
+                    tracksView.currentIndex = row;
+                    trackSelection.toggle(row);
+                }
+                onRangeSelectRequested: row => {
+                    tracksView.currentIndex = row;
+                    trackSelection.setRange(row);
                 }
             }
         }

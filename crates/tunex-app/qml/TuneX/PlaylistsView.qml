@@ -23,9 +23,29 @@ Item {
         root.playlistName = name;
         root.playlistIsSmart = playlists.isSmart(id);
         root.errorLine = "";
+        entrySelection.clear();
         entries.refreshPlaylist(id);
         root.errorLine = entries.errorText();
         root.syncSidebarCursor();
+    }
+
+    function clearSelection() {
+        return entrySelection.clear();
+    }
+
+    function entryMimeIds() {
+        const rows = entrySelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = entries.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
+    }
+
+    TrackListSelection {
+        id: entrySelection
     }
 
     // The sidebar highlight follows the open playlist, however it opened
@@ -172,7 +192,7 @@ Item {
         }
 
         GlassMenuItem {
-            text: qsTr("Queue in Up Next")
+            text: qsTr("Add to Now Playing")
             enabled: entryMenu.rowPlayable
             onTriggered: root.queue.enqueueTrack(entryMenu.rowTrackId)
         }
@@ -225,308 +245,72 @@ Item {
         }
     }
 
-    Row {
+    Column {
         anchors.fill: parent
         anchors.margins: Theme.spaceLg
         spacing: Theme.spaceLg
 
-        // Sidebar: playlists with counts plus the create entry.
-        Column {
-            width: Theme.panelWidth
-            height: parent.height
-            spacing: Theme.spaceMd
+        PageBanner {
+            id: playlistsBanner
 
-            // Secondary: Play all owns the view's one primary action.
-            PrimaryButton {
-                id: newButton
-
-                width: parent.width
-                primary: false
-                glyph: "plus"
-                text: qsTr("New playlist")
-                Accessible.name: qsTr("New playlist")
-                onClicked: root.openCreate()
-            }
-
-            PrimaryButton {
-                id: smartButton
-
-                width: parent.width
-                primary: false
-                text: qsTr("Smart playlist")
-                Accessible.name: qsTr("Smart playlist")
-                onClicked: root.openSmart()
-            }
-
-            ListView {
-                id: playlistsView
-
-                width: parent.width
-                height: parent.height - newButton.height - smartButton.height - Theme.spaceMd * 2
-                model: playlists
-                activeFocusOnTab: true
-                clip: true
-                highlightMoveDuration: Appearance.duration(Theme.motionHover)
-                Accessible.role: Accessible.List
-                Accessible.name: qsTr("Playlists")
-                Keys.onReturnPressed: {
-                    const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
-                    if (at < playlistsView.count)
-                        root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
-                }
-                Keys.onEnterPressed: {
-                    const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
-                    if (at < playlistsView.count)
-                        root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
-                }
-
-                highlight: Rectangle {
-                    color: Theme.selected
-                    radius: Theme.radiusSm
-                }
-
-                delegate: Item {
-                    id: sidebarRow
-
-                    // Model roles as required delegate properties (the rail's
-                    // playlist entries take the same shape): the row reads
-                    // them, never stores state of its own. `index` joins them
-                    // because a delegate with required properties no longer
-                    // receives the context properties.
-                    required property int index
-                    required property string name
-                    required property int trackCount
-                    required property int playlistId
-
-                    width: playlistsView.width
-                    height: Theme.trackRowHeight
-                    Accessible.role: Accessible.ListItem
-                    Accessible.name: sidebarRow.name
-
-                    // Hover surface, 120ms colour-only like the track rows;
-                    // the selected row keeps the view's own highlight.
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: Theme.radiusSm
-                        color: sidebarArea.containsMouse ? Theme.hover : "transparent"
-
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: Appearance.duration(Theme.motionHover)
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        id: sidebarArea
-
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            playlistsView.currentIndex = sidebarRow.index;
-                            root.selectPlaylist(sidebarRow.playlistId, sidebarRow.name);
-                        }
-                    }
-
-                    Column {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.spaceMd
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.spaceMd
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 0
-
-                        Text {
-                            width: parent.width
-                            elide: Text.ElideRight
-                            clip: true
-                            text: sidebarRow.name
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            font.weight: root.playlistId === sidebarRow.playlistId ? Font.DemiBold : Font.Normal
-                            lineHeight: Theme.listLineHeight
-                            color: Theme.foreground
-                        }
-
-                        Text {
-                            width: parent.width
-                            elide: Text.ElideRight
-                            text: sidebarRow.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(sidebarRow.trackCount)
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontCaption
-                            lineHeight: Theme.listLineHeight
-                            color: Theme.muted
-                        }
-                    }
-                }
-            }
+            width: parent.width
+            title: qsTr("Playlists")
+            source: "qrc:/qt/qml/TuneX/banner-playlists.png"
         }
 
-        // Detail pane: header actions plus the entry list.
-        Column {
-            width: parent.width - Theme.panelWidth - Theme.spaceLg
-            height: parent.height
-            spacing: Theme.spaceMd
+        Row {
+            width: parent.width
+            height: parent.height - playlistsBanner.height - Theme.spaceLg
+            spacing: Theme.spaceLg
 
+            // Sidebar: playlists with counts plus the create entry.
             Column {
-                id: detailHeader
+                width: Theme.panelWidth
+                height: parent.height
+                spacing: Theme.spaceMd
 
-                visible: root.playlistId >= 0
-                width: parent.width
-                height: visible ? implicitHeight : 0
-                spacing: Theme.spaceSm
+                // Secondary: Play all owns the view's one primary action.
+                PrimaryButton {
+                    id: newButton
 
-                Text {
                     width: parent.width
-                    elide: Text.ElideRight
-                    clip: true
-                    text: root.playlistName
-                    textFormat: Text.PlainText
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontTitle
-                    font.weight: Font.DemiBold
-                    color: Theme.foreground
+                    primary: false
+                    glyph: "plus"
+                    text: qsTr("New playlist")
+                    Accessible.name: qsTr("New playlist")
+                    onClicked: root.openCreate()
                 }
 
-                Row {
-                    spacing: Theme.spaceSm
+                PrimaryButton {
+                    id: smartButton
 
-                    PrimaryButton {
-                        id: playAllButton
-
-                        glyph: "play"
-                        text: qsTr("Play all")
-                        enabled: entriesView.count > 0
-                        onClicked: root.playAll()
-                    }
-
-                    PrimaryButton {
-                        id: queueAllButton
-
-                        primary: false
-                        text: qsTr("Queue all")
-                        enabled: entriesView.count > 0
-                        onClicked: root.queue.enqueuePlaylist(root.playlistId)
-                    }
-
-                    // Rename and delete are secondary: one ⋯ entry, not a
-                    // toolbar (IA progressive-disclosure map).
-                    IconButton {
-                        id: moreButton
-
-                        anchors.verticalCenter: parent.verticalCenter
-                        iconName: "ellipsis"
-                        accessibleName: qsTr("More actions for %1").arg(root.playlistName)
-                        onActivated: playlistMenu.popup(moreButton, 0, moreButton.height)
-                    }
-                }
-            }
-
-            Text {
-                id: errorText
-
-                visible: root.errorLine !== ""
-                width: parent.width
-                height: visible ? implicitHeight : 0
-                clip: true
-                wrapMode: Text.WordWrap
-                text: root.errorLine
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
-                color: Theme.error
-            }
-
-            Item {
-                width: parent.width
-                height: parent.height - detailHeader.height - errorText.height - Theme.spaceMd * 2
-
-                EmptyState {
-                    visible: playlistsView.count === 0 && root.playlistId < 0
-                    title: qsTr("No playlists yet")
-                    note: qsTr("Create a playlist, then add songs from any row menu.")
-                    actionLabel: qsTr("New playlist")
-                    onActionRequested: root.openCreate()
-                }
-
-                EmptyState {
-                    visible: playlistsView.count > 0 && root.playlistId < 0
-                    title: qsTr("No playlist selected")
-                    note: qsTr("Choose a playlist on the left, or create one to get started.")
-                    actionLabel: qsTr("New playlist")
-                    onActionRequested: root.openCreate()
-                }
-
-                EmptyState {
-                    visible: root.playlistId >= 0 && entriesView.count === 0
-                    title: qsTr("This playlist is empty")
-                    note: root.playlistIsSmart ? qsTr("No tracks match this rule yet.") : qsTr("Add songs from any row menu, then play the whole list here.")
+                    width: parent.width
+                    primary: false
+                    text: qsTr("Smart playlist")
+                    Accessible.name: qsTr("Smart playlist")
+                    onClicked: root.openSmart()
                 }
 
                 ListView {
-                    id: entriesView
+                    id: playlistsView
 
-                    visible: root.playlistId >= 0 && count > 0
-                    anchors.fill: parent
-                    model: entries
+                    width: parent.width
+                    height: parent.height - newButton.height - smartButton.height - Theme.spaceMd * 2
+                    model: playlists
                     activeFocusOnTab: true
                     clip: true
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
-                    Accessible.name: root.playlistName
+                    Accessible.name: qsTr("Playlists")
                     Keys.onReturnPressed: {
-                        const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
-                        if (at < entriesView.count && entries.isPlayableAt(at))
-                            root.queue.playTrackNow(entries.trackIdAt(at));
+                        const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
+                        if (at < playlistsView.count)
+                            root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
                     }
                     Keys.onEnterPressed: {
-                        const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
-                        if (at < entriesView.count && entries.isPlayableAt(at))
-                            root.queue.playTrackNow(entries.trackIdAt(at));
-                    }
-                    Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                            const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
-                            if (at < entriesView.count) {
-                                entriesView.currentIndex = at;
-                                entryMenu.rowIndex = at;
-                                entryMenu.rowTrackId = entries.trackIdAt(at);
-                                entryMenu.rowPlayable = entries.isPlayableAt(at);
-                                entryMenu.popup();
-                                event.accepted = true;
-                            }
-                        }
-                    }
-                    Keys.onDeletePressed: {
-                        if (entriesView.currentIndex >= 0 && entriesView.currentIndex < entriesView.count) {
-                            entries.removeAt(entriesView.currentIndex);
-                            playlists.refresh();
-                            root.errorLine = entries.errorText();
-                        }
-                    }
-                    Keys.onUpPressed: event => {
-                        if (event.modifiers & Qt.AltModifier) {
-                            const from = entriesView.currentIndex;
-                            if (from > 0) {
-                                entries.moveItem(from, from - 1);
-                                entriesView.currentIndex = from - 1;
-                            }
-                            event.accepted = true;
-                        }
-                    }
-                    Keys.onDownPressed: event => {
-                        if (event.modifiers & Qt.AltModifier) {
-                            const from = entriesView.currentIndex;
-                            if (from >= 0 && from + 1 < entriesView.count) {
-                                entries.moveItem(from, from + 1);
-                                entriesView.currentIndex = from + 1;
-                            }
-                            event.accepted = true;
-                        }
+                        const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
+                        if (at < playlistsView.count)
+                            root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
                     }
 
                     highlight: Rectangle {
@@ -534,26 +318,352 @@ Item {
                         radius: Theme.radiusSm
                     }
 
-                    delegate: TrackRow {
-                        trackId: model.trackId
-                        rowIndex: index
-                        title: model.title
-                        artist: model.artist
-                        durationMs: model.durationMs
-                        missing: model.missing
-                        dangling: model.dangling
-                        onPlayRequested: (trackId, rowIndex, dangling) => {
-                            entriesView.currentIndex = rowIndex;
-                            entriesView.forceActiveFocus();
-                            if (!dangling && entries.isPlayableAt(rowIndex))
-                                root.queue.playTrackNow(trackId);
+                    delegate: Item {
+                        id: sidebarRow
+
+                        // Model roles as required delegate properties (the rail's
+                        // playlist entries take the same shape): the row reads
+                        // them, never stores state of its own. `index` joins them
+                        // because a delegate with required properties no longer
+                        // receives the context properties.
+                        required property int index
+                        required property string name
+                        required property int trackCount
+                        required property int playlistId
+
+                        width: playlistsView.width
+                        height: Theme.trackRowHeight
+                        Accessible.role: Accessible.ListItem
+                        Accessible.name: sidebarRow.name
+
+                        // Hover surface, 120ms colour-only like the track rows;
+                        // the selected row keeps the view's own highlight.
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: Theme.radiusSm
+                            color: sidebarArea.containsMouse ? Theme.hover : "transparent"
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: Appearance.duration(Theme.motionHover)
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
                         }
-                        onMenuRequested: (trackId, rowIndex, dangling) => {
-                            entriesView.currentIndex = rowIndex;
-                            entryMenu.rowIndex = rowIndex;
-                            entryMenu.rowTrackId = trackId;
-                            entryMenu.rowPlayable = !dangling && entries.isPlayableAt(rowIndex);
-                            entryMenu.popup();
+
+                        MouseArea {
+                            id: sidebarArea
+
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                playlistsView.currentIndex = sidebarRow.index;
+                                root.selectPlaylist(sidebarRow.playlistId, sidebarRow.name);
+                            }
+                        }
+
+                        TrackDropArea {
+                            anchors.fill: parent
+                            enabled: !root.playlists.isSmart(sidebarRow.playlistId)
+                            onTracksDropped: ids => {
+                                if (!root.playlists.isSmart(sidebarRow.playlistId))
+                                    root.playlists.addTracks(sidebarRow.playlistId, ids);
+                            }
+                        }
+
+                        Column {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.spaceMd
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.spaceMd
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 0
+
+                            Text {
+                                width: parent.width
+                                elide: Text.ElideRight
+                                clip: true
+                                text: sidebarRow.name
+                                textFormat: Text.PlainText
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontBody
+                                font.weight: root.playlistId === sidebarRow.playlistId ? Font.DemiBold : Font.Normal
+                                lineHeight: Theme.listLineHeight
+                                color: Theme.foreground
+                            }
+
+                            Text {
+                                width: parent.width
+                                elide: Text.ElideRight
+                                text: sidebarRow.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(sidebarRow.trackCount)
+                                textFormat: Text.PlainText
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontCaption
+                                lineHeight: Theme.listLineHeight
+                                color: Theme.muted
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Detail pane: header actions plus the entry list.
+            Column {
+                width: parent.width - Theme.panelWidth - Theme.spaceLg
+                height: parent.height
+                spacing: Theme.spaceMd
+
+                Column {
+                    id: detailHeader
+
+                    visible: root.playlistId >= 0
+                    width: parent.width
+                    height: visible ? implicitHeight : 0
+                    spacing: Theme.spaceSm
+
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        clip: true
+                        text: root.playlistName
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontTitle
+                        font.weight: Font.DemiBold
+                        color: Theme.foreground
+                    }
+
+                    Row {
+                        spacing: Theme.spaceSm
+
+                        PrimaryButton {
+                            id: playAllButton
+
+                            glyph: "play"
+                            text: qsTr("Play all")
+                            enabled: entriesView.count > 0
+                            onClicked: root.playAll()
+                        }
+
+                        PrimaryButton {
+                            id: queueAllButton
+
+                            primary: false
+                            text: qsTr("Queue all")
+                            enabled: entriesView.count > 0
+                            onClicked: root.queue.enqueuePlaylist(root.playlistId)
+                        }
+
+                        // Rename and delete are secondary: one ⋯ entry, not a
+                        // toolbar (IA progressive-disclosure map).
+                        IconButton {
+                            id: moreButton
+
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconName: "ellipsis"
+                            accessibleName: qsTr("More actions for %1").arg(root.playlistName)
+                            onActivated: playlistMenu.popup(moreButton, 0, moreButton.height)
+                        }
+                    }
+                }
+
+                Text {
+                    id: errorText
+
+                    visible: root.errorLine !== ""
+                    width: parent.width
+                    height: visible ? implicitHeight : 0
+                    clip: true
+                    wrapMode: Text.WordWrap
+                    text: root.errorLine
+                    textFormat: Text.PlainText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontCaption
+                    color: Theme.error
+                }
+
+                Item {
+                    width: parent.width
+                    height: parent.height - detailHeader.height - errorText.height - Theme.spaceMd * 2
+
+                    EmptyState {
+                        visible: playlistsView.count === 0 && root.playlistId < 0
+                        title: qsTr("No playlists yet")
+                        note: qsTr("Create a playlist, then add songs from any row menu.")
+                        actionLabel: qsTr("New playlist")
+                        onActionRequested: root.openCreate()
+                    }
+
+                    EmptyState {
+                        visible: playlistsView.count > 0 && root.playlistId < 0
+                        title: qsTr("No playlist selected")
+                        note: qsTr("Choose a playlist on the left, or create one to get started.")
+                        actionLabel: qsTr("New playlist")
+                        onActionRequested: root.openCreate()
+                    }
+
+                    EmptyState {
+                        visible: root.playlistId >= 0 && entriesView.count === 0
+                        title: qsTr("This playlist is empty")
+                        note: root.playlistIsSmart ? qsTr("No tracks match this rule yet.") : qsTr("Add songs from any row menu, then play the whole list here.")
+                    }
+
+                    TrackDropArea {
+                        anchors.fill: parent
+                        enabled: root.playlistId >= 0 && !root.playlistIsSmart
+                        onTracksDropped: ids => {
+                            if (root.playlistId >= 0 && !root.playlistIsSmart)
+                                root.playlists.addTracks(root.playlistId, ids);
+                        }
+                    }
+
+                    ListView {
+                        id: entriesView
+
+                        visible: root.playlistId >= 0 && count > 0
+                        anchors.fill: parent
+                        model: entries
+                        activeFocusOnTab: true
+                        clip: true
+                        highlightMoveDuration: Appearance.duration(Theme.motionHover)
+                        header: SelectionBar {
+                            width: entriesView.width
+                            queue: root.queue
+                            playlists: root.playlists
+                            count: entrySelection.count
+                            trackIds: {
+                                entrySelection.stamp;
+                                return root.entryMimeIds();
+                            }
+                            showRemove: !root.playlistIsSmart
+                            onCleared: entrySelection.clear()
+                            onRemoveRequested: {
+                                const rows = entrySelection.sorted().reverse();
+                                for (let i = 0; i < rows.length; i++)
+                                    entries.removeAt(rows[i]);
+                                playlists.refresh();
+                                entrySelection.clear();
+                            }
+                        }
+                        Accessible.role: Accessible.List
+                        Accessible.name: root.playlistName
+                        Keys.onReturnPressed: {
+                            const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
+                            if (at < entriesView.count && entries.isPlayableAt(at))
+                                root.queue.playTrackNow(entries.trackIdAt(at));
+                        }
+                        Keys.onEnterPressed: {
+                            const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
+                            if (at < entriesView.count && entries.isPlayableAt(at))
+                                root.queue.playTrackNow(entries.trackIdAt(at));
+                        }
+                        Accessible.selectable: true
+                        Keys.onPressed: event => {
+                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                                entrySelection.selectAll(entriesView.count);
+                                event.accepted = true;
+                                return;
+                            }
+                            if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                                const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
+                                if (at < entriesView.count) {
+                                    entriesView.currentIndex = at;
+                                    entryMenu.rowIndex = at;
+                                    entryMenu.rowTrackId = entries.trackIdAt(at);
+                                    entryMenu.rowPlayable = entries.isPlayableAt(at);
+                                    entryMenu.popup();
+                                    event.accepted = true;
+                                }
+                            }
+                        }
+                        Keys.onDeletePressed: {
+                            if (entriesView.currentIndex >= 0 && entriesView.currentIndex < entriesView.count) {
+                                entries.removeAt(entriesView.currentIndex);
+                                playlists.refresh();
+                                root.errorLine = entries.errorText();
+                            }
+                        }
+                        Keys.onUpPressed: event => {
+                            if (event.modifiers & Qt.AltModifier) {
+                                const from = entriesView.currentIndex;
+                                if (from > 0 && !root.playlistIsSmart) {
+                                    entries.moveItem(from, from - 1);
+                                    entriesView.currentIndex = from - 1;
+                                }
+                                event.accepted = true;
+                                return;
+                            }
+                            if (event.modifiers & Qt.ShiftModifier) {
+                                const next = Math.max(0, entriesView.currentIndex - 1);
+                                entriesView.currentIndex = next;
+                                entrySelection.setRange(next);
+                                event.accepted = true;
+                            }
+                        }
+                        Keys.onDownPressed: event => {
+                            if (event.modifiers & Qt.AltModifier) {
+                                const from = entriesView.currentIndex;
+                                if (from >= 0 && from + 1 < entriesView.count && !root.playlistIsSmart) {
+                                    entries.moveItem(from, from + 1);
+                                    entriesView.currentIndex = from + 1;
+                                }
+                                event.accepted = true;
+                                return;
+                            }
+                            if (event.modifiers & Qt.ShiftModifier) {
+                                const next = Math.min(entriesView.count - 1, entriesView.currentIndex + 1);
+                                entriesView.currentIndex = next;
+                                entrySelection.setRange(next);
+                                event.accepted = true;
+                            }
+                        }
+
+                        highlight: Rectangle {
+                            color: Theme.selected
+                            radius: Theme.radiusSm
+                        }
+
+                        delegate: TrackRow {
+                            trackId: model.trackId
+                            rowIndex: index
+                            title: model.title
+                            artist: model.artist
+                            durationMs: model.durationMs
+                            missing: model.missing
+                            dangling: model.dangling
+                            reorderable: !root.playlistIsSmart
+                            selected: {
+                                entrySelection.stamp;
+                                return entrySelection.contains(index);
+                            }
+                            dragTrackIds: selected && root.entryMimeIds() !== "" ? root.entryMimeIds() : String(model.trackId)
+                            onPlayRequested: (trackId, rowIndex, dangling) => {
+                                entrySelection.clear();
+                                entriesView.currentIndex = rowIndex;
+                                entriesView.forceActiveFocus();
+                                if (!dangling && entries.isPlayableAt(rowIndex))
+                                    root.queue.playTrackNow(trackId);
+                            }
+                            onMenuRequested: (trackId, rowIndex, dangling) => {
+                                entriesView.currentIndex = rowIndex;
+                                entryMenu.rowIndex = rowIndex;
+                                entryMenu.rowTrackId = trackId;
+                                entryMenu.rowPlayable = !dangling && entries.isPlayableAt(rowIndex);
+                                entryMenu.popup();
+                            }
+                            onReorderRequested: (from, to) => {
+                                if (!root.playlistIsSmart)
+                                    entries.moveItem(from, to);
+                            }
+                            onToggleSelectRequested: row => {
+                                entriesView.currentIndex = row;
+                                entrySelection.toggle(row);
+                            }
+                            onRangeSelectRequested: row => {
+                                entriesView.currentIndex = row;
+                                entrySelection.setRange(row);
+                            }
                         }
                     }
                 }

@@ -21,7 +21,7 @@ Three principles maximum. Each resolves a tension from the evidence (SPEC + mock
 - **Philosophy**: Frosted Obsidian / Modern Audio Workstation (per SPEC §18). Dark-first, atmospheric, restrained depth — closer to a high-end listening bar at night than to a dashboard.
 - **Tone**: Calm, nocturnal, confident, premium. Warm-neutral text on blue-black surfaces; a single electric-blue accent used sparingly, like a pilot light.
 - **Reference points**: `docs/mockup.png` is the canonical visual reference — three-column shell (icon+label rail / content with hero + chip strip + card rails / Now Playing panel), pill search, blue accent, card/row/transport styling. **Layout, chrome, and component styling follow the mockup; content follows the adaptation map below** (local library, never streaming content). SPEC §§18–23 (glass hierarchy, token system, animation restraint).
-- **Mockup adaptation map (look like the mockup, behave like TuneX):** hero copy → local greeting + single "Play Something" action (mockup's secondary "Discover" button omitted — rails + search cover it) · genre chip strip → Genres filter backed by library data · "Trending Now" rail → Recently Played · "Made for You / Discover Weekly / Daily Mix" cards → user playlists + Recently Added (same card component, local data only) · "Liked Songs" → Favorites · Lyrics/About/Related tabs → Up Next queue (lyrics deferred post-V1) · bell/avatar chrome → removed, no accounts (settings gear stays).
+- **Mockup adaptation map (look like the mockup, behave like TuneX):** hero copy → local greeting + single "Play Something" action (mockup's secondary "Discover" button omitted — rails + search cover it) · genre chip strip → Genres filter backed by library data · "Trending Now" rail → Recently Played · "Made for You / Discover Weekly / Daily Mix" cards → user playlists + Recently Added (same card component, local data only) · "Liked Songs" → Favorites · Lyrics/About/Related tabs → Now Playing list (lyrics are a local overlay toggle, not tabs) · bell/avatar chrome → removed, no accounts (settings gear stays).
 - **Anti-references**: streaming *service* patterns must NOT ship in V1 — accounts, avatars, commerce, algorithmic recommendations, trending charts. Also not: neon gamer aesthetics, giant rounded cards everywhere, low-contrast gray-on-black body text, GNOME-Adwaita-default look, web-app-in-a-window feel.
 
 ## Existing Patterns
@@ -42,18 +42,20 @@ Greenfield UI — no code, no tokens, no components exist yet (verified 2026-09-
 | TopBar (back/fwd, SearchBar, settings entry) | New | Search field is the global command point |
 | SearchBar | New | Pill, debounced ~150ms, focus shortcut |
 | HeroCard (home greeting) | New | Artwork/gradient backdrop, greeting by time of day, single primary action |
+| PageBanner | New | 128px content-pane banner unique per browse/search/playlists page; title overlay only |
 | AlbumCard / ArtistCard / PlaylistCard | New | Artwork-first, 12px radius, two-line meta |
 | TrackRow / TrackList (virtualized) | New | Opaque rows, hover + playing states, duration + explicit position |
 | Artwork (async, multi-resolution) | New | Placeholder → thumbnail → full; never UI-thread decode |
 | MiniPlayer (persistent transport) | New | Art thumb, title/artist, favorite, controls, progress, volume, queue toggle. Bottom bar when right panel is hidden (<1280px); right-panel summary at full width |
 | NowPlaying panel | New | Strong-glass signature surface: large art, meta, progress, transport |
 | ProgressBar / VolumeControl | New | Thin track, blue fill, scrub without stutter |
-| QueuePanel (Up Next) | New | Reorder-capable list, currently-playing marker |
+| QueuePanel (Now Playing) | New | Reorder-capable session playlist, currently-playing marker, drop target |
+| SelectionBar | New | Transient multi-select chrome over TrackRow lists |
 | PlaylistDetail header + rows | New | Reuses TrackList; header with art mosaic + actions |
 | GlassPanel / GlassSurface dialog + menu | New | Dialogs and context menus only; rows stay opaque |
 | EmptyState (no library / no results / missing files) | New | Explicit, actionable (add folder, rescan, reveal in files) |
 | ScanProgress indicator | New | Counts + % in library view; non-blocking |
-| SettingsView | New | List-detail: Library (music folders), Playback, Appearance, Shortcuts |
+| SettingsView | New | List-detail: Library, Playback, Notifications, Appearance, Shortcuts |
 | SettingsToggle | New | 44px row switch; whole row is the target |
 | TrayPopup | New | Compact tray card: now-playing + transport; Quit / Show TuneX |
 
@@ -62,7 +64,7 @@ Greenfield UI — no code, no tokens, no components exist yet (verified 2026-09-
 - **Play in under 30 seconds (first run):** empty state → Add folder opens Settings → Library (native dialog) → live scan counts → first artwork appears → Play Something shuffles something immediately. Scanning never blocks browsing.
 - **Transport feedback:** play/pause icon morphs instantly on press (<50ms), before the pipeline confirms; artwork crossfades ~180ms on track change; progress thumb grows on hover for grab-ability.
 - **Search as you type:** keystroke → debounced query → grouped results (Songs / Albums / Artists) replace content in place; Escape clears and returns focus to the list; stale results never overwrite newer ones.
-- **Queue as instrument:** "Play next" / "Add to Up Next" from any row menu; drag or keyboard-reorder in Up Next; the playing row is always marked; clearing the queue never stops the current track.
+- **Queue as instrument:** "Play next" / "Add to Now Playing" from any row menu; drag or keyboard-reorder in Now Playing; drop songs onto the list; Ctrl/Shift multi-select then Play / Add / New playlist; the playing row is always marked; clearing the queue never stops the current track.
 - **Now Playing expand:** persistent-player click (mini-player bar or right-panel summary) or shortcut opens the glass Now Playing surface over content (same state, larger art); close returns to exact scroll position.
 - **Honest states:** missing art → generated placeholder; unknown tags → "Unknown" (never guessed); missing files → dimmed row + "File missing" with reveal/rescan actions; corrupt file → toast naming the file, playback continues to next.
 - **Micro-motion budget:** 120–220ms, ease-out, one property per transition. No entrance choreography, no parallax, no animated gradients.
@@ -72,7 +74,7 @@ Greenfield UI — no code, no tokens, no components exist yet (verified 2026-09-
 The interface follows progressive disclosure throughout (Hick's + Miller's laws): essential actions are visible; advanced and secondary controls reveal on demand. One explicit affordance per hidden layer — never mystery meat.
 
 - Track rows show title/artist/duration; hover (or focus) reveals play + ⋯ actions. Touch and keyboard users get an always-visible 44px ⋯ target — hover-only controls are a bug.
-- Queue lives in the Up Next drawer; Now Playing expands to overlay. Secondary surfaces never get top-level nav items.
+- Queue lives in the Now Playing drawer/rail; Now Playing overlay expands the same session playlist. Secondary surfaces never get top-level nav items.
 - Search groups show top hits with "See all" escalation; chip strips collapse extras behind "More".
 - Settings shows common options first; advanced (watcher status, cache controls, shortcut reference) sits one level deeper per section.
 - Context menus carry row/playlist operations instead of toolbars of icon buttons.
@@ -86,7 +88,7 @@ All UI work must load and follow three skills (see `AGENTS.md`): `craft-beautifu
 
 Desktop-only product (no mobile breakpoints). Window classes:
 
-- **≥1280px:** full three-column home — rail 216px, fluid content, Now Playing/Up Next panel 288px (the persistent player; no bottom bar at this width, per the mockup).
+- **≥1280px:** full three-column home — rail 216px, fluid content, Now Playing panel 288px (the persistent player; no bottom bar at this width, per the mockup).
 - **1024–1279px:** right panel becomes an overlay drawer (toggle from the top bar); bottom mini-player bar appears as the persistent player; content grid drops one column.
 - **800–1023px:** single column; rail collapses to icon strip 64px with tooltips; Now Playing is full overlay.
 - **Minimum 960×640**, enforced by window. High-DPI scales via Qt devicePixelRatio; artwork grid uses fluid 152–200px cards, never fixed counts. No component changes *meaning* across sizes — only placement and column counts.

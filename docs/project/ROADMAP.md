@@ -78,5 +78,23 @@
 - **Validation:** `cargo test` lyrics/profiles/enrichment-off; `scripts/qml-lint.sh`; enrichment off for `scripts/netoff-rehearsal.sh`
 - **Status:** done (W-064–W-066, 2026-09-13)
 
+## Slice S14 — Seek, notifications, Now Playing chrome, DnD, multi-select
+- **Acceptance:** Seek slider grabs and lands (coalesced FLUSH); track-change toasts only when unfocused; right rail is Now Playing; playlist + Now Playing reorder and accept dropped TrackRows; TrackRow multi-select with Play / Add / New playlist. Library browse lists stay Sort By only.
+- **Requirements:** R-007, R-009, R-010, R-012, R-014, R-015
+- **Validation:** `cargo test` seek coalesce + notify gate; `scripts/qml-lint.sh`; KWin scrub / drop / Ctrl+A
+- **Status:** done (W-067–W-070, W-073, 2026-09-14)
+
+## Slice S15 — Equalizer
+- **Acceptance:** 10-band EQ in the tunex-audio bin before ReplayGain; named presets + Custom; Settings → Playback; missing `equalizer-10bands` stays flat; reduce-motion does not disable audio EQ.
+- **Requirements:** R-020; D-005 updated
+- **Validation:** `cargo test` preset/config + playback with EQ; `scripts/qml-lint.sh`
+- **Status:** done (W-071, 2026-09-14)
+
+## Slice S16 — Artwork / visualizer modes
+- **Acceptance:** Artwork | Spectrum | Waveform | Visualizer on the Now Playing well; View menu + Settings → Appearance; pad probe after EQ (no second sink); reduce-motion → Artwork; lyrics toggle still wins.
+- **Requirements:** R-023 (promoted L-008)
+- **Validation:** `cargo test` spectrum/PCM parse; `scripts/qml-lint.sh`; KWin mode switch
+- **Status:** done (W-072, 2026-09-14)
+
 ## Traceability (req → slices)
-- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3+S12, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8+S13, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9, R-020→S11, R-021→S12, R-022→S13.
+- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9+S14, R-008→S3+S9, R-009→S1+S14, R-010→S1+S3+S10+S14, R-011→S1+S4+S14, R-012→S3+S12+S14, R-013→S1+S5, R-014→S4+S8+S9+S14, R-015→S2+S4+S7+S8+S13+S14, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9, R-020→S11+S15, R-021→S12, R-022→S13, R-023→S16.

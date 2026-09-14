@@ -9,7 +9,12 @@
 
 use rusqlite::Connection;
 use tunex_core::Result;
-use tunex_library::{TrackRow, display_title_artist, list_tracks_for_artist, list_tracks_in_album};
+use tunex_library::{
+    AlbumSort, ArtistSort, SortDir, TrackRow, TrackSort, display_title_artist, list_albums,
+    list_artists, list_composers, list_genres, list_track_folders, list_tracks_capped,
+    list_tracks_for_artist, list_tracks_for_composer, list_tracks_for_genre, list_tracks_in_album,
+    list_tracks_in_folder,
+};
 use tunex_player::{PlaybackController, QueueItem, path_to_uri};
 
 /// Translate one index row into an enriched queue item.
@@ -98,6 +103,135 @@ pub fn enqueue_artist(
         controller,
         &list_tracks_for_artist(db, artist)?,
     ))
+}
+
+/// Rows for one library browse list, in the same order the UI shows.
+///
+/// `songs` is capped at `songs_cap` (the songs tab). Other kinds follow the
+/// browse models: albums/artists in their sort, folders/genres/composers in
+/// display order, `genre`/`composer` as one drilled group.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`](tunex_core::Error::Database) when a lookup
+/// fails.
+pub fn library_list_rows(
+    db: &Connection,
+    kind: &str,
+    key: &str,
+    sort_key: &str,
+    descending: bool,
+    songs_cap: u32,
+) -> Result<Vec<TrackRow>> {
+    let dir = SortDir::from_descending(descending);
+    match kind {
+        "songs" => list_tracks_capped(db, songs_cap, TrackSort::from_key(sort_key), dir),
+        "albums" => {
+            let albums = list_albums(db, AlbumSort::from_key(sort_key), dir)?;
+            let mut rows = Vec::new();
+            for album in albums {
+                rows.extend(list_tracks_in_album(db, album.id)?);
+            }
+            Ok(rows)
+        }
+        "artists" => {
+            let artists = list_artists(db, ArtistSort::from_key(sort_key), dir)?;
+            let mut rows = Vec::new();
+            for artist in artists {
+                rows.extend(list_tracks_for_artist(db, &artist.name)?);
+            }
+            Ok(rows)
+        }
+        "folders" => {
+            let folders = list_track_folders(db)?;
+            let sort = TrackSort::from_key(sort_key);
+            let mut rows = Vec::new();
+            for folder in folders {
+                rows.extend(list_tracks_in_folder(
+                    db,
+                    &folder.path,
+                    u32::MAX,
+                    sort,
+                    dir,
+                )?);
+            }
+            Ok(rows)
+        }
+        "genres" => {
+            let mut rows = Vec::new();
+            for facet in list_genres(db)? {
+                rows.extend(list_tracks_for_genre(db, &facet.name)?);
+            }
+            Ok(rows)
+        }
+        "composers" => {
+            let mut rows = Vec::new();
+            for facet in list_composers(db)? {
+                rows.extend(list_tracks_for_composer(db, &facet.name)?);
+            }
+            Ok(rows)
+        }
+        "genre" => list_tracks_for_genre(db, key),
+        "composer" => list_tracks_for_composer(db, key),
+        _ => Ok(Vec::new()),
+    }
+}
+
+/// Enqueue the currently shown library list. Returns the number enqueued.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`](tunex_core::Error::Database) when a lookup
+/// fails.
+pub fn enqueue_library_list(
+    controller: &mut PlaybackController,
+    db: &Connection,
+    kind: &str,
+    key: &str,
+    sort_key: &str,
+    descending: bool,
+    songs_cap: u32,
+) -> Result<usize> {
+    Ok(enqueue_rows(
+        controller,
+        &library_list_rows(db, kind, key, sort_key, descending, songs_cap)?,
+    ))
+}
+
+/// Enqueue albums by database id, in the given order.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`](tunex_core::Error::Database) when a lookup
+/// fails.
+pub fn enqueue_album_ids(
+    controller: &mut PlaybackController,
+    db: &Connection,
+    album_ids: &[i64],
+) -> Result<usize> {
+    let mut rows = Vec::new();
+    for album_id in album_ids {
+        rows.extend(list_tracks_in_album(db, *album_id)?);
+    }
+    Ok(enqueue_rows(controller, &rows))
+}
+
+/// Enqueue artists by name, in the given order.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`](tunex_core::Error::Database) when a lookup
+/// fails.
+pub fn enqueue_artist_names(
+    controller: &mut PlaybackController,
+    db: &Connection,
+    names: &[String],
+) -> Result<usize> {
+    let mut rows = Vec::new();
+    for name in names {
+        rows.extend(list_tracks_for_artist(db, name)?);
+    }
+    Ok(enqueue_rows(controller, &rows))
 }
 
 #[cfg(test)]
@@ -224,6 +358,29 @@ mod tests {
             controller.queue_item(1).map(|item| item.title),
             Some("Two".to_owned())
         );
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn enqueue_library_list_songs_matches_capped_title_order() {
+        let (db, dir) = scratch_db("play-all-songs");
+        let mut controller = PlaybackController::new().expect("controller builds");
+        let enqueued = enqueue_library_list(&mut controller, &db, "songs", "", "title", false, 500)
+            .expect("enqueue works");
+        assert_eq!(enqueued, 3);
+        assert_eq!(controller.queue_len(), 3);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn enqueue_library_list_albums_concatenates_album_order() {
+        let (db, dir) = scratch_db("play-all-albums");
+        let mut controller = PlaybackController::new().expect("controller builds");
+        let enqueued =
+            enqueue_library_list(&mut controller, &db, "albums", "", "title", false, 500)
+                .expect("enqueue works");
+        // Untagged files are not on an album, so Play all on Albums skips them.
+        assert_eq!(enqueued, 2);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

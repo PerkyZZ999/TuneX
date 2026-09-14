@@ -36,14 +36,30 @@ pub fn track_body(artist: Option<&str>, album: Option<&str>) -> String {
 }
 
 /// Whether the current track deserves a toast: a loaded track whose URI
-/// differs from the last toasted one. Stops and repeats never notify.
+/// differs from the last toasted one, notifications are on, and the window
+/// is not focused. Stops and repeats never notify.
 #[must_use]
-pub fn should_notify(last_uri: Option<&str>, current_uri: Option<&str>) -> bool {
+pub fn should_notify(
+    last_uri: Option<&str>,
+    current_uri: Option<&str>,
+    window_active: bool,
+    enabled: bool,
+    track_change: bool,
+) -> bool {
+    if !enabled || !track_change || window_active {
+        return false;
+    }
     match (last_uri, current_uri) {
         (_, None) => false,
         (None, Some(_)) => true,
         (Some(last), Some(current)) => last != current,
     }
+}
+
+/// Whether a playback error should toast (independent of window focus).
+#[must_use]
+pub fn should_notify_error(enabled: bool, playback_errors: bool) -> bool {
+    enabled && playback_errors
 }
 
 /// Queue a toast for delivery on a detached thread. Returns immediately;
@@ -143,20 +159,75 @@ mod tests {
 
     #[test]
     fn should_notify_fires_only_on_new_tracks() {
-        assert!(!should_notify(None, None), "nothing loaded, no toast");
-        assert!(should_notify(None, Some("file:///a.flac")), "first track");
         assert!(
-            !should_notify(Some("file:///a.flac"), Some("file:///a.flac")),
+            !should_notify(None, None, false, true, true),
+            "nothing loaded, no toast"
+        );
+        assert!(
+            should_notify(None, Some("file:///a.flac"), false, true, true),
+            "first track while unfocused"
+        );
+        assert!(
+            !should_notify(
+                Some("file:///a.flac"),
+                Some("file:///a.flac"),
+                false,
+                true,
+                true
+            ),
             "repeat is not a change"
         );
         assert!(
-            should_notify(Some("file:///a.flac"), Some("file:///b.flac")),
-            "advance notifies"
+            should_notify(
+                Some("file:///a.flac"),
+                Some("file:///b.flac"),
+                false,
+                true,
+                true
+            ),
+            "advance notifies when unfocused"
         );
         assert!(
-            !should_notify(Some("file:///a.flac"), None),
+            !should_notify(
+                Some("file:///a.flac"),
+                Some("file:///b.flac"),
+                true,
+                true,
+                true
+            ),
+            "focused skip stays silent"
+        );
+        assert!(
+            !should_notify(Some("file:///a.flac"), None, false, true, true),
             "stops never notify"
         );
+        assert!(
+            !should_notify(
+                Some("file:///a.flac"),
+                Some("file:///b.flac"),
+                false,
+                false,
+                true
+            ),
+            "master off"
+        );
+        assert!(
+            !should_notify(
+                Some("file:///a.flac"),
+                Some("file:///b.flac"),
+                false,
+                true,
+                false
+            ),
+            "track-change off"
+        );
+    }
+
+    #[test]
+    fn should_notify_error_ignores_focus() {
+        assert!(should_notify_error(true, true));
+        assert!(!should_notify_error(false, true));
+        assert!(!should_notify_error(true, false));
     }
 
     #[test]

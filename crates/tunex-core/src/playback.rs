@@ -34,6 +34,21 @@ pub enum ReplayGainMode {
     Album,
 }
 
+/// Now Playing artwork well (S16 W-072). Reduce-motion forces Artwork.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VisualizerMode {
+    /// Embedded or folder art, or the monogram placeholder.
+    #[default]
+    Artwork,
+    /// Spectrum bars from the analysis tap.
+    Spectrum,
+    /// Oscilloscope of recent PCM.
+    Waveform,
+    /// `ShaderEffect` driven by the same spectrum bands.
+    Visualizer,
+}
+
 /// Application-level playback states (SPEC §6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PlaybackState {

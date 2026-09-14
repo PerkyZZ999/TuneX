@@ -479,6 +479,29 @@ impl PlaybackController {
         self.engine.replaygain_linear()
     }
 
+    /// Ten-band equalizer. Reduce-motion does not disable this.
+    pub fn set_equalizer(&mut self, enabled: bool, bands: [f32; tunex_core::EQ_BAND_COUNT]) {
+        self.engine.set_equalizer(enabled, bands);
+    }
+
+    /// Whether `equalizer-10bands` was missing when the bin was built.
+    #[must_use]
+    pub fn equalizer_missing(&self) -> bool {
+        self.engine.equalizer_missing()
+    }
+
+    /// Latest spectrum bars as CSV for QML.
+    #[must_use]
+    pub fn spectrum_csv(&self) -> String {
+        self.engine.spectrum_csv()
+    }
+
+    /// Latest waveform samples as CSV for QML.
+    #[must_use]
+    pub fn waveform_csv(&self) -> String {
+        self.engine.waveform_csv()
+    }
+
     /// Crossfade length. `0` is today's gapless cut. Visual reduce-motion does
     /// not disable this envelope.
     pub fn set_crossfade(&mut self, duration: Duration) {

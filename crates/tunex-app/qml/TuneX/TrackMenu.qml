@@ -13,6 +13,8 @@ GlassMenu {
     required property PlaylistModel playlists
     required property LibraryManager library
     property int trackId: -1
+    property string trackIds: ""
+    readonly property bool hasSet: root.trackIds !== ""
 
     signal indexChanged
 
@@ -28,19 +30,34 @@ GlassMenu {
     GlassMenuItem {
         text: qsTr("Play now")
         Accessible.name: qsTr("Play now")
-        onTriggered: root.queue.playTrackNow(root.trackId)
+        onTriggered: {
+            if (root.hasSet)
+                root.queue.playTrackIds(root.trackIds);
+            else
+                root.queue.playTrackNow(root.trackId);
+        }
     }
 
     GlassMenuItem {
         text: qsTr("Play next")
         Accessible.name: qsTr("Play next")
-        onTriggered: root.queue.playTrackNext(root.trackId)
+        onTriggered: {
+            if (root.hasSet)
+                root.queue.playTrackIdsNext(root.trackIds);
+            else
+                root.queue.playTrackNext(root.trackId);
+        }
     }
 
     GlassMenuItem {
-        text: qsTr("Queue in Up Next")
-        Accessible.name: qsTr("Queue in Up Next")
-        onTriggered: root.queue.enqueueTrack(root.trackId)
+        text: qsTr("Add to Now Playing")
+        Accessible.name: qsTr("Add to Now Playing")
+        onTriggered: {
+            if (root.hasSet)
+                root.queue.enqueueTrackIds(root.trackIds);
+            else
+                root.queue.enqueueTrack(root.trackId);
+        }
     }
 
     GlassMenuSeparator {}
@@ -54,7 +71,12 @@ GlassMenu {
             GlassMenuItem {
                 visible: !root.playlists.isSmart(model.playlistId)
                 text: model.name
-                onTriggered: root.playlists.addTrack(model.playlistId, root.trackId)
+                onTriggered: {
+                    if (root.hasSet)
+                        root.playlists.addTracks(model.playlistId, root.trackIds);
+                    else
+                        root.playlists.addTrack(model.playlistId, root.trackId);
+                }
             }
         }
 
@@ -64,8 +86,12 @@ GlassMenu {
             text: qsTr("New playlist")
             onTriggered: {
                 const id = root.playlists.createPlaylistAuto();
-                if (id >= 0)
-                    root.playlists.addTrack(id, root.trackId);
+                if (id >= 0) {
+                    if (root.hasSet)
+                        root.playlists.addTracks(id, root.trackIds);
+                    else
+                        root.playlists.addTrack(id, root.trackId);
+                }
             }
         }
     }
