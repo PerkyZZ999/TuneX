@@ -105,6 +105,15 @@
   - [x] ReplayGain missing tags = unity; device change keeps Up Next
 - **Validation method:** manual + test
 
+### R-021 — Library authorship
+- **Description:** Play history records URI advances (restore does not count) and powers Home Recently Played. Smart playlists store local rules (added in last N days, never played, artist/genre/composer equals, optional missing-file exclude) and evaluate in SQL on open/play. In-app tag editor writes title/artist/album/track/disc/year/genre/composer with lofty; empty fields stay unchanged; permission/read-only failures surface loudly.
+- **Priority:** must (post-V1; promoted from L-004, L-005)
+- **Acceptance:**
+  - [x] Home Recently Played rail from `play_history` (W-061)
+  - [x] Smart playlist rule builder on Playlists (W-062)
+  - [x] Tag editor from the track menu writes then re-indexes that path (W-063)
+- **Validation method:** manual + test
+
 ### R-012 — Playlists
 - **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing.
 - **Priority:** must
@@ -165,7 +174,7 @@
 - **R-NFR-06 Perf (aspirational, M6 only):** 1.5s cold 50k, search p95 <50ms, 60fps scroll, <50ms controls, >500 files/min. Desired, not V1-blocking.
 
 ## Later (out of V1)
-- L-003 advanced queue (beyond named Play next / drag), L-004 smart playlists, L-005 metadata editing, L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm.
+- L-003 advanced queue (beyond named Play next / drag), L-006 advanced sorting/filtering (V1-basic sort is in R-007), L-007 shortcut customization, L-008 visualizer/waveform/spectrum/shaders, L-009 MusicBrainz/Cover Art, L-010 lyrics, L-011 Last.fm.
 
 ## Non-goals
 - Streaming/accounts/cloud, social, podcasts, video, mobile, DAW/editor, store, AI, advanced DSP — per BRIEF.

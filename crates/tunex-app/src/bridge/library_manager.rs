@@ -276,4 +276,50 @@ impl qobject::LibraryManager {
             .map(|query| QString::from(query.as_str()))
             .unwrap_or_default()
     }
+
+    /// One tag field for the editor.
+    pub fn track_value(&self, track_id: i32, key: &QString) -> QString {
+        QString::from(
+            self.rust()
+                .core
+                .track_value(i64::from(track_id), &key.to_string())
+                .as_str(),
+        )
+    }
+
+    /// Write tags then re-index that path. Returns 1 on success (0 + `errorText`).
+    pub fn save_tags(self: Pin<&mut Self>, track_id: i32, packed: &QString) -> i32 {
+        let packed = packed.to_string();
+        let mut fields = packed.split('\u{1f}');
+        let edit = tunex_library::TagEdit {
+            title: nonempty_str(fields.next().unwrap_or("")),
+            artist: nonempty_str(fields.next().unwrap_or("")),
+            album: nonempty_str(fields.next().unwrap_or("")),
+            track_number: parse_u32_str(fields.next().unwrap_or("")),
+            disc_number: parse_u32_str(fields.next().unwrap_or("")),
+            year: parse_u32_str(fields.next().unwrap_or("")),
+            genre: nonempty_str(fields.next().unwrap_or("")),
+            composer: nonempty_str(fields.next().unwrap_or("")),
+        };
+        match self.rust().core.save_track_tags(i64::from(track_id), edit) {
+            Ok(()) => 1,
+            Err(err) => {
+                tracing::warn!(name = "library.tags_failed", error = %err, "tags not written");
+                0
+            }
+        }
+    }
+}
+
+fn nonempty_str(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_owned())
+}
+
+fn parse_u32_str(value: &str) -> Option<u32> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    trimmed.parse().ok().filter(|number| *number > 0)
 }

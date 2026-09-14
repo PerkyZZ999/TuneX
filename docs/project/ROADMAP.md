@@ -66,5 +66,11 @@
 - **Validation:** `cargo test` replaygain/crossfade/output; `scripts/qml-lint.sh`
 - **Status:** done (W-058–W-060, 2026-09-13)
 
+## Slice S12 — Library authorship (post-V1)
+- **Acceptance:** Play history on URI advance (restore does not count) powers Home Recently Played; smart playlists from a GlassDialog rule builder evaluate in SQL on open/play; tag editor writes lofty tags then upserts that path (empty fields unchanged; permission failures loud).
+- **Requirements:** R-021 (promoted L-004, L-005)
+- **Validation:** `cargo test` play_history / smart playlists / tag write; `scripts/qml-lint.sh`
+- **Status:** done (W-061–W-063, 2026-09-13)
+
 ## Traceability (req → slices)
-- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9, R-020→S11.
+- R-001→S1, R-002→S2+S7, R-003→S2, R-004→S2, R-005→S2, R-006→S2 (+S1 harness), R-007→S2+S9, R-008→S3+S9, R-009→S1, R-010→S1+S3+S10, R-011→S1+S4, R-012→S3+S12, R-013→S1+S5, R-014→S4+S8+S9, R-015→S2+S4+S7+S8, R-016→S1+S5 (PKGBUILD), R-017→S5, R-018→S4+S6+S7, R-019→S9, R-020→S11, R-021→S12.

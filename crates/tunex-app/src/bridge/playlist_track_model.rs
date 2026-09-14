@@ -98,7 +98,7 @@ impl PlaylistTrackModelRust {
             self.last_error = Some("Your library is empty — add a music folder first.".to_owned());
             return false;
         }
-        let db = match tunex_library::open_file(&self.index_path) {
+        let mut db = match tunex_library::open_file(&self.index_path) {
             Ok(db) => db,
             Err(err) => {
                 tracing::warn!(name = "browse.playlist_failed", error = %err, "index unreadable");
@@ -107,6 +107,13 @@ impl PlaylistTrackModelRust {
                 return false;
             }
         };
+        if let Err(err) = tunex_library::evaluate_smart_playlist(&mut db, playlist_id) {
+            tracing::debug!(
+                name = "browse.smart_eval_failed",
+                error = %err,
+                "smart playlist not rebuilt"
+            );
+        }
         match tunex_library::list_entries(&db, playlist_id) {
             Ok(entries) => {
                 self.entries = entries.iter().map(display_entry).collect();

@@ -50,6 +50,8 @@ fn main() {
                 "qml/TuneX/TrackMenu.qml",
                 "qml/TuneX/PlaylistsView.qml",
                 "qml/TuneX/PlaylistNameDialog.qml",
+                "qml/TuneX/SmartPlaylistDialog.qml",
+                "qml/TuneX/TagEditDialog.qml",
                 "qml/TuneX/PlayButton.qml",
                 "qml/TuneX/PlayBadge.qml",
                 "qml/TuneX/AmbientWash.qml",

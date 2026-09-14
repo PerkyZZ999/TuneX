@@ -517,3 +517,10 @@
 - **Waiver:** none
 - **Follow-up:** S12 library authorship. AUR publish stays a human confirmation.
 
+### 2026-09-13 — S12 W-061–W-063 library authorship
+- **Slice:** S12
+- **Result:** pass (code + unit tests)
+- **Evidence:** Schema v7 adds `play_history`, `favorites` stub, `smart_playlists`, and `tracks.indexed_at`. URI advances append history (restore seeds the toast cursor silently and does not count). Home Recently Played rail is hidden when empty. Smart playlists store rules and rebuild in SQL on open/play; TrackMenu hides them from Add to playlist. Tag editor writes lofty tags on a worker then upserts that path; empty fields stay unchanged. Tests: `play_history_powers_recently_played_albums`, `smart_never_played_excludes_history`, `write_tags_skips_empty_and_round_trips`, `save_track_tags_writes_and_reindexes`, `create_smart_never_played_round_trip`. `scripts/qml-lint.sh` 42/42 ✓. `rust-tc doctor` ✓ (283 tests). Traceability: R-021 → S12 → W-061–W-063 → this entry.
+- **Waiver:** none
+- **Follow-up:** S13 lyrics, profiles, opt-in MusicBrainz. AUR publish stays a human confirmation.
+

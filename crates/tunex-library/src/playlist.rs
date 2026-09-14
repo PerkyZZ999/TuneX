@@ -98,6 +98,9 @@ pub fn delete_playlist(db: &mut Connection, id: i64) -> Result<()> {
     require_playlist(db, id)?;
     let transaction = db.transaction().map_err(|err| db_error(&err))?;
     transaction
+        .execute("DELETE FROM smart_playlists WHERE playlist_id = ?1", [id])
+        .map_err(|err| db_error(&err))?;
+    transaction
         .execute("DELETE FROM playlist_tracks WHERE playlist_id = ?1", [id])
         .map_err(|err| db_error(&err))?;
     transaction
@@ -146,6 +149,11 @@ pub fn list_playlists(db: &Connection) -> Result<Vec<Playlist>> {
 /// insert fails.
 pub fn add_to_playlist(db: &mut Connection, playlist_id: i64, track_id: i64) -> Result<()> {
     require_playlist(db, playlist_id)?;
+    if smart_rule(db, playlist_id)?.is_some() {
+        return Err(Error::Database(
+            "smart playlists rebuild from rules — edit the rule instead".to_owned(),
+        ));
+    }
     require_track(db, track_id)?;
     let position: i64 = db
         .query_row(
@@ -327,6 +335,140 @@ fn require_track(db: &Connection, id: i64) -> Result<()> {
     } else {
         Err(Error::Database("track is gone".to_owned()))
     }
+}
+
+/// Stored smart-playlist rule (L-004). Evaluated in SQL on open/play.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SmartRule {
+    /// `added_days` / `never_played` / `artist` / `genre` / `composer`.
+    pub kind: String,
+    /// Days as digits, or an exact artist/genre/composer name.
+    pub value: String,
+    /// Drop missing files from the generated list.
+    pub exclude_missing: bool,
+}
+
+/// Create a smart playlist and evaluate it once.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the name is blank/taken or evaluation fails.
+pub fn create_smart_playlist(db: &mut Connection, name: &str, rule: &SmartRule) -> Result<i64> {
+    match rule.kind.as_str() {
+        "added_days" | "artist" | "genre" | "composer" if rule.value.trim().is_empty() => {
+            return Err(Error::Database(
+                "smart-playlist rule needs a value".to_owned(),
+            ));
+        }
+        "added_days" | "never_played" | "artist" | "genre" | "composer" => {}
+        other => {
+            return Err(Error::Database(format!(
+                "unknown smart-playlist rule {other}"
+            )));
+        }
+    }
+    let id = create_playlist(db, name)?;
+    db.execute(
+        "INSERT INTO smart_playlists(playlist_id, rule_kind, rule_value, exclude_missing)
+         VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![id, rule.kind, rule.value, i64::from(rule.exclude_missing)],
+    )
+    .map_err(|err| db_error(&err))?;
+    evaluate_smart_playlist(db, id)?;
+    Ok(id)
+}
+
+/// Whether this playlist is generated from a stored rule.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn smart_rule(db: &Connection, playlist_id: i64) -> Result<Option<SmartRule>> {
+    let mut statement = db
+        .prepare(
+            "SELECT rule_kind, rule_value, exclude_missing FROM smart_playlists WHERE playlist_id = ?1",
+        )
+        .map_err(|err| db_error(&err))?;
+    let mut rows = statement
+        .query_map([playlist_id], |row| {
+            Ok(SmartRule {
+                kind: row.get(0)?,
+                value: row.get(1)?,
+                exclude_missing: row.get::<_, i64>(2)? != 0,
+            })
+        })
+        .map_err(|err| db_error(&err))?;
+    rows.next().transpose().map_err(|err| db_error(&err))
+}
+
+/// Rebuild smart-playlist entries from the stored rule. No-op for user lists.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the rule is unknown or SQL fails.
+pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<()> {
+    let Some(rule) = smart_rule(db, playlist_id)? else {
+        return Ok(());
+    };
+    db.execute(
+        "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
+        [playlist_id],
+    )
+    .map_err(|err| db_error(&err))?;
+    let missing = if rule.exclude_missing {
+        " AND tracks.missing = 0"
+    } else {
+        ""
+    };
+    let sql = match rule.kind.as_str() {
+        "added_days" => format!(
+            "INSERT INTO playlist_tracks(playlist_id, track_id, position)
+             SELECT ?1, tracks.id, 0
+             FROM tracks
+             WHERE tracks.indexed_at >= strftime('%s','now') - (?2 * 86400)
+               AND tracks.indexed_at > 0{missing}"
+        ),
+        "never_played" => format!(
+            "INSERT INTO playlist_tracks(playlist_id, track_id, position)
+             SELECT ?1, tracks.id, 0
+             FROM tracks
+             LEFT JOIN play_history ON play_history.track_id = tracks.id
+             WHERE play_history.id IS NULL{missing}"
+        ),
+        "artist" => format!(
+            "INSERT INTO playlist_tracks(playlist_id, track_id, position)
+             SELECT ?1, tracks.id, 0
+             FROM tracks
+             JOIN artists ON artists.id = tracks.artist_id
+             WHERE artists.name = ?2{missing}"
+        ),
+        "genre" => format!(
+            "INSERT INTO playlist_tracks(playlist_id, track_id, position)
+             SELECT ?1, tracks.id, 0
+             FROM tracks
+             JOIN genres ON genres.id = tracks.genre_id
+             WHERE genres.name = ?2{missing}"
+        ),
+        "composer" => format!(
+            "INSERT INTO playlist_tracks(playlist_id, track_id, position)
+             SELECT ?1, tracks.id, 0
+             FROM tracks
+             WHERE tracks.composer = ?2{missing}"
+        ),
+        other => {
+            return Err(Error::Database(format!(
+                "unknown smart-playlist rule {other}"
+            )));
+        }
+    };
+    if rule.kind == "never_played" {
+        db.execute(&sql, rusqlite::params![playlist_id])
+            .map_err(|err| db_error(&err))?;
+    } else {
+        db.execute(&sql, rusqlite::params![playlist_id, rule.value])
+            .map_err(|err| db_error(&err))?;
+    }
+    renumber(db, playlist_id)
 }
 
 fn db_error(err: &rusqlite::Error) -> Error {
@@ -530,5 +672,25 @@ mod tests {
         let entries = list_entries(&db, id).expect("entries list");
         assert_eq!(entry_titles(&entries), ["A"]);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn smart_never_played_excludes_history() {
+        let mut db = open_memory().expect("in-memory opens");
+        let played = seed_track(&mut db, "/m/a.flac", "Heard");
+        let _fresh = seed_track(&mut db, "/m/b.flac", "Fresh");
+        super::super::db::record_play(&db, Some(played), "file:///m/a.flac").expect("history");
+        let id = create_smart_playlist(
+            &mut db,
+            "Unheard",
+            &SmartRule {
+                kind: "never_played".to_owned(),
+                value: String::new(),
+                exclude_missing: true,
+            },
+        )
+        .expect("create smart");
+        let titles = entry_titles(&list_entries(&db, id).expect("entries"));
+        assert_eq!(titles, ["Fresh"]);
     }
 }

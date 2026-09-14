@@ -12,7 +12,7 @@ use std::{path::Path, time::Duration};
 use lofty::{
     file::{AudioFile, TaggedFileExt},
     probe::Probe,
-    tag::{Accessor, ItemKey},
+    tag::{Accessor, ItemKey, Tag, TagType},
 };
 use tunex_core::{Error, Result};
 
@@ -96,6 +96,95 @@ pub fn read_metadata(path: &Path) -> Result<FileMetadata> {
         }
     }
     Ok(metadata)
+}
+
+/// User-authored tag edits. Empty strings are skipped (never invented).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TagEdit {
+    /// Track title.
+    pub title: Option<String>,
+    /// Track artist.
+    pub artist: Option<String>,
+    /// Album title.
+    pub album: Option<String>,
+    /// Track number.
+    pub track_number: Option<u32>,
+    /// Disc number.
+    pub disc_number: Option<u32>,
+    /// Release year.
+    pub year: Option<u32>,
+    /// Genre.
+    pub genre: Option<String>,
+    /// Composer.
+    pub composer: Option<String>,
+}
+
+/// Write non-empty fields with lofty. Empty values are left untouched.
+///
+/// # Errors
+///
+/// Returns [`Error::Metadata`] when the file cannot be opened or is not writable.
+pub fn write_tags(path: &Path, edit: &TagEdit) -> Result<()> {
+    let mut tagged = Probe::open(path)
+        .and_then(Probe::read)
+        .map_err(|err| Error::Metadata(format!("cannot open {}: {err}", path.display())))?;
+    let tag_type = tagged
+        .primary_tag()
+        .map_or_else(|| tag_type_for(path), Tag::tag_type);
+    let mut tag = tagged
+        .primary_tag()
+        .cloned()
+        .unwrap_or_else(|| Tag::new(tag_type));
+    if let Some(title) = nonempty_owned(edit.title.as_ref()) {
+        tag.set_title(title);
+    }
+    if let Some(artist) = nonempty_owned(edit.artist.as_ref()) {
+        tag.set_artist(artist);
+    }
+    if let Some(album) = nonempty_owned(edit.album.as_ref()) {
+        tag.set_album(album);
+    }
+    if let Some(genre) = nonempty_owned(edit.genre.as_ref()) {
+        tag.set_genre(genre);
+    }
+    if let Some(composer) = nonempty_owned(edit.composer.as_ref()) {
+        tag.insert_text(ItemKey::Composer, composer);
+    }
+    if let Some(number) = edit.track_number.filter(|number| *number > 0) {
+        tag.set_track(number);
+    }
+    if let Some(number) = edit.disc_number.filter(|number| *number > 0) {
+        tag.set_disk(number);
+    }
+    if let Some(year) = edit.year.filter(|year| *year > 0) {
+        let year = u16::try_from(year).unwrap_or(0);
+        tag.set_date(lofty::tag::items::Timestamp {
+            year,
+            ..lofty::tag::items::Timestamp::default()
+        });
+    }
+    tagged.insert_tag(tag);
+    tagged
+        .save_to_path(path, lofty::config::WriteOptions::default())
+        .map_err(|err| Error::Metadata(format!("cannot write {}: {err}", path.display())))?;
+    Ok(())
+}
+
+fn tag_type_for(path: &Path) -> TagType {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default()
+    {
+        "mp3" => TagType::Id3v2,
+        _ => TagType::VorbisComments,
+    }
+}
+
+fn nonempty_owned(value: Option<&String>) -> Option<String> {
+    value
+        .map(|text| text.trim().to_owned())
+        .filter(|text| !text.is_empty())
 }
 
 /// Normalize optional tag text: empty or whitespace-only means untagged.
@@ -209,6 +298,47 @@ mod tests {
         assert_eq!(metadata.artwork.len(), 1);
         assert_eq!(metadata.artwork[0].mime, "image/bmp");
         assert_eq!(metadata.artwork[0].data, image);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn write_tags_skips_empty_and_round_trips() {
+        let dir = std::env::temp_dir().join(format!("tunex-write-tags-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("setup");
+        let tagged = dir.join("edit.flac");
+        std::fs::copy(fixture("sine.flac"), &tagged).expect("copy");
+        write_tags(
+            &tagged,
+            &TagEdit {
+                title: Some("Midnight".to_owned()),
+                artist: Some("Nova Rae".to_owned()),
+                album: Some("Night Tapes".to_owned()),
+                genre: Some("Ambient".to_owned()),
+                composer: Some("A. Composer".to_owned()),
+                track_number: Some(3),
+                disc_number: Some(1),
+                year: Some(2021),
+            },
+        )
+        .expect("writes");
+        write_tags(
+            &tagged,
+            &TagEdit {
+                title: Some("  ".to_owned()),
+                ..TagEdit::default()
+            },
+        )
+        .expect("empty skipped");
+        let metadata = read_metadata(&tagged).expect("reads back");
+        assert_eq!(metadata.title.as_deref(), Some("Midnight"));
+        assert_eq!(metadata.artist.as_deref(), Some("Nova Rae"));
+        assert_eq!(metadata.album.as_deref(), Some("Night Tapes"));
+        assert_eq!(metadata.genre.as_deref(), Some("Ambient"));
+        assert_eq!(metadata.composer.as_deref(), Some("A. Composer"));
+        assert_eq!(metadata.track_number, Some(3));
+        assert_eq!(metadata.disc_number, Some(1));
+        assert_eq!(metadata.year, Some(2021));
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

@@ -18,6 +18,13 @@ GlassMenu {
 
     onAboutToShow: root.playlists.refresh()
 
+    TagEditDialog {
+        id: tagDialog
+
+        library: root.library
+        onTagsSaved: root.indexChanged()
+    }
+
     GlassMenuItem {
         text: qsTr("Play now")
         Accessible.name: qsTr("Play now")
@@ -45,6 +52,7 @@ GlassMenu {
             model: root.playlists
 
             GlassMenuItem {
+                visible: !root.playlists.isSmart(model.playlistId)
                 text: model.name
                 onTriggered: root.playlists.addTrack(model.playlistId, root.trackId)
             }
@@ -63,6 +71,12 @@ GlassMenu {
     }
 
     GlassMenuSeparator {}
+
+    GlassMenuItem {
+        text: qsTr("Edit tags…")
+        Accessible.name: qsTr("Edit tags")
+        onTriggered: tagDialog.openFor(root.trackId)
+    }
 
     GlassMenuItem {
         text: qsTr("Show in folder")

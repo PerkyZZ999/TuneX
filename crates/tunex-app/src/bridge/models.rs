@@ -418,6 +418,11 @@ pub mod qobject {
         #[cxx_name = "refreshForArtist"]
         fn refresh_for_artist(self: Pin<&mut AlbumListModel>, artist: &QString, exclude_id: i32);
 
+        /// Reload albums from play history, newest first. Exposed as `refreshRecentlyPlayed`.
+        #[qinvokable]
+        #[cxx_name = "refreshRecentlyPlayed"]
+        fn refresh_recently_played(self: Pin<&mut AlbumListModel>);
+
         /// Row count override for `QAbstractListModel` (see above on `parent`).
         #[qinvokable]
         #[cxx_override]
@@ -1099,6 +1104,22 @@ pub mod qobject {
         #[cxx_name = "createPlaylistAuto"]
         fn create_playlist_auto(self: Pin<&mut PlaylistModel>) -> i32;
 
+        /// Create a smart playlist from a stored rule. Exposed as `createSmartPlaylist`.
+        #[qinvokable]
+        #[cxx_name = "createSmartPlaylist"]
+        fn create_smart_playlist(
+            self: Pin<&mut PlaylistModel>,
+            name: &QString,
+            kind: &QString,
+            value: &QString,
+            exclude_missing: bool,
+        ) -> i32;
+
+        /// Whether this playlist rebuilds from a stored rule. Exposed as `isSmart`.
+        #[qinvokable]
+        #[cxx_name = "isSmart"]
+        fn is_smart(self: &PlaylistModel, id: i32) -> bool;
+
         /// Rename a playlist; failures surface through `errorText`.
         /// Exposed to QML as `renamePlaylist`.
         #[qinvokable]
@@ -1483,6 +1504,19 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "recentSearchAt"]
         fn recent_search_at(self: &LibraryManager, index: i32) -> QString;
+
+        /// One tag field for the editor (`title` / `artist` / `album` / `genre` /
+        /// `composer` / `year` / `track` / `disc`). Exposed as `trackValue`.
+        #[qinvokable]
+        #[cxx_name = "trackValue"]
+        fn track_value(self: &LibraryManager, track_id: i32, key: &QString) -> QString;
+
+        /// Write tags then re-index that path. `packed` is eight fields joined
+        /// by U+001F (title, artist, album, track, disc, year, genre, composer).
+        /// Exposed as `saveTags`.
+        #[qinvokable]
+        #[cxx_name = "saveTags"]
+        fn save_tags(self: Pin<&mut LibraryManager>, track_id: i32, packed: &QString) -> i32;
     }
 
     extern "RustQt" {

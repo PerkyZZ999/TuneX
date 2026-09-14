@@ -16,10 +16,12 @@ Item {
     property string playlistName: ""
     property string errorLine: ""
     property bool renaming: false
+    property bool playlistIsSmart: false
 
     function selectPlaylist(id, name) {
         root.playlistId = id;
         root.playlistName = name;
+        root.playlistIsSmart = playlists.isSmart(id);
         root.errorLine = "";
         entries.refreshPlaylist(id);
         root.errorLine = entries.errorText();
@@ -61,6 +63,10 @@ Item {
         nameDialog.openFor("");
     }
 
+    function openSmart() {
+        smartDialog.openBlank();
+    }
+
     anchors.fill: parent
     onVisibleChanged: {
         if (root.visible)
@@ -90,6 +96,17 @@ Item {
         }
     }
 
+    SmartPlaylistDialog {
+        id: smartDialog
+
+        onRuleAccepted: (name, kind, value, excludeMissing) => {
+            const id = playlists.createSmartPlaylist(name, kind, value, excludeMissing);
+            root.errorLine = playlists.errorText();
+            if (id >= 0)
+                root.selectPlaylist(id, name);
+        }
+    }
+
     GlassDialog {
         id: deleteDialog
 
@@ -101,6 +118,7 @@ Item {
             if (root.errorLine === "") {
                 root.playlistId = -1;
                 root.playlistName = "";
+                root.playlistIsSmart = false;
                 entries.clear();
             }
         }
@@ -160,6 +178,7 @@ Item {
         GlassMenuSeparator {}
 
         GlassMenuItem {
+            visible: !root.playlistIsSmart
             text: qsTr("Move up")
             onTriggered: {
                 entries.moveItem(entryMenu.rowIndex, entryMenu.rowIndex - 1);
@@ -168,6 +187,7 @@ Item {
         }
 
         GlassMenuItem {
+            visible: !root.playlistIsSmart
             text: qsTr("Move down")
             onTriggered: {
                 entries.moveItem(entryMenu.rowIndex, entryMenu.rowIndex + 1);
@@ -176,6 +196,7 @@ Item {
         }
 
         GlassMenuItem {
+            visible: !root.playlistIsSmart
             text: qsTr("Remove from playlist")
             onTriggered: {
                 entries.removeAt(entryMenu.rowIndex);
@@ -225,11 +246,21 @@ Item {
                 onClicked: root.openCreate()
             }
 
+            PrimaryButton {
+                id: smartButton
+
+                width: parent.width
+                primary: false
+                text: qsTr("Smart playlist")
+                Accessible.name: qsTr("Smart playlist")
+                onClicked: root.openSmart()
+            }
+
             ListView {
                 id: playlistsView
 
                 width: parent.width
-                height: parent.height - newButton.height - Theme.spaceMd
+                height: parent.height - newButton.height - smartButton.height - Theme.spaceMd * 2
                 model: playlists
                 activeFocusOnTab: true
                 clip: true
@@ -429,7 +460,7 @@ Item {
                 EmptyState {
                     visible: root.playlistId >= 0 && entriesView.count === 0
                     title: qsTr("This playlist is empty")
-                    note: qsTr("Add songs from any row menu, then play the whole list here.")
+                    note: root.playlistIsSmart ? qsTr("No tracks match this rule yet.") : qsTr("Add songs from any row menu, then play the whole list here.")
                 }
 
                 ListView {

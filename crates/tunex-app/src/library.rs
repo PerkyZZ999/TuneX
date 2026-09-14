@@ -21,8 +21,9 @@ use std::time::Duration;
 use tokio::sync::mpsc as tokio_mpsc;
 use tunex_core::{Error, Result, TunexConfig, load_from, save_to};
 use tunex_library::{
-    DEBOUNCE_WINDOW, LibraryWatcher, ScanStats, delete_track, open_file, remove_library_root,
-    scan_folder_with_callback, track_by_id, watch_roots,
+    DEBOUNCE_WINDOW, LibraryWatcher, NewTrack, ScanStats, TagEdit, delete_track, file_id,
+    open_file, read_metadata, remove_library_root, scan_folder_with_callback, stable_key,
+    track_by_id, upsert_track, watch_roots, write_tags,
 };
 
 /// Mutable orchestration state, shared with the scan worker.
@@ -413,6 +414,91 @@ impl LibraryCore {
         }
     }
 
+    /// One indexed track, when the index knows it.
+    #[must_use]
+    pub fn track(&self, id: i64) -> Option<tunex_library::TrackRow> {
+        if !self.db_path.is_file() {
+            return None;
+        }
+        let db = open_file(&self.db_path).ok()?;
+        track_by_id(&db, id).ok().flatten()
+    }
+
+    /// One tag field for the editor (empty when unknown).
+    #[must_use]
+    pub fn track_value(&self, id: i64, key: &str) -> String {
+        let Some(track) = self.track(id) else {
+            return String::new();
+        };
+        match key {
+            "title" => track.title.unwrap_or_default(),
+            "artist" => track.artist.unwrap_or_default(),
+            "album" => track.album.unwrap_or_default(),
+            "genre" => track.genre.unwrap_or_default(),
+            "composer" => track.composer.unwrap_or_default(),
+            "year" => track.year.map(|year| year.to_string()).unwrap_or_default(),
+            "track" => track
+                .track_number
+                .map(|number| number.to_string())
+                .unwrap_or_default(),
+            "disc" => track
+                .disc_number
+                .map(|number| number.to_string())
+                .unwrap_or_default(),
+            _ => String::new(),
+        }
+    }
+
+    /// Write tags on a worker, then upsert that path. Empty fields stay untouched.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Metadata`] / [`Error::Database`] / [`Error::Io`] when
+    /// the file is missing, read-only, or the index cannot be updated.
+    pub fn save_track_tags(&self, id: i64, edit: TagEdit) -> Result<()> {
+        if !self.db_path.is_file() {
+            let err = Error::Config("Your library is empty — add a music folder first.".to_owned());
+            lock_state(&self.state).last_error = Some(err.to_string());
+            return Err(err);
+        }
+        let Some(track) = self.track(id) else {
+            let err = Error::Config(format!("track {id} is not in the library"));
+            lock_state(&self.state).last_error = Some(err.to_string());
+            return Err(err);
+        };
+        let path = PathBuf::from(&track.path);
+        let db_path = self.db_path.clone();
+        let worker = match std::thread::Builder::new()
+            .name("tunex-tags".to_owned())
+            .spawn(move || apply_tag_edit(&db_path, &path, &edit))
+        {
+            Ok(worker) => worker,
+            Err(source) => {
+                let err = Error::Io {
+                    path: PathBuf::from(&track.path),
+                    source,
+                };
+                lock_state(&self.state).last_error = Some(err.to_string());
+                return Err(err);
+            }
+        };
+        match worker.join() {
+            Ok(Ok(())) => {
+                lock_state(&self.state).last_error = None;
+                Ok(())
+            }
+            Ok(Err(err)) => {
+                lock_state(&self.state).last_error = Some(err.to_string());
+                Err(err)
+            }
+            Err(_) => {
+                let err = Error::Config("tag write failed".to_owned());
+                lock_state(&self.state).last_error = Some(err.to_string());
+                Err(err)
+            }
+        }
+    }
+
     /// Last-used library tab and sort chips.
     #[must_use]
     pub fn view_prefs(&self) -> tunex_core::ViewConfig {
@@ -559,6 +645,31 @@ fn scan_all_roots(
     }
     lock_state(state).last_stats = total;
     let _ = scan_tx.send(total);
+}
+
+/// Write tags then re-index one path (worker body).
+fn apply_tag_edit(db_path: &Path, path: &Path, edit: &TagEdit) -> Result<()> {
+    write_tags(path, edit)?;
+    let metadata = read_metadata(path)?;
+    let track = NewTrack {
+        path: path.to_string_lossy().into_owned(),
+        stable_key: stable_key(path),
+        file_id: file_id(path),
+        title: metadata.title,
+        artist: metadata.artist,
+        album: metadata.album,
+        album_artist: metadata.album_artist,
+        composer: metadata.composer,
+        genre: metadata.genre,
+        year: metadata.year.map(i64::from),
+        track_number: metadata.track_number.map(i64::from),
+        disc_number: metadata.disc_number.map(i64::from),
+        duration_ms: metadata
+            .duration
+            .map(|duration| i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)),
+    };
+    let mut db = open_file(db_path)?;
+    upsert_track(&mut db, &track)
 }
 
 #[cfg(test)]
@@ -777,6 +888,48 @@ mod tests {
         assert_eq!(loaded.recent_searches, ["nova", "harbor"]);
         let revived = LibraryCore::with_paths(config, dir.join("other.db"));
         assert_eq!(revived.view_prefs().library_tab, "albums");
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn save_track_tags_writes_and_reindexes() {
+        let (config, db, dir) = scratch("tag-edit");
+        let music = dir.join("music");
+        std::fs::create_dir_all(&music).expect("setup");
+        let fixture =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sine.flac");
+        let path = music.join("a.flac");
+        std::fs::copy(&fixture, &path).expect("copy");
+        let mut core = LibraryCore::with_paths(config, db.clone());
+        core.startup();
+        core.add_folder(&music).expect("add works");
+        run_until_idle(&mut core);
+        let id = {
+            let reopened = open_file(&db).expect("db reopens");
+            tunex_library::list_tracks(&reopened).expect("list works")[0].id
+        };
+        core.save_track_tags(
+            id,
+            TagEdit {
+                title: Some("Midnight".to_owned()),
+                artist: Some("Nova Rae".to_owned()),
+                album: Some("Night Tapes".to_owned()),
+                genre: Some("Ambient".to_owned()),
+                composer: Some("A. Composer".to_owned()),
+                track_number: Some(3),
+                disc_number: Some(1),
+                year: Some(2021),
+            },
+        )
+        .expect("saves");
+        assert_eq!(core.track_value(id, "title"), "Midnight");
+        assert_eq!(core.track_value(id, "artist"), "Nova Rae");
+        assert_eq!(core.track_value(id, "album"), "Night Tapes");
+        assert_eq!(core.track_value(id, "genre"), "Ambient");
+        assert_eq!(core.track_value(id, "composer"), "A. Composer");
+        assert_eq!(core.track_value(id, "year"), "2021");
+        assert_eq!(core.track_value(id, "track"), "3");
+        assert_eq!(core.track_value(id, "disc"), "1");
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }

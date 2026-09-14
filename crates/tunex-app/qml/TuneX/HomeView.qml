@@ -62,6 +62,7 @@ Item {
     function refresh() {
         root.syncStatus();
         albums.refresh();
+        recentlyPlayed.refreshRecentlyPlayed();
         songs.refresh();
         playlists.refresh();
     }
@@ -88,6 +89,10 @@ Item {
         id: albums
     }
 
+    AlbumListModel {
+        id: recentlyPlayed
+    }
+
     // Covers land one row at a time; stops itself when none are pending.
     Timer {
         id: homeArtPump
@@ -95,7 +100,9 @@ Item {
         interval: 120
         repeat: true
         onTriggered: {
-            if (!albums.pollArt())
+            const albumsBusy = albums.pollArt();
+            const playedBusy = recentlyPlayed.pollArt();
+            if (!albumsBusy && !playedBusy)
                 homeArtPump.stop();
         }
     }
@@ -171,6 +178,59 @@ Item {
                     label: qsTr("Folders")
                     selected: root.chipKey === "folders"
                     onActivated: root.activateChip("folders")
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: Theme.spaceSm
+                visible: recentlyPlayedRail.count > 0
+
+                Item {
+                    width: parent.width
+                    height: Theme.targetMin
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Recently Played")
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontTitle
+                        font.weight: Font.DemiBold
+                        color: Theme.foreground
+                    }
+                }
+
+                ListView {
+                    id: recentlyPlayedRail
+
+                    width: parent.width
+                    height: root.railCell + Theme.cardMetaHeight
+                    orientation: ListView.Horizontal
+                    clip: true
+                    spacing: Theme.spaceMd
+                    model: recentlyPlayed
+                    boundsBehavior: Flickable.StopAtBounds
+                    Accessible.role: Accessible.List
+                    Accessible.name: qsTr("Recently Played")
+
+                    delegate: AlbumCard {
+                        albumId: model.albumId
+                        title: model.title
+                        artist: model.artist
+                        year: model.year
+                        trackCount: model.trackCount
+                        artUrl: model.artUrl
+                        explicitWidth: root.railCell
+                        Component.onCompleted: {
+                            recentlyPlayed.requestArt(index);
+                            homeArtPump.start();
+                        }
+                        onActivated: id => {
+                            root.queue.clearQueue();
+                            root.queue.enqueueAlbum(id);
+                            root.queue.playAt(0);
+                        }
+                    }
                 }
             }
 

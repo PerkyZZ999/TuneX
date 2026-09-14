@@ -329,9 +329,27 @@ impl QueueModelRust {
                     item.title.clone(),
                     crate::notify::track_body(item.artist.as_deref(), item.album.as_deref()),
                 );
+                self.record_play_history(item);
             }
         }
         self.last_notified_uri = current_uri;
+    }
+
+    /// Append play history on URI advance (same rule as notifications).
+    fn record_play_history(&self, item: &tunex_player::QueueItem) {
+        if !self.index_path.is_file() {
+            return;
+        }
+        let Ok(db) = tunex_library::open_file(&self.index_path) else {
+            return;
+        };
+        if let Err(err) = tunex_library::record_play(&db, item.track_id, &item.uri) {
+            tracing::debug!(
+                name = "queue.history_failed",
+                error = %err,
+                "play history not recorded"
+            );
+        }
     }
 
     /// Restore the SQLite queue when present, otherwise the last-track path.
@@ -1473,9 +1491,16 @@ impl QueueModelRust {
         if !self.ensure_controller() {
             return 0;
         }
-        let Some(db) = self.open_index() else {
+        let Some(mut db) = self.open_index() else {
             return 0;
         };
+        if let Err(err) = tunex_library::evaluate_smart_playlist(&mut db, playlist_id) {
+            tracing::debug!(
+                name = "queue.smart_eval_failed",
+                error = %err,
+                "smart playlist not rebuilt"
+            );
+        }
         let entries = match tunex_library::list_entries(&db, playlist_id) {
             Ok(entries) => entries,
             Err(err) => {

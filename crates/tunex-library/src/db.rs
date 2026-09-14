@@ -12,8 +12,8 @@ use rusqlite::{Connection, Row};
 use rusqlite_migration::{M, Migrations};
 use tunex_core::{Error, Result};
 
-/// Current schema version (v6: persisted Up Next snapshot).
-pub const SCHEMA_VERSION: usize = 6;
+/// Current schema version (v7: play history, smart playlists, `indexed_at`).
+pub const SCHEMA_VERSION: usize = 7;
 
 /// v1 DDL, frozen: roots + tracks skeleton (landed in S1, never edited).
 const V1_SCHEMA: &str = "CREATE TABLE library_roots(
@@ -152,6 +152,26 @@ const V6_SCHEMA: &str = "
             position_ms INTEGER NOT NULL DEFAULT 0
         );";
 
+/// v7 DDL: play history, favorites stub, smart-playlist rules, and first-index time.
+const V7_SCHEMA: &str = "
+        ALTER TABLE tracks ADD COLUMN indexed_at INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE play_history (
+            id INTEGER PRIMARY KEY,
+            track_id INTEGER,
+            uri TEXT NOT NULL,
+            played_at INTEGER NOT NULL
+        );
+        CREATE INDEX idx_play_history_played ON play_history(played_at DESC);
+        CREATE TABLE favorites (
+            track_id INTEGER PRIMARY KEY
+        );
+        CREATE TABLE smart_playlists (
+            playlist_id INTEGER PRIMARY KEY REFERENCES playlists(id) ON DELETE CASCADE,
+            rule_kind TEXT NOT NULL,
+            rule_value TEXT NOT NULL DEFAULT '',
+            exclude_missing INTEGER NOT NULL DEFAULT 1
+        );";
+
 /// Versioned migrations, oldest first. Append-only: never edit a landed
 /// migration, always add a new one.
 fn migrations() -> Migrations<'static> {
@@ -162,6 +182,7 @@ fn migrations() -> Migrations<'static> {
         M::up(V4_SCHEMA),
         M::up(V5_SCHEMA),
         M::up(V6_SCHEMA),
+        M::up(V7_SCHEMA),
     ])
 }
 
@@ -471,8 +492,8 @@ pub fn upsert_track(db: &mut Connection, track: &NewTrack) -> Result<()> {
         .execute(
             "INSERT INTO tracks(path, title, stable_key, artist_id, album_id, genre_id,
                                 composer, year, track_number, disc_number, duration_ms,
-                                file_id, missing)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0)
+                                file_id, missing, indexed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, strftime('%s','now'))
              ON CONFLICT(path) DO UPDATE SET
                 title = excluded.title, stable_key = excluded.stable_key,
                 artist_id = excluded.artist_id, album_id = excluded.album_id,
@@ -1605,6 +1626,42 @@ pub fn load_playback_queue(db: &Connection) -> Result<SavedQueue> {
     })
 }
 
+/// Append one play. Restores must not call this (same rule as notifications).
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the insert fails.
+pub fn record_play(db: &Connection, track_id: Option<i64>, uri: &str) -> Result<()> {
+    db.execute(
+        "INSERT INTO play_history(track_id, uri, played_at)
+         VALUES (?1, ?2, strftime('%s','now'))",
+        rusqlite::params![track_id, uri],
+    )
+    .map_err(|err| db_error(&err))?;
+    Ok(())
+}
+
+/// Distinct albums from play history, newest first, capped.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the query fails.
+pub fn list_recently_played_albums(db: &Connection, limit: i64) -> Result<Vec<AlbumRow>> {
+    let sql = format!(
+        "{ALBUM_LIST_SELECT}
+         INNER JOIN play_history ON play_history.track_id = tracks.id
+         {ALBUM_LIST_GROUP}
+         ORDER BY MAX(play_history.played_at) DESC
+         LIMIT ?1"
+    );
+    let mut statement = db.prepare(&sql).map_err(|err| db_error(&err))?;
+    let rows = statement
+        .query_map([limit], album_from_list_row)
+        .map_err(|err| db_error(&err))?;
+    rows.collect::<rusqlite::Result<Vec<AlbumRow>>>()
+        .map_err(|err| db_error(&err))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1618,10 +1675,10 @@ mod tests {
     }
 
     #[test]
-    fn fresh_database_reports_schema_v6() {
+    fn fresh_database_reports_schema_v7() {
         let db = open_memory().expect("in-memory opens");
         assert_eq!(schema_version(&db).expect("version reads"), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 6);
+        assert_eq!(SCHEMA_VERSION, 7);
     }
 
     #[test]
@@ -1659,10 +1716,11 @@ mod tests {
             M::up(super::V4_SCHEMA),
             M::up(super::V5_SCHEMA),
             M::up(super::V6_SCHEMA),
+            M::up(super::V7_SCHEMA),
         ])
         .to_latest(&mut db)
-        .expect("v3+v4+v5+v6 migrate");
-        assert_eq!(schema_version(&db).expect("version reads"), 6);
+        .expect("v3+v4+v5+v6+v7 migrate");
+        assert_eq!(schema_version(&db).expect("version reads"), 7);
         let tracks = list_tracks(&db).expect("list works");
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].title.as_deref(), Some("Old"));
@@ -1719,6 +1777,26 @@ mod tests {
         save_playback_queue(&mut db, &[], 0, 0).expect("clear");
         let empty = load_playback_queue(&db).expect("empty");
         assert!(empty.items.is_empty());
+    }
+
+    #[test]
+    fn play_history_powers_recently_played_albums() {
+        let mut db = open_memory().expect("in-memory opens");
+        let mut first = new_track("/music/a.flac");
+        first.artist = Some("Nova".to_owned());
+        first.album = Some("Tapes".to_owned());
+        upsert_track(&mut db, &first).expect("upsert");
+        let mut second = new_track("/music/b.flac");
+        second.artist = Some("Nova".to_owned());
+        second.album = Some("Harbor".to_owned());
+        upsert_track(&mut db, &second).expect("upsert");
+        let tracks = list_tracks(&db).expect("list");
+        record_play(&db, Some(tracks[0].id), "file:///music/a.flac").expect("history");
+        record_play(&db, Some(tracks[1].id), "file:///music/b.flac").expect("history");
+        let recent = list_recently_played_albums(&db, 20).expect("recent");
+        assert_eq!(recent.len(), 2);
+        assert_eq!(recent[0].title, "Harbor");
+        assert_eq!(recent[1].title, "Tapes");
     }
 
     #[test]

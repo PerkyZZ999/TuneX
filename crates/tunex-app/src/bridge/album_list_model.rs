@@ -264,6 +264,26 @@ fn load_albums_for_artist(
     }
 }
 
+fn load_recently_played(path: &std::path::Path, limit: i64) -> Vec<AlbumRow> {
+    if !path.is_file() {
+        return Vec::new();
+    }
+    let db = match tunex_library::open_file(path) {
+        Ok(db) => db,
+        Err(err) => {
+            tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
+            return Vec::new();
+        }
+    };
+    match tunex_library::list_recently_played_albums(&db, limit) {
+        Ok(rows) => rows.iter().map(display_album).collect(),
+        Err(err) => {
+            tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
+            Vec::new()
+        }
+    }
+}
+
 impl qobject::AlbumListModel {
     /// Reload all albums from the library index; emits model reset.
     pub fn refresh(mut self: Pin<&mut Self>) {
@@ -312,6 +332,21 @@ impl qobject::AlbumListModel {
             Some(i64::from(exclude_id))
         };
         let rows = load_albums_for_artist(&tunex_core::library_db_path(), &name, exclude);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_albums();
+            let mut rust = self.as_mut().rust_mut();
+            rust.drop_rows();
+            for album in rows {
+                rust.push_row(album);
+            }
+            self.as_mut().end_reset_model_albums();
+        }
+    }
+
+    /// Reload albums from play history, newest first.
+    pub fn refresh_recently_played(mut self: Pin<&mut Self>) {
+        let rows = load_recently_played(&tunex_core::library_db_path(), 20);
         // SAFETY: reset pair strictly paired on this single path.
         unsafe {
             self.as_mut().begin_reset_model_albums();

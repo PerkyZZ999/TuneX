@@ -1,11 +1,16 @@
-# Work items (current slice: S11 — Playback enrichment)
+# Work items (current slice: S12 — Library authorship)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060). S12 done (W-061–W-063).
 
 ## Current slice
-S11 — ReplayGain, crossfade, output-device picker. **Done 2026-09-13** (W-058–W-060). Does not reopen S10.
+S12 — play history, smart playlists, tag editor. **Done 2026-09-13** (W-061–W-063). Does not reopen S11.
 
-**Done condition:** Settings → Playback offers ReplayGain (off/track/album), 0–12 s crossfade, and a System-default output picker; changing the device keeps Up Next.
+**Done condition:** Home Recently Played from `play_history`; smart playlists from a rule builder; in-app tag editor writes then re-indexes.
+
+## Queue (S12)
+- [x] W-061 — Schema v7 `play_history` + `indexed_at`; append on URI advance (restore does not count); Home Recently Played rail (R-021).
+- [x] W-062 — Smart playlists: stored rules (added_days / never_played / artist / genre / composer, exclude missing); evaluate in SQL on open/play; GlassDialog rule builder on Playlists (R-021, L-004).
+- [x] W-063 — Tag editor GlassDialog (title/artist/album/track/disc/year/genre/composer); lofty write on a worker then upsert that path; empty fields unchanged; permission/read-only fail loudly (R-021, L-005, R-NFR-05).
 
 ## Queue (S11)
 - [x] W-058 — ReplayGain from lofty + GStreamer tags; `volume` element downstream of user volume; off/track/album; missing tags = unity (R-020, L-001).

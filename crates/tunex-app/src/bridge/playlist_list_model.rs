@@ -195,6 +195,48 @@ impl PlaylistModelRust {
         }
     }
 
+    /// Create a smart playlist from a stored rule; returns its id (-1 on failure).
+    fn do_create_smart(
+        &mut self,
+        name: &str,
+        kind: &str,
+        value: &str,
+        exclude_missing: bool,
+    ) -> i32 {
+        let Some(mut db) = self.open_writable() else {
+            return -1;
+        };
+        match tunex_library::create_smart_playlist(
+            &mut db,
+            name,
+            &tunex_library::SmartRule {
+                kind: kind.to_owned(),
+                value: value.to_owned(),
+                exclude_missing,
+            },
+        ) {
+            Ok(id) => {
+                self.refresh_rows();
+                i32::try_from(id).unwrap_or(i32::MAX)
+            }
+            Err(err) => {
+                self.last_error = Some(friendly_error(&err));
+                -1
+            }
+        }
+    }
+
+    /// Whether this playlist is generated from a stored rule.
+    fn is_smart_id(&self, id: i64) -> bool {
+        if !self.index_path.is_file() {
+            return false;
+        }
+        let Ok(db) = tunex_library::open_file(&self.index_path) else {
+            return false;
+        };
+        tunex_library::smart_rule(&db, id).ok().flatten().is_some()
+    }
+
     /// Rename a playlist; blank/taken/missing ids surface text.
     fn do_rename(&mut self, id: i64, name: &str) {
         let Some(db) = self.open_writable() else {
@@ -316,6 +358,35 @@ impl qobject::PlaylistModel {
             self.as_mut().end_reset_model_playlists();
         };
         id
+    }
+
+    /// Create a smart playlist from a stored rule; returns its id (-1 + error).
+    #[must_use]
+    pub fn create_smart_playlist(
+        mut self: Pin<&mut Self>,
+        name: &QString,
+        kind: &QString,
+        value: &QString,
+        exclude_missing: bool,
+    ) -> i32 {
+        let id = self.as_mut().rust_mut().do_create_smart(
+            &name.to_string(),
+            &kind.to_string(),
+            &value.to_string(),
+            exclude_missing,
+        );
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_playlists();
+            self.as_mut().end_reset_model_playlists();
+        };
+        id
+    }
+
+    /// Whether this playlist rebuilds from a stored rule.
+    #[must_use]
+    pub fn is_smart(&self, id: i32) -> bool {
+        self.rust().is_smart_id(i64::from(id))
     }
 
     /// Rename a playlist; failures surface through `errorText`.
@@ -468,6 +539,19 @@ mod tests {
         assert!(model.error_message().is_none());
         model.do_delete(i64::from(id));
         assert!(model.error_message().is_some(), "double delete loud");
+    }
+
+    #[test]
+    fn create_smart_never_played_round_trip() {
+        let (mut model, _guard) = model_with_seeded_library("pl-smart");
+        let id = model.do_create_smart("Unheard", "never_played", "", true);
+        assert!(id > 0);
+        assert!(model.is_smart_id(i64::from(id)));
+        let db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        let track = tunex_library::list_tracks(&db).expect("list works")[0].id;
+        drop(db);
+        assert_eq!(model.do_add_track(i64::from(id), track), 0);
+        assert!(model.error_message().is_some_and(|text| !text.is_empty()));
     }
 
     #[test]
