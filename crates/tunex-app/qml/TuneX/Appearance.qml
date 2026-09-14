@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import TuneX
 
 // Appearance (S6): runtime appearance state shared by every surface. App
 // seeds the `[appearance]` preferences once at startup (config.toml via
@@ -13,6 +14,11 @@ QtObject {
     property bool reduceTransparency: false
     // Instant state swaps: every transition duration collapses to 0.
     property bool reduceMotion: false
+    // Rail, top bar, and docked player: `{colors.panel}` at the documented
+    // chrome tint, or solid panel when transparency is off. The content
+    // pane is the canvas — a near-black stage inside that frame.
+    readonly property color chromeFill: reduceTransparency ? Theme.panel : Qt.rgba(Theme.panel.r, Theme.panel.g, Theme.panel.b, Theme.chromeTint)
+    readonly property color contentFill: Theme.background
 
     // Every transition duration goes through here (motion budget in
     // Theme). Progress bars never animate: they follow the engine.

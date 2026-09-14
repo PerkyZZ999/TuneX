@@ -8,17 +8,20 @@ import QtQuick
 // royal blue reads as the brand instead of competing with a blue room. Ratios
 // beside each token are measured against the canvas.
 QtObject {
-    // Canvas and surfaces.
-    readonly property color background: "#0B0B0E"
-    readonly property color surface: "#141419"
-    readonly property color surfaceRaised: "#1D1D23"
-    readonly property color chrome: "#0F0F13"
-    readonly property color hover: "#232329"
-    readonly property color selected: "#2A2A33"
-    // Text and dividers.
-    readonly property color foreground: "#F4F4F7"   // 17.9:1
-    readonly property color muted: "#A3A3AE"        // 7.9:1
-    readonly property color border: "#32323B"
+    // Canvas and surfaces. Each step is a real lift so the shell has depth:
+    // near-black stage, charcoal chrome, then cards, then raised controls.
+    readonly property color background: "#0B0B0B"
+    readonly property color surface: "#222222"
+    readonly property color surfaceRaised: "#2A2A2A"
+    // Chrome only (rail, top bar, docked player) at chromeTint — not content.
+    readonly property color panel: "#1A1A1A"
+    readonly property color chrome: "#000000"
+    readonly property color hover: "#343434"
+    readonly property color selected: "#3D3D3D"
+    // Text and dividers — greyscale only. Blue lives on primary/accent/focus.
+    readonly property color foreground: "#F4F4F4"   // ~17.9:1 on canvas
+    readonly property color muted: "#A3A3A3"        // ~7.6:1 on canvas
+    readonly property color border: "#2E2E2E"
     // Actions and signals — the royal blue family, and nothing else.
     readonly property color primary: "#2B5CE6"      // white on it 5.6:1
     readonly property color primaryHover: "#3766EE" // white on it 4.9:1
@@ -61,6 +64,13 @@ QtObject {
     readonly property int railWidth: 216
     readonly property int railNarrow: 64
     readonly property int panelWidth: 288
+    // Labeled and icon-strip rail rows share 32px compact chrome and 16px
+    // icons. Compact mode only hides the label (64px strip).
+    readonly property int navItemHeight: 32
+    readonly property int navIconSize: 16
+    readonly property int navAccent: 5
+    readonly property int historyButton: 24
+    readonly property int searchFieldHeight: 36
     // Dialog measure: title + one field or two lines of body copy.
     readonly property int dialogWidth: 400
     // DESIGN.md: three-column shell at ≥1280; 64px opaque mini-player below.
@@ -69,11 +79,12 @@ QtObject {
     readonly property int miniPlayerHeight: 64
     readonly property int progressTrack: 4
     readonly property int targetMin: 44
-    readonly property int denseTarget: 40
     readonly property int buttonHeight: 32
     readonly property int artThumb: 40
     readonly property int topBarHeight: 48
-    readonly property int trackRowHeight: 48
+    // Same 32px compact chrome as labeled nav rows (Penpot Home density).
+    readonly property int trackRowHeight: 32
+    readonly property real listLineHeight: 1.2
     readonly property int brandMark: 24
     readonly property int cardMetaHeight: 56
     readonly property int heroHeight: 280
@@ -103,9 +114,9 @@ QtObject {
     // Shell chrome translucency. The rail, top bar and docked player are
     // always on screen, so they are tinted-translucent rather than blurred:
     // a live backdrop blur under permanently visible chrome would cost a
-    // blur pass every frame for a effect nobody can point at. What they let
+    // blur pass every frame for an effect nobody can point at. What they let
     // through is the ambient wash below, which is the part the eye reads as
-    // glass.
+    // glass. The content pane is the opaque canvas — a near-black stage.
     readonly property real chromeTint: 0.76
     // Ambient wash: the playing track's own artwork, blurred to abstraction
     // and held this far down so it colours the room without ever competing

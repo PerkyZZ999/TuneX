@@ -1,10 +1,10 @@
 import QtQuick
 import TuneX
 
-// QueuePanel (S3 W-022, S4 W-026, S6 W-038): Up Next list plus the
-// persistent-player summary. Docked as the opaque 320px right column at
-// ≥1280px; inside the compact Drawer it is transparent so the drawer's
-// subtle glass shows through (rows stay transparent over it, never glass).
+// QueuePanel: Up Next list plus the persistent-player summary. Docked as
+// the 288px right column at ≥1280px (chrome at 76%); inside the compact
+// Drawer it is transparent so the drawer's subtle glass shows through
+// (rows stay transparent over it, never glass).
 // Transport, shuffle/repeat, reorder, and the playing marker stay here;
 // MiniPlayer is the narrow-width bar. Progress scrubs through QueueModel.seekMs.
 Rectangle {
@@ -98,15 +98,7 @@ Rectangle {
     // Docked: translucent chrome over the shell's ambient wash (solid again
     // when transparency is reduced). In the compact drawer it stays fully
     // transparent so the drawer's own glass is the only surface.
-    color: {
-        if (!root.embedded)
-            return "transparent";
-
-        if (Appearance.reduceTransparency)
-            return Theme.surface;
-
-        return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, Theme.chromeTint);
-    }
+    color: root.embedded ? Appearance.chromeFill : "transparent"
     onTrackingChanged: {
         if (root.tracking)
             root.sync();

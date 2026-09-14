@@ -58,7 +58,7 @@ Rectangle {
             seekSlider.value = root.positionMs;
     }
 
-    color: Theme.surface
+    color: Theme.panel
     Accessible.role: Accessible.Pane
     Accessible.name: root.hasCurrent ? qsTr("Now playing") + ", " + root.shownTitle + ", " + root.shownArtist : qsTr("Nothing playing")
 

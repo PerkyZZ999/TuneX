@@ -937,17 +937,17 @@ Item {
                     anchors.leftMargin: Theme.spaceMd
                     anchors.verticalCenter: parent.verticalCenter
                     name: "folder"
-                    iconSize: 20
+                    iconSize: Theme.navIconSize
                     stroke: Theme.muted
                 }
 
                 Column {
                     anchors.left: folderGlyph.right
-                    anchors.leftMargin: Theme.spaceMd
+                    anchors.leftMargin: Theme.spaceSm
                     anchors.right: parent.right
                     anchors.rightMargin: Theme.spaceMd
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: 2
+                    spacing: 0
 
                     Text {
                         width: parent.width
@@ -956,6 +956,7 @@ Item {
                         textFormat: Text.PlainText
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontBody
+                        lineHeight: Theme.listLineHeight
                         color: Theme.foreground
                     }
 
@@ -966,6 +967,7 @@ Item {
                         textFormat: Text.PlainText
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontBodySm
+                        lineHeight: Theme.listLineHeight
                         color: Theme.muted
                     }
                 }
@@ -1052,17 +1054,17 @@ Item {
                     anchors.leftMargin: Theme.spaceMd
                     anchors.verticalCenter: parent.verticalCenter
                     name: root.tab === "composers" ? "pen" : "tag"
-                    iconSize: 20
+                    iconSize: Theme.navIconSize
                     stroke: Theme.muted
                 }
 
                 Column {
                     anchors.left: facetGlyph.right
-                    anchors.leftMargin: Theme.spaceMd
+                    anchors.leftMargin: Theme.spaceSm
                     anchors.right: parent.right
                     anchors.rightMargin: Theme.spaceMd
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: 2
+                    spacing: 0
 
                     Text {
                         width: parent.width
@@ -1071,6 +1073,7 @@ Item {
                         textFormat: Text.PlainText
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontBody
+                        lineHeight: Theme.listLineHeight
                         color: Theme.foreground
                     }
 
@@ -1081,6 +1084,7 @@ Item {
                         textFormat: Text.PlainText
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontBodySm
+                        lineHeight: Theme.listLineHeight
                         color: Theme.muted
                     }
                 }

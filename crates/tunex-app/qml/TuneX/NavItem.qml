@@ -4,10 +4,11 @@ import QtQuick.Effects
 import TuneX
 
 // One selectable row in the navigation rail: Lucide glyph + label, accent
-// bar when selected. Compact mode hides the label (64px icon strip). The
-// selected bar carries one of the two sanctioned glows (DESIGN.md Glow
-// discipline). Mouse presses do not take focus, so the 2px ring appears
-// for keyboard focus only.
+// bar when selected. Rows are 32px compact chrome on both the labeled rail
+// and the 64px icon strip (compact mode only hides the label). The selected
+// bar carries one of the two sanctioned glows (DESIGN.md Glow discipline).
+// Mouse presses do not take focus, so the 2px ring appears for keyboard
+// focus only.
 Item {
     id: root
 
@@ -19,7 +20,7 @@ Item {
     signal activated
 
     width: parent.width
-    height: Theme.targetMin
+    height: Theme.navItemHeight
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: root.label
@@ -54,11 +55,10 @@ Item {
     Rectangle {
         id: accentBar
 
-        width: 3
+        width: Theme.navAccent
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.left: parent.left
-        anchors.leftMargin: 4
         radius: 2
         color: Theme.accent
         visible: root.selected
@@ -71,7 +71,7 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: root.compact ? (parent.width - width) / 2 : Theme.spaceMd
         name: root.iconName
-        iconSize: 20
+        iconSize: Theme.navIconSize
         stroke: root.selected ? Theme.foreground : Theme.muted
     }
 

@@ -80,7 +80,7 @@ Item {
 
         anchors.fill: parent
         radius: Theme.radiusLg
-        color: Theme.chrome
+        color: Theme.surface
 
         Item {
             id: photo

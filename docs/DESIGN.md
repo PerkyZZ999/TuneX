@@ -3,15 +3,16 @@ version: alpha
 name: "TuneX Frosted Obsidian"
 description: "Dark-first nocturnal design system for TuneX, a local-first Linux music player. Artwork leads, chrome recedes; charcoal neutrals under one royal-blue brand; translucent chrome over an artwork-tinted room."
 colors:
-  background: "#0B0B0E"
-  surface: "#141419"
-  surface-raised: "#1D1D23"
-  chrome: "#0F0F13"
-  hover: "#232329"
-  selected: "#2A2A33"
-  foreground: "#F4F4F7"
-  muted: "#A3A3AE"
-  border: "#32323B"
+  background: "#0B0B0B"
+  surface: "#222222"
+  surface-raised: "#2A2A2A"
+  panel: "#1A1A1A"
+  chrome: "#000000"
+  hover: "#343434"
+  selected: "#3D3D3D"
+  foreground: "#F4F4F4"
+  muted: "#A3A3A3"
+  border: "#2E2E2E"
   primary: "#2B5CE6"
   primary-hover: "#3766EE"
   on-primary: "#FFFFFF"
@@ -140,6 +141,12 @@ components:
     typography: "{typography.body-md}"
     rounded: "{rounded.xs}"
     padding: 8px
+  chrome-panel:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.foreground}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.lg}"
+    padding: 12px
   glass-panel:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.foreground}"
@@ -153,7 +160,7 @@ components:
     rounded: "{rounded.md}"
     padding: 8px
   chip:
-    backgroundColor: "{colors.surface-raised}"
+    backgroundColor: "{colors.surface}"
     textColor: "{colors.muted}"
     typography: "{typography.label-sm}"
     rounded: "{rounded.xs}"
@@ -210,7 +217,7 @@ components:
 
 ## Overview
 
-TuneX is a local-first Linux music player for collectors with 100s to 50k+ tracks. Its personality is a high-end listening bar at night: calm, nocturnal, confident, premium. Visual mood is blue-black darkness with one electric-blue pilot light — never a neon arcade, never a gray office tool.
+TuneX is a local-first Linux music player for collectors with 100s to 50k+ tracks. Its personality is a high-end listening bar at night: calm, nocturnal, confident, premium. Visual mood is charcoal-black darkness with one electric-blue pilot light — never a navy room, never a neon arcade.
 
 Density is medium-high: collectors scan hundreds of rows, so lists are compact but artwork stays large enough to recognize at a glance. Sessions are long (hours of playback) with short bursts of navigation (find → play → leave it alone).
 
@@ -226,12 +233,13 @@ Guiding principles (from the design brief — they arbitrate anything unspecifie
 
 Roles, darkest to brightest. Solid tokens below back every component; translucency/blur are described in Elevation & Depth and applied over these bases.
 
-- **Canvas `{colors.background}` (#0B0B0E):** charcoal near-black, deliberately hue-free. Every neutral in this system is greyscale so the one royal blue reads as the brand instead of tinting the whole room; a navy-cast neutral makes an accent of the same family disappear into it. Window background everywhere; content never sits on pure black.
-- **Surfaces `{colors.surface}` / `{colors.surface-raised}`:** cards, panels, drawers, dialogs. Raised is one step up for hoverable containers and toasts. Track rows deliberately stay transparent over the canvas — opaque rows would chop long lists into visual noise.
-- **Wells `{colors.chrome}`:** recessed inputs (search field) — darker than cards so fields read as "type here".
-- **Interaction states `{colors.hover}` / `{colors.selected}`:** row hover and nav selection. Selection always pairs the surface with an accent indicator bar plus `{colors.foreground}` text — never color alone.
-- **Text `{colors.foreground}` / `{colors.muted}`:** high-contrast neutral for titles, rows, controls; neutral gray strictly for metadata (artist under title, durations, captions) at the 12px caption floor. Muted-on-background is 7.9:1, foreground 17.9:1; every token in this palette clears AA against the canvas.
-- **Dividers `{colors.border}`:** 1px hairlines between rail sections and list groups. Borders, not shadows, separate most surfaces.
+- **Canvas `{colors.background}` (#0B0B0B):** true charcoal-black, equal RGB, no blue in the channel. Every neutral in this system is greyscale so the one royal blue reads as the brand instead of tinting the whole room. Window background *and* the middle content pane — the stage the collection sits on. Content is the darkest surface in the shell, never a grey slab.
+- **Panels `{colors.panel}` (#1A1A1A):** hue-free charcoal for chrome only — the nav rail, top bar, docked Up Next column, and mini-player. Drawn at 76% so the ambient wash shows through the frame. This is *not* the content colour; the frame is one step up so the stage recedes.
+- **Surfaces `{colors.surface}` / `{colors.surface-raised}` (#222222 / #2A2A2A):** cards, chips, drawers, dialogs sit on the dark stage as a second step; raised is a third step for hoverable containers, secondary buttons, history, thumbs, and toasts. Track rows stay transparent over the canvas — opaque rows would chop long lists into visual noise.
+- **Wells `{colors.chrome}` (#000000):** recessed inputs (search field) — true black so fields read as "type here" against the charcoal frame.
+- **Interaction states `{colors.hover}` / `{colors.selected}` (#343434 / #3D3D3D):** row hover and nav selection. Selection always pairs the surface with an accent indicator bar plus `{colors.foreground}` text — never color alone.
+- **Text `{colors.foreground}` / `{colors.muted}` (#F4F4F4 / #A3A3A3):** high-contrast grey for titles, rows, controls; metadata strictly muted. Every text token clears AA against the canvas.
+- **Dividers `{colors.border}` (#2E2E2E):** 1px hairlines between rail sections and list groups. Borders, not shadows, separate most surfaces.
 - **Primary `{colors.primary}` + hover `{colors.primary-hover}` with `{colors.on-primary}` white text:** royal blue, the single conversion color — primary buttons ("Play Something", "Add folder"), selected chips, active progress. White on primary is 5.6:1; on hover 4.9:1.
 - **Signal accents `{colors.accent}` / `{colors.accent-secondary}`:** accent for text-level signals (eyebrow labels, links, "See all", playing-row marker, focus-adjacent highlights); accent-secondary for progress fill and gradient end-stops over artwork. Both stay inside the royal-blue family — no cyan, no teal — so the interface reads as one brand hue against grey. Accent is never a large-area fill and never body text.
 - **Feedback `{colors.success}` / `{colors.warning}` / `{colors.error}`:** scan-complete and healthy states, scan warnings (permission-skipped files), errors and missing-file copy. Always paired with icon + words.
@@ -256,7 +264,7 @@ Inter throughout (weights 400/500/600/700), fallback `"Inter, 'Noto Sans', syste
 
 Shell grid (≥1280px): 216px nav rail · fluid content with 20px gutters · 288px Now Playing/Up Next panel as the persistent player (as in the mockup — no bottom bar at this width). Below 1280px the panel becomes a drawer and a 64px bottom mini-player bar carries the persistent player. Content max measure is fluid — artwork grids reflow 152–200px cards; text columns cap ~72ch in detail headers.
 
-- **Rhythm:** 4px base unit; section gaps 20–28px (`lg`–`xl`); card internal padding 8–12px; row padding 8px vertical so 50k lists stay scannable. Page gutters 20px, never less than 16px.
+- **Rhythm:** 4px base unit; section gaps 20–28px (`lg`–`xl`); card internal padding 8–12px; list rows 32px (same compact chrome as the labeled rail) so 50k lists stay scannable. Page gutters 20px, never less than 16px.
 - **Grouping:** hairline borders + whitespace group; cards only for artwork-bearing content (albums, playlists, hero). Plain rows group by alignment alone.
 - **Breakpoints (window classes, desktop-only):** ≥1280 full three-column; 1024–1279 right panel becomes overlay drawer; 800–1023 rail collapses to 64px icon strip; minimum window 960×640. Placement changes, meaning never does.
 - **Density:** one density for all sizes. No compact/comfortable toggle in V1 — the base density already serves both scanning and lounging.
@@ -266,20 +274,20 @@ Shell grid (≥1280px): 216px nav rail · fluid content with 20px gutters · 288
 
 Depth model: **tonal layering first, translucency second, shadows last.** Most hierarchy comes from stepping surface tones over the canvas plus 1px borders. This keeps 60fps scrolling on integrated GPUs and keeps the UI legible with blur disabled.
 
-- **Glass is hierarchical, not decorative.** Strong glass: Now Playing overlay only (artwork backdrop → 24–40px backdrop blur → dark translucent tint → 1px top highlight → soft shadow → content). Subtle glass: dialogs, context menus, drawer (12–20px blur). Translucent chrome: the nav rail, top bar, and docked player are tinted-translucent (no blur) over the ambient wash. Opaque: track rows, cards, mini-player. If a mockup shows glass on a list row, the mockup is wrong.
-- **Translucent chrome is tint, not blur.** The rail, top bar and docked player are on screen for the whole session, so a live backdrop blur under them would cost a blur pass every frame forever. They carry `{colors.surface}` at ~76% instead, which is see-through enough to read as glass and free to draw. Blur stays with the overlays that appear, act, and leave.
+- **Glass is hierarchical, not decorative.** Strong glass: Now Playing overlay only (artwork backdrop → 24–40px backdrop blur → dark translucent tint → 1px top highlight → soft shadow → content). Subtle glass: dialogs, context menus, drawer (12–20px blur). Translucent chrome: the nav rail, top bar, and docked player are tinted-translucent (no blur) over the ambient wash. The content pane is the opaque canvas. Opaque: track rows, cards, mini-player. If a mockup shows glass on a list row, the mockup is wrong.
+- **Translucent chrome is tint, not blur.** The rail, top bar, and docked player are on screen for the whole session, so a live backdrop blur under them would cost a blur pass every frame forever. They carry `{colors.panel}` at 76% instead, which is see-through enough to read as glass and free to draw. The content pane stays `{colors.background}` so the collection sits on a near-black stage inside that frame. Blur stays with the overlays that appear, act, and leave.
 - **Ambient wash.** Translucency over a flat canvas reveals a flat canvas and reads as a lighter grey panel, so the shell paints the playing track's own artwork behind everything — blurred to abstraction, desaturated, held at ~14% and faded down the view so it colours the room without competing with the artwork actually on screen. It repaints on track change, never per frame, and with no track playing or transparency reduced it is simply absent. The room takes the record's colour; the record stays the only picture.
 - **Glass stack (normative order):** background artwork/gradient → blur → dark tint (60–75% background) → 1px border/highlight → shadow → foreground content. Never blur without the tint — raw blurred art behind text fails contrast.
 - **Shadows:** one restrained scale — dialogs/drawers `0 8px 32px rgba(0,0,0,0.45)`; hero `0 4px 24px rgba(0,0,0,0.35)`; cards none (borders do the work). No colored shadows except the primary transport button's faint blue glow (`0 0 24px rgba(91,140,255,0.35)`).
 - **Glow discipline:** glow appears exactly twice — the playing transport button and the selected-nav indicator. Everywhere else, glow is a bug.
-- **Reduced-transparency fallback:** with the blur toggle off, glass surfaces, translucent chrome, and the ambient wash all render as solid `{colors.surface}` / `{colors.surface-raised}` with the same borders — the wash draws nothing at all. Layout and hierarchy must survive this — test every overlay both ways.
+- **Reduced-transparency fallback:** with the blur toggle off, glass surfaces, translucent chrome, and the ambient wash all render as solid `{colors.panel}` / `{colors.surface}` / `{colors.surface-raised}` with the same borders — the wash draws nothing at all. The content pane stays `{colors.background}` either way. Layout and hierarchy must survive this — test every overlay both ways.
 
 ## Shapes
 
 Small, crisp, consistent radius scale. TuneX feels engineered, not bubbly: corners are present but quiet, so artwork and type carry the warmth.
 
-- `{rounded.xs}` 4px — text buttons, chips, search field, badges, progress track ends. Quiet corners on compact chrome.
-- `{rounded.sm}` 8px — rows, nav items, icon buttons, menus. The workhorse for anything clickable in a list.
+- `{rounded.xs}` 4px — text buttons, chips, search field, badges, progress track ends, and the 24px top-bar history pair. Quiet corners on compact chrome.
+- `{rounded.sm}` 8px — rows, nav items, circular icon buttons, menus. The workhorse for anything clickable in a list.
 - `{rounded.md}` 12px — album/playlist cards and thumbnails, toasts.
 - `{rounded.lg}` 16px — hero card, dialogs, Now Playing panel, drawer.
 - `{rounded.xl}` 24px — reserved for the expanded artwork frame if a future iteration needs it; do not use elsewhere in V1.
@@ -290,16 +298,17 @@ Small, crisp, consistent radius scale. TuneX feels engineered, not bubbly: corne
 
 Contracts for the V1 primitives. QML implements these as custom components (no visible stock Qt Quick Controls styling). All interactive elements show a 2px `{colors.focus}` ring on keyboard focus; pressed states scale nothing — color shift only.
 
-**Icon system (normative):** one line-icon family in the Lucide style — 2px stroke at 24px, rounded caps/corners, straight-on metaphors. Sizes 16px (dense rows, validation), 20px (compact buttons), 24px (default: nav, buttons, transport); touch/keyboard targets stay 44px+ via transparent padding. Icon + text is the default (rail items, buttons, empty states, validation); icon-only is allowed only for universal transport/media symbols and always carries an accessible name plus hover tooltip. Never mix stroke weights or families in one view; never use emoji or file-type/brand glyphs as UI actions; icons meet 3:1 non-text contrast in dark. Dynamic icons (play↔pause, mute, shuffle/repeat state) update their accessible name with the state.
+**Icon system (normative):** one line-icon family in the Lucide style — 2px stroke at 24px, rounded caps/corners, straight-on metaphors. Sizes 16px (dense rows, labeled nav, icon-strip nav, validation), 20px (compact buttons), 24px (default: buttons, transport); touch/keyboard targets stay 44px+ via transparent padding except the 24px top-bar history pair and 32px rail / list rows. Icon + text is the default (rail items, buttons, empty states, validation); icon-only is allowed only for universal transport/media symbols and always carries an accessible name plus hover tooltip. Never mix stroke weights or families in one view; never use emoji or file-type/brand glyphs as UI actions; icons meet 3:1 non-text contrast in dark. Dynamic icons (play↔pause, mute, shuffle/repeat state) update their accessible name with the state.
 
 - **Primary button (`button-primary` → `button-primary-hover`):** compact 32px height, `{rounded.xs}`, label-md. Reserved for the one main action per view (Play, Add folder, Save). One per view — a second primary action is a design error; demote to secondary. Disabled: 38% opacity, desaturated, no hover. Loading: icon swaps to spinner, width locked so layout never shifts.
 - **Secondary button:** same geometry on `{colors.surface-raised}` with a 1px border; hover steps to `{colors.hover}`. Row-level and dialog-cancel actions. The library Sort control is a secondary button that opens a GlassMenu (keys plus Ascending/Descending).
-- **Nav item (`nav-item` → `nav-item-selected`):** full-width 40px rows, icon + label-md; selected adds the surface plus a 3px accent bar at the leading edge. Unselected text is muted; icons inherit text color.
-- **Track row (`track-row` → `track-row-hover`):** 48px, transparent; columns art-thumb 40px (sm radius) · title/body-md + artist/body-sm-muted · duration/caption-muted right. Playing row: accent 3px bar + title in foreground (not accent-colored text) + animated equalizer tick allowed only with motion on. Missing-file rows dim to 50% with "File missing" caption + actions.
-- **Search field (`search-field`):** compact well (`{rounded.xs}`) with magnifier icon; typed text foreground, placeholder muted at full opacity (never transparent-ized placeholder text); Esc clears; focus ring replaces any glow.
+- **Nav item (`nav-item` → `nav-item-selected`):** full-width 32px rows on both the labeled rail and the 64px icon strip, 16px icon + label-md (label hidden in the strip); selected adds the surface plus a 5px accent bar flush to the leading edge. Unselected text is muted; icons inherit text color.
+- **Track row (`track-row` → `track-row-hover`):** 32px (same density as labeled nav), transparent over the canvas; columns number · title/body-md + artist/body-sm-muted · 32px more action · duration/caption-muted right. Playing row: accent 3px bar flush to the leading edge + title in foreground (not accent-colored text) + animated equalizer tick allowed only with motion on. Missing-file rows dim to 50% with "File missing" caption + actions. Folder, genre, composer, and playlist-sidebar rows share this height.
+- **Search field (`search-field`):** 36px well (`{rounded.xs}`) that fills the remaining top-bar measure between the 24px history cluster and trailing utilities; magnifier icon; typed text foreground, placeholder muted at full opacity (never transparent-ized placeholder text); Esc clears; focus ring replaces any glow.
+- **Chrome panel (`chrome-panel`):** `{colors.panel}` at 76% on the rail, top bar, and docked player (solid `{colors.panel}` when transparency is reduced). The content pane is `{colors.background}`. Cards stay on `{colors.surface}` so they still step off the dark stage.
 - **Glass panel (`glass-panel`):** dialogs and menus only. Dialogs: title-md + body + primary/secondary actions; menus: body-md items 32px with hover surface. Menus open toward available space, never off-window.
 - **Album/artist/playlist cards (`album-card`):** art on top (1:1, md radius), title/body-md truncated 1 line, subtitle/body-sm-muted 1 line; hover lifts nothing — art gets a 4% brighten + play-affordance overlay button. No text wider than the art.
-- **Chips (`chip` → `chip-selected`):** compact filter chips (`{rounded.xs}`; search groups, Home shortcuts). Selected steps up to the selected surface with foreground text — max one selected per group in V1.
+- **Chips (`chip` → `chip-selected`):** compact filter chips (`{rounded.xs}`; search groups, Home shortcuts). Rest on `{colors.surface}` so they sit on the dark stage; selected steps up to the selected surface with foreground text — max one selected per group in V1.
 - **Progress + volume (`progress-fill` on xs track):** 4px track in `{colors.hover}`, cyan fill, 12px thumb appearing on hover/focus/drag. Dragging scrubs the engine live; time labels use tabular caption and never overlap the thumb at min width.
 - **Now Playing surface:** lg glass panel; artwork ≥280px md radius with 180ms crossfade on track change; lyrics toggle replaces the art with a local sidecar/embedded pane (not tabs); headline title, muted artist, favorite heart toggle; transport row (shuffle · prev · play/pause 52px primary circle · next · repeat · lyrics) + volume + queue toggle.
 - **Toast (`toast-error`, `status-success`, `status-warning`):** bottom-center above the persistent player, surface-raised, icon + one-line copy + optional action ("Reveal", "Rescan", "Retry"). Auto-dismiss 5s except errors with actions (persist until dismissed).
@@ -310,7 +319,7 @@ Contracts for the V1 primitives. QML implements these as custom components (no v
 ## Do's and Don'ts
 
 - Do give every view exactly one primary action; don't place two blue compact buttons side by side.
-- Do keep track rows opaque/transparent over canvas; don't put blur, glass, or shadows on list rows.
+- Do keep track rows transparent over the canvas; don't put blur, glass, or shadows on list rows.
 - Do use `{colors.accent}` for signals (playing marker, links, kickers); don't fill large areas with it or set body copy in it.
 - Do pair every color-coded state with text or icon (playing bar + label, error icon + copy); don't communicate status by hue alone.
 - Do truncate titles/artists to 1–2 lines with ellipsis; don't shrink type to fit or clip without affordance.
@@ -326,7 +335,7 @@ Contracts for the V1 primitives. QML implements these as custom components (no v
 
 Motion budget (all QML behaviors, standard easing `OutCubic`): hover/focus 120ms color-only; artwork crossfade 180ms opacity; row insert/remove 160ms; drawer/overlay open 200ms translate+fade; progress follows the engine (no easing). Reduce-motion toggle forces all durations to 0 (instant state swaps) except progress, which keeps following playback position.
 
-- Minimum 44px hit areas for icon-only and rail targets (icons 16/20/24px optical inside padded hit areas); compact text buttons, chips, and menu rows are 32px; the dense TrackList inline-action exception stays 40px with ≥8px separation. Never smaller than 32px.
+- Minimum 44px hit areas for icon-only transport (icons 16/20/24px optical inside padded hit areas); labeled rail items, the icon-strip rail, list rows, compact text buttons, chips, and menu rows are 32px. Top-bar back/forward is a 24px pair (surface-raised, tooltips) clustered in the 48px bar.
 - Focus order matches visual order; the persistent-player transport is reachable without opening Now Playing.
 - Screen-reader names on all icon-only buttons; rows expose "title, artist, duration"; progress exposes position/duration; toasts announce politely.
 - Body and label text hold WCAG AA (primary/white ~5.2:1, muted/canvas ~7:1, accent/canvas ~5.9:1 per token pairs above); captions never carry essential meaning alone.

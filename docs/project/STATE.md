@@ -18,7 +18,7 @@
 - Latest passed gate: `rust-tc sonar` for the W-042 S6 gate (QG OK, 81.9% coverage, 0 violations)
 - Latest validation entry: 2026-09-13 W-064–W-066 lyrics, profiles, opt-in MusicBrainz — see VALIDATION.md
 - M6 numbers (R-NFR-06, measured not estimated): cold start 850 ms windowed at 50k (<1.5 s) · search p95 6.8–9.2 ms at 50k (<50 ms) · scroll p50 16 ms with 0.36 ms app-side work per frame (60 fps) · transport control ≤8 ms (<50 ms) · scan 52,400 files/min (>500) · no app-side frame cost during scans
-- Visual identity: charcoal-black neutrals (`#0B0B0E` up, hue-free) with royal blue `#2B5CE6` as the only brand family; chrome is tinted-translucent over an artwork-derived ambient wash, real blur reserved for overlays
+- Visual identity: charcoal-black neutrals (`#0B0B0B` content/canvas, `#1A1A1A` chrome, `#222222` / `#2A2A2A` surfaces) with royal blue `#2B5CE6` as the only brand family; chrome is tinted-translucent over an artwork-derived ambient wash, real blur reserved for overlays
 - Design outputs: `docs/DESIGN_BRIEF.md`, `docs/INFORMATION_ARCHITECTURE.md`, `docs/DESIGN.md` (Google spec lint: 0 errors), `docs/mockup.png` (canonical layout), `AGENTS.md` (agent operating rules)
 - Coding rules: `.cursor/rules/` (`rust.mdc`, `qt-qml.mdc`, `frontend.mdc`, `testing-gui.mdc`); prose copies in `docs/rules/`; GUI testing via Kwin-MCP
 - QML gate: `scripts/qml-lint.sh` = Qt 6 `qmllint` + `qmlformat` + the local `QtQmlBestPractices` QQMLSA plugin's eight categories (discovered via sibling checkout / installed plugin dir / `TUNEX_QMLLINT_PLUGIN_PATH`; `off` skips)

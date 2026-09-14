@@ -414,8 +414,8 @@ Window {
                     width: root.railSize
                     height: parent.height
                     // Translucent so the ambient wash shows through; solid
-                    // again whenever the user reduces transparency.
-                    color: Appearance.reduceTransparency ? Theme.surface : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, Theme.chromeTint)
+                    // panel grey whenever the user reduces transparency.
+                    color: Appearance.chromeFill
 
                     Rectangle {
                         anchors.top: parent.top
@@ -488,8 +488,7 @@ Window {
                         Text {
                             visible: !root.compactRail
                             width: parent.width
-                            leftPadding: Theme.spaceMd
-                            topPadding: Theme.spaceSm
+                            leftPadding: 0
                             text: qsTr("YOUR LIBRARY")
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontCaption
@@ -567,8 +566,7 @@ Window {
                         Text {
                             visible: !root.compactRail
                             width: parent.width
-                            leftPadding: Theme.spaceMd
-                            topPadding: Theme.spaceSm
+                            leftPadding: 0
                             text: qsTr("PLAYLISTS")
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontCaption
@@ -632,7 +630,7 @@ Window {
                         // bar keeps an edge even when the wash is off.
                         Rectangle {
                             anchors.fill: parent
-                            color: Appearance.reduceTransparency ? Theme.surface : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, Theme.chromeTint)
+                            color: Appearance.chromeFill
 
                             Rectangle {
                                 anchors.left: parent.left
@@ -655,6 +653,8 @@ Window {
                             IconButton {
                                 iconName: "chevron-left"
                                 accessibleName: qsTr("Back")
+                                size: Theme.historyButton
+                                circle: false
                                 resting: true
                                 enabled: root.canGoBack
                                 onActivated: root.goBack()
@@ -663,23 +663,28 @@ Window {
                             IconButton {
                                 iconName: "chevron-right"
                                 accessibleName: qsTr("Forward")
+                                size: Theme.historyButton
+                                circle: false
                                 resting: true
                                 enabled: root.canGoForward
                                 onActivated: root.goForward()
                             }
                         }
 
-                        // Global pill search field (S3 W-020): text persists for the
+                        // Global search field (S3 W-020): text persists for the
                         // session; typing navigates to the results view, Esc is
                         // scope-aware (clear text, then leave search), Down/Enter
-                        // move focus into the results. Magnifier + centered pill
-                        // match docs/mockup.png / DESIGN.md search-field.
+                        // move focus into the results. The field fills the
+                        // remaining top-bar measure between history and utilities
+                        // (Penpot Home).
                         Item {
                             id: searchWrap
 
-                            width: Math.min(520, Math.max(240, topBar.width - navRow.width - settingsButton.width - queueButton.width - Theme.spaceXl * 3))
-                            height: Theme.buttonHeight + Theme.spaceXs
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            height: Theme.searchFieldHeight
+                            anchors.left: navRow.right
+                            anchors.leftMargin: Theme.spaceLg
+                            anchors.right: settingsButton.left
+                            anchors.rightMargin: Theme.spaceLg + (queueButton.visible ? queueButton.width + Theme.spaceXs : 0)
                             anchors.verticalCenter: parent.verticalCenter
 
                             TextField {
@@ -742,7 +747,7 @@ Window {
                                 anchors.leftMargin: Theme.spaceMd
                                 anchors.verticalCenter: parent.verticalCenter
                                 name: "search"
-                                iconSize: 20
+                                iconSize: Theme.navIconSize
                                 stroke: Theme.muted
                             }
                         }
@@ -782,6 +787,12 @@ Window {
                         Item {
                             width: parent.width - dockedQueue.width
                             height: parent.height
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: Appearance.contentFill
+                                Accessible.ignored: true
+                            }
 
                             HomeView {
                                 id: homeView

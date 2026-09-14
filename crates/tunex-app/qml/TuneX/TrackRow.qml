@@ -1,9 +1,8 @@
 import QtQuick
 import TuneX
 
-// TrackRow (S2 W-016, actions in S3 W-022): one song row — number,
-// title/artist, duration, missing badge, now-playing marker. Solid text on
-// the opaque view background (never glass). Left-click (or keyboard press)
+// TrackRow: one song row — number, title/artist, duration, missing badge,
+// now-playing marker. Solid text on the canvas behind the list (never glass). Left-click (or keyboard press)
 // plays the row now; right-click, the Menu key, Shift+F10, or the always-
 // visible ⋯ button opens the container-owned row menu (queueing is
 // "Queue in Up Next", never the click).
@@ -74,8 +73,6 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: Theme.spaceSm
-        anchors.bottomMargin: Theme.spaceSm
         width: 3
         radius: 2
         color: Theme.accent
@@ -238,14 +235,15 @@ Item {
     }
 
     // Always visible (touch and keyboard targets are never hover-only);
-    // quiet muted glyph at the 40px dense-list exception size.
+    // quiet muted glyph, 32px to match the compact list row.
     IconButton {
         id: menuButton
 
         anchors.right: danglingBadge.left
         anchors.rightMargin: Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
-        size: Theme.denseTarget
+        size: Theme.buttonHeight
+        glyphSize: Theme.navIconSize
         iconName: "ellipsis"
         glyphColor: Theme.muted
         accessibleName: qsTr("More actions for %1").arg(root.title)
@@ -258,7 +256,7 @@ Item {
         anchors.right: menuButton.left
         anchors.rightMargin: Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 2
+        spacing: 0
 
         Text {
             width: parent.width
@@ -268,6 +266,7 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
             font.weight: root.isCurrent ? Font.DemiBold : Font.Normal
+            lineHeight: Theme.listLineHeight
             color: Theme.foreground
         }
 
@@ -278,6 +277,7 @@ Item {
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBodySm
+            lineHeight: Theme.listLineHeight
             color: Theme.muted
         }
     }

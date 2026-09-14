@@ -1,8 +1,9 @@
 import QtQuick
 import TuneX
 
-// Filter chip (DESIGN.md chip / chip-selected). Selected steps the surface;
-// meaning also lives in the label (never color-only).
+// Filter chip (DESIGN.md chip / chip-selected). Rest sits on surface so
+// chips read on the dark stage; selected steps up. Meaning also lives in
+// the label (never color-only).
 Item {
     id: root
 
@@ -28,7 +29,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: Theme.radiusXs
-        color: root.selected ? Theme.selected : (chipMouse.containsMouse ? Theme.hover : "transparent")
+        color: root.selected ? Theme.selected : (chipMouse.containsMouse ? Theme.hover : Theme.surface)
         Behavior on color {
             ColorAnimation {
                 duration: Appearance.duration(Theme.motionHover)

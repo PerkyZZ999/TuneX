@@ -24,6 +24,8 @@ packaging/aur/*.pkg.tar*
 
 # Cursor local artifacts (tracked rules in .cursor/rules/ stay)
 .cursor/plans/
+# Penpot MCP key lives here — never commit
+.cursor/mcp.json
 
 # OS / editors
 .DS_Store

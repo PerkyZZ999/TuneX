@@ -17,10 +17,9 @@ Item {
     property bool checked: false
     property bool checkable: false
     property bool circle: true
-    // Carry a surface at rest instead of only on hover. The mockup draws the
-    // top-bar history buttons as standing circles; buttons that live on top
-    // of content (transport, row actions, close) stay transparent so they do
-    // not litter the view with chrome.
+    // Carry a surface at rest instead of only on hover. History buttons in
+    // the top bar are 24px rounded rects on surface-raised; transport and
+    // row actions stay transparent so they do not litter the view.
     property bool resting: false
     property int size: Theme.targetMin
     property int glyphSize: 20
@@ -58,7 +57,7 @@ Item {
         anchors.centerIn: parent
         width: root.circle ? root.size - Theme.spaceSm : parent.width
         height: root.circle ? root.size - Theme.spaceSm : parent.height
-        radius: root.circle ? width / 2 : Theme.radiusSm
+        radius: root.circle ? width / 2 : Theme.radiusXs
         color: {
             if (area.pressed || (root.checked && !area.containsMouse))
                 return Theme.selected;
@@ -66,7 +65,7 @@ Item {
             if (area.containsMouse || root.activeFocus)
                 return Theme.hover;
 
-            return root.resting ? Theme.surface : "transparent";
+            return root.resting ? Theme.surfaceRaised : "transparent";
         }
         border.width: root.activeFocus ? 2 : 0
         border.color: Theme.focus

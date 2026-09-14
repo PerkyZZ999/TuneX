@@ -336,7 +336,7 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.spaceMd
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
+                        spacing: 0
 
                         Text {
                             width: parent.width
@@ -347,6 +347,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontBody
                             font.weight: root.playlistId === sidebarRow.playlistId ? Font.DemiBold : Font.Normal
+                            lineHeight: Theme.listLineHeight
                             color: Theme.foreground
                         }
 
@@ -357,6 +358,7 @@ Item {
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontCaption
+                            lineHeight: Theme.listLineHeight
                             color: Theme.muted
                         }
                     }
