@@ -47,6 +47,7 @@ fn main() {
                 "qml/TuneX/AlbumDetailView.qml",
                 "qml/TuneX/ArtistDetailView.qml",
                 "qml/TuneX/TrackRow.qml",
+                "qml/TuneX/BrowseRow.qml",
                 "qml/TuneX/TrackListSelection.qml",
                 "qml/TuneX/SelectionBar.qml",
                 "qml/TuneX/TrackDropArea.qml",

@@ -1078,85 +1078,14 @@ Item {
                 radius: Theme.radiusSm
             }
 
-            delegate: Item {
-                id: folderRow
-
-                // Plain (not required) properties: `required` construction-
-                // time initialization races the cxx-qt delegate context
-                // and locks role bindings to their defaults (W-018).
-                readonly property string countLine: Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs"))
-
-                width: ListView.view.width
-                height: Theme.trackRowHeight
-                Accessible.role: Accessible.ListItem
-                Accessible.name: qsTr("%1, %2").arg(model.name).arg(folderRow.countLine)
-                Accessible.onPressAction: root.drillIntoFolder(model.path, model.name)
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: Theme.radiusSm
-                    color: folderMouse.containsMouse || folderRow.activeFocus ? Theme.hover : "transparent"
-
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: Appearance.duration(Theme.motionHover)
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-                }
-
-                MouseArea {
-                    id: folderMouse
-
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        foldersView.currentIndex = index;
-                        root.drillIntoFolder(model.path, model.name);
-                    }
-                }
-
-                Icon {
-                    id: folderGlyph
-
-                    anchors.left: parent.left
-                    anchors.leftMargin: Theme.spaceMd
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: "folder"
-                    iconSize: Theme.navIconSize
-                    stroke: Theme.muted
-                }
-
-                Column {
-                    anchors.left: folderGlyph.right
-                    anchors.leftMargin: Theme.spaceSm
-                    anchors.right: parent.right
-                    anchors.rightMargin: Theme.spaceMd
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 0
-
-                    Text {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: model.name
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBody
-                        lineHeight: Theme.listLineHeight
-                        color: Theme.foreground
-                    }
-
-                    Text {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: folderRow.countLine + " · " + model.path
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBodySm
-                        lineHeight: Theme.listLineHeight
-                        color: Theme.muted
-                    }
+            delegate: BrowseRow {
+                iconName: "folder"
+                title: model.name
+                subtitle: Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs")) + " · " + model.path
+                accessibleName: qsTr("%1, %2").arg(model.name).arg(Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs")))
+                onActivated: {
+                    foldersView.currentIndex = index;
+                    root.drillIntoFolder(model.path, model.name);
                 }
             }
         }
@@ -1200,82 +1129,14 @@ Item {
                 radius: Theme.radiusSm
             }
 
-            delegate: Item {
-                id: facetRow
-
-                readonly property string countLine: Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs"))
-
-                width: ListView.view.width
-                height: Theme.trackRowHeight
-                Accessible.role: Accessible.ListItem
-                Accessible.name: qsTr("%1, %2").arg(model.name).arg(facetRow.countLine)
-                Accessible.onPressAction: root.openFacetName(model.name)
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: Theme.radiusSm
-                    color: facetMouse.containsMouse || facetRow.activeFocus ? Theme.hover : "transparent"
-
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: Appearance.duration(Theme.motionHover)
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-                }
-
-                MouseArea {
-                    id: facetMouse
-
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        facetsView.currentIndex = index;
-                        root.openFacetName(model.name);
-                    }
-                }
-
-                Icon {
-                    id: facetGlyph
-
-                    anchors.left: parent.left
-                    anchors.leftMargin: Theme.spaceMd
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: root.tab === "composers" ? "pen" : "tag"
-                    iconSize: Theme.navIconSize
-                    stroke: Theme.muted
-                }
-
-                Column {
-                    anchors.left: facetGlyph.right
-                    anchors.leftMargin: Theme.spaceSm
-                    anchors.right: parent.right
-                    anchors.rightMargin: Theme.spaceMd
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 0
-
-                    Text {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: model.name
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBody
-                        lineHeight: Theme.listLineHeight
-                        color: Theme.foreground
-                    }
-
-                    Text {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: facetRow.countLine
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBodySm
-                        lineHeight: Theme.listLineHeight
-                        color: Theme.muted
-                    }
+            delegate: BrowseRow {
+                iconName: root.tab === "composers" ? "pen" : "tag"
+                title: model.name
+                subtitle: Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs"))
+                accessibleName: qsTr("%1, %2").arg(model.name).arg(Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs")))
+                onActivated: {
+                    facetsView.currentIndex = index;
+                    root.openFacetName(model.name);
                 }
             }
         }
