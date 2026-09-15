@@ -218,7 +218,7 @@ Rectangle {
 
         anchors.right: volumeSlider.left
         anchors.verticalCenter: parent.verticalCenter
-        iconName: root.muted ? "volume-x" : "volume"
+        iconName: Format.muteIcon(root.muted)
         accessibleName: root.muted ? qsTr("Unmute") : qsTr("Mute")
         checkable: true
         checked: root.muted

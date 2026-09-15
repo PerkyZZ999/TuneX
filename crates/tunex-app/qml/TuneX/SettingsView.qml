@@ -689,7 +689,7 @@ Item {
                             width: parent.width
                             title: qsTr("Repeat")
                             value: root.repeatLabel
-                            iconName: root.repeatModeValue === 2 ? "repeat-1" : "repeat"
+                            iconName: Format.repeatIcon(root.repeatModeValue)
                             accessibleName: qsTr("Repeat, %1").arg(root.repeatLabel)
                             buttonAccessibleName: qsTr("Cycle repeat, %1").arg(root.repeatLabel)
                             checkable: true

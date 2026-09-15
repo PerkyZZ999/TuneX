@@ -536,7 +536,7 @@ Popup {
 
                         IconButton {
                             anchors.verticalCenter: parent.verticalCenter
-                            iconName: root.repeatModeValue === 2 ? "repeat-1" : "repeat"
+                            iconName: Format.repeatIcon(root.repeatModeValue)
                             accessibleName: root.repeatLabel
                             checkable: true
                             checked: root.repeatModeValue !== 0
@@ -565,7 +565,7 @@ Popup {
                         IconButton {
                             id: muteButton
 
-                            iconName: root.muted ? "volume-x" : "volume"
+                            iconName: Format.muteIcon(root.muted)
                             accessibleName: root.muted ? qsTr("Unmute") : qsTr("Mute")
                             checkable: true
                             checked: root.muted

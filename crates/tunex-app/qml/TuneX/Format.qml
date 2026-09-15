@@ -64,4 +64,14 @@ QtObject {
     function gridCell(available: int): int {
         return Math.max(Theme.gridMin, Math.floor(available / Math.max(1, Math.floor(available / Theme.gridTarget))));
     }
+
+    // Transport icon selection (repeat + mute appear on several
+    // surfaces; the glyph choice is one rule, not five copies).
+    function repeatIcon(mode: int): string {
+        return mode === 2 ? "repeat-1" : "repeat";
+    }
+
+    function muteIcon(muted: bool): string {
+        return muted ? "volume-x" : "volume";
+    }
 }
