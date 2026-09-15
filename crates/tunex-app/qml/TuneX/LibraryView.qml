@@ -56,6 +56,46 @@ Item {
         return qsTr("Tracks");
     }
 
+    // Sort button label mirrors the active key + direction so the state is
+    // readable without opening the menu (recognition over recall).
+    function sortKeyLabel() {
+        if (root.tab === "albums") {
+            if (root.albumsSort === "artist")
+                return qsTr("Artist");
+            if (root.albumsSort === "date")
+                return qsTr("Date");
+            return qsTr("Title");
+        }
+        if (root.tab === "artists") {
+            if (root.artistsSort === "songs")
+                return qsTr("Tracks");
+            return qsTr("Name");
+        }
+        if (root.songsSort === "artist")
+            return qsTr("Artist");
+        if (root.songsSort === "album")
+            return qsTr("Album");
+        if (root.songsSort === "date")
+            return qsTr("Date");
+        return qsTr("Title");
+    }
+
+    function sortDescending() {
+        if (root.tab === "albums")
+            return root.albumsSortDesc;
+        if (root.tab === "artists")
+            return root.artistsSortDesc;
+        return root.songsSortDesc;
+    }
+
+    function sortLabel() {
+        return qsTr("%1 %2").arg(root.sortKeyLabel()).arg(root.sortDescending() ? "↓" : "↑");
+    }
+
+    function sortAccessibleLabel() {
+        return qsTr("Sort by %1, %2").arg(root.sortKeyLabel()).arg(root.sortDescending() ? qsTr("descending") : qsTr("ascending"));
+    }
+
     function bannerSource() {
         if (root.tab === "albums")
             return "qrc:/qt/qml/TuneX/banner-albums.png";
@@ -476,8 +516,8 @@ Item {
                 primary: false
                 glyph: "chevron-down"
                 glyphTrailing: true
-                text: qsTr("Sort By")
-                Accessible.name: qsTr("Sort By")
+                text: root.sortLabel()
+                Accessible.name: root.sortAccessibleLabel()
                 onClicked: {
                     if (sortRow.showAlbumsSort)
                         albumsSortMenu.popup(sortButton, 0, sortButton.height);
