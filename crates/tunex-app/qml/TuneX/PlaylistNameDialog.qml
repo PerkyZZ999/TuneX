@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX
 
 // PlaylistNameDialog (S3 W-024, glass in S6 W-038): name entry for playlist

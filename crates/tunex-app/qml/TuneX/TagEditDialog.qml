@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX
 
 // TagEditDialog (S12 W-063): in-app tag editor. Empty fields stay unchanged

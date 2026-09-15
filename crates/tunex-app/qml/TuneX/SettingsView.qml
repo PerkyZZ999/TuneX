@@ -716,165 +716,31 @@ Item {
                             }
                         }
 
-                        Item {
+                        SettingsCycleRow {
                             width: parent.width
-                            height: Math.max(Theme.targetMin, repeatCopy.implicitHeight + Theme.spaceSm * 2)
-                            activeFocusOnTab: true
-                            Accessible.role: Accessible.Button
-                            Accessible.name: qsTr("Repeat") + ", " + root.repeatLabel
-                            Keys.onSpacePressed: {
+                            title: qsTr("Repeat")
+                            value: root.repeatLabel
+                            iconName: root.repeatModeValue === 2 ? "repeat-1" : "repeat"
+                            accessibleName: qsTr("Repeat") + ", " + root.repeatLabel
+                            buttonAccessibleName: qsTr("Cycle repeat") + ", " + root.repeatLabel
+                            checkable: true
+                            checked: root.repeatModeValue !== 0
+                            onActivated: {
                                 root.queue.cycleRepeat();
                                 root.sync();
-                            }
-                            Keys.onReturnPressed: {
-                                root.queue.cycleRepeat();
-                                root.sync();
-                            }
-                            Keys.onEnterPressed: {
-                                root.queue.cycleRepeat();
-                                root.sync();
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: Theme.radiusSm
-                                color: repeatMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
-                                border.width: parent.activeFocus ? 2 : 0
-                                border.color: Theme.focus
-                            }
-
-                            Column {
-                                id: repeatCopy
-
-                                anchors.left: parent.left
-                                anchors.right: repeatButton.left
-                                anchors.rightMargin: Theme.spaceMd
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spaceXs
-
-                                Text {
-                                    text: qsTr("Repeat")
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBody
-                                    font.weight: Font.Medium
-                                    color: Theme.foreground
-                                }
-
-                                Text {
-                                    text: root.repeatLabel
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBodySm
-                                    color: Theme.muted
-                                }
-                            }
-
-                            IconButton {
-                                id: repeatButton
-
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                iconName: root.repeatModeValue === 2 ? "repeat-1" : "repeat"
-                                accessibleName: qsTr("Cycle repeat") + ", " + root.repeatLabel
-                                checkable: true
-                                checked: root.repeatModeValue !== 0
-                                onActivated: {
-                                    root.queue.cycleRepeat();
-                                    root.sync();
-                                }
-                            }
-
-                            MouseArea {
-                                id: repeatMouse
-
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.queue.cycleRepeat();
-                                    root.sync();
-                                }
                             }
                         }
 
-                        Item {
+                        SettingsCycleRow {
                             width: parent.width
-                            height: Math.max(Theme.targetMin, replayCopy.implicitHeight + Theme.spaceSm * 2)
-                            activeFocusOnTab: true
-                            Accessible.role: Accessible.Button
-                            Accessible.name: qsTr("ReplayGain") + ", " + root.replayGainLabel
-                            Keys.onSpacePressed: {
+                            title: qsTr("ReplayGain")
+                            value: root.replayGainLabel
+                            iconName: "volume"
+                            accessibleName: qsTr("ReplayGain") + ", " + root.replayGainLabel
+                            buttonAccessibleName: qsTr("Cycle ReplayGain") + ", " + root.replayGainLabel
+                            onActivated: {
                                 root.queue.cycleReplayGain();
                                 root.sync();
-                            }
-                            Keys.onReturnPressed: {
-                                root.queue.cycleReplayGain();
-                                root.sync();
-                            }
-                            Keys.onEnterPressed: {
-                                root.queue.cycleReplayGain();
-                                root.sync();
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: Theme.radiusSm
-                                color: replayMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
-                                border.width: parent.activeFocus ? 2 : 0
-                                border.color: Theme.focus
-                            }
-
-                            Column {
-                                id: replayCopy
-
-                                anchors.left: parent.left
-                                anchors.right: replayButton.left
-                                anchors.rightMargin: Theme.spaceMd
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spaceXs
-
-                                Text {
-                                    text: qsTr("ReplayGain")
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBody
-                                    font.weight: Font.Medium
-                                    color: Theme.foreground
-                                }
-
-                                Text {
-                                    text: root.replayGainLabel
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBodySm
-                                    color: Theme.muted
-                                }
-                            }
-
-                            IconButton {
-                                id: replayButton
-
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                iconName: "volume"
-                                accessibleName: qsTr("Cycle ReplayGain") + ", " + root.replayGainLabel
-                                onActivated: {
-                                    root.queue.cycleReplayGain();
-                                    root.sync();
-                                }
-                            }
-
-                            MouseArea {
-                                id: replayMouse
-
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.queue.cycleReplayGain();
-                                    root.sync();
-                                }
                             }
                         }
 
@@ -943,59 +809,13 @@ Item {
                             }
                         }
 
-                        Item {
+                        SettingsCycleRow {
                             width: parent.width
-                            height: Math.max(Theme.targetMin, eqPresetCopy.implicitHeight + Theme.spaceSm * 2)
                             enabled: root.eqOn && !root.eqMissing
-                            activeFocusOnTab: true
-                            Accessible.role: Accessible.Button
-                            Accessible.name: qsTr("Equalizer preset") + ", " + root.eqPreset
-                            Keys.onSpacePressed: root.cycleEqPreset()
-                            Keys.onReturnPressed: root.cycleEqPreset()
-                            Keys.onEnterPressed: root.cycleEqPreset()
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: Theme.radiusSm
-                                color: eqPresetMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
-                                border.width: parent.activeFocus ? 2 : 0
-                                border.color: Theme.focus
-                            }
-
-                            Column {
-                                id: eqPresetCopy
-
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spaceXs
-
-                                Text {
-                                    text: qsTr("Preset")
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBody
-                                    font.weight: Font.Medium
-                                    color: Theme.foreground
-                                }
-
-                                Text {
-                                    text: root.eqPreset
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBodySm
-                                    color: Theme.muted
-                                }
-                            }
-
-                            MouseArea {
-                                id: eqPresetMouse
-
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.cycleEqPreset()
-                            }
+                            title: qsTr("Preset")
+                            value: root.eqPreset
+                            accessibleName: qsTr("Equalizer preset") + ", " + root.eqPreset
+                            onActivated: root.cycleEqPreset()
                         }
 
                         Repeater {
@@ -1056,83 +876,16 @@ Item {
                             }
                         }
 
-                        Item {
+                        SettingsCycleRow {
                             width: parent.width
-                            height: Math.max(Theme.targetMin, outputCopy.implicitHeight + Theme.spaceSm * 2)
-                            activeFocusOnTab: true
-                            Accessible.role: Accessible.Button
-                            Accessible.name: qsTr("Output") + ", " + root.outputLabel
-                            Keys.onSpacePressed: {
+                            title: qsTr("Output")
+                            value: root.outputLabel
+                            iconName: "sliders-horizontal"
+                            accessibleName: qsTr("Output") + ", " + root.outputLabel
+                            buttonAccessibleName: qsTr("Cycle output") + ", " + root.outputLabel
+                            onActivated: {
                                 root.queue.cycleOutput();
                                 root.sync();
-                            }
-                            Keys.onReturnPressed: {
-                                root.queue.cycleOutput();
-                                root.sync();
-                            }
-                            Keys.onEnterPressed: {
-                                root.queue.cycleOutput();
-                                root.sync();
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: Theme.radiusSm
-                                color: outputMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
-                                border.width: parent.activeFocus ? 2 : 0
-                                border.color: Theme.focus
-                            }
-
-                            Column {
-                                id: outputCopy
-
-                                anchors.left: parent.left
-                                anchors.right: outputButton.left
-                                anchors.rightMargin: Theme.spaceMd
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spaceXs
-
-                                Text {
-                                    text: qsTr("Output")
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBody
-                                    font.weight: Font.Medium
-                                    color: Theme.foreground
-                                }
-
-                                Text {
-                                    text: root.outputLabel
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBodySm
-                                    color: Theme.muted
-                                }
-                            }
-
-                            IconButton {
-                                id: outputButton
-
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                iconName: "sliders-horizontal"
-                                accessibleName: qsTr("Cycle output") + ", " + root.outputLabel
-                                onActivated: {
-                                    root.queue.cycleOutput();
-                                    root.sync();
-                                }
-                            }
-
-                            MouseArea {
-                                id: outputMouse
-
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.queue.cycleOutput();
-                                    root.sync();
-                                }
                             }
                         }
 
@@ -1260,57 +1013,12 @@ Item {
                             }
                         }
 
-                        Item {
+                        SettingsCycleRow {
                             width: parent.width
-                            height: Math.max(Theme.targetMin, vizCopy.implicitHeight + Theme.spaceSm * 2)
-                            activeFocusOnTab: true
-                            Accessible.role: Accessible.Button
-                            Accessible.name: qsTr("Now Playing view") + ", " + root.vizModeLabel()
-                            Keys.onSpacePressed: root.cycleVisualizer()
-                            Keys.onReturnPressed: root.cycleVisualizer()
-                            Keys.onEnterPressed: root.cycleVisualizer()
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: Theme.radiusSm
-                                color: vizMouse.containsMouse || parent.activeFocus ? Theme.hover : "transparent"
-                                border.width: parent.activeFocus ? 2 : 0
-                                border.color: Theme.focus
-                            }
-
-                            Column {
-                                id: vizCopy
-
-                                anchors.fill: parent
-                                anchors.margins: Theme.spaceSm
-                                spacing: Theme.spaceXs
-
-                                Text {
-                                    text: qsTr("Now Playing view")
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBody
-                                    font.weight: Font.Medium
-                                    color: Theme.foreground
-                                }
-
-                                Text {
-                                    text: root.vizModeLabel()
-                                    textFormat: Text.PlainText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontBodySm
-                                    color: Theme.muted
-                                }
-                            }
-
-                            MouseArea {
-                                id: vizMouse
-
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.cycleVisualizer()
-                            }
+                            title: qsTr("Now Playing view")
+                            value: root.vizModeLabel()
+                            accessibleName: qsTr("Now Playing view") + ", " + root.vizModeLabel()
+                            onActivated: root.cycleVisualizer()
                         }
 
                         Text {

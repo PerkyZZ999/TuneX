@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import TuneX
 
 // SmartPlaylistDialog (S12 W-062): rule builder for local smart playlists.
