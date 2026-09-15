@@ -70,6 +70,20 @@ Item {
 
     // Only "All" latches: the other chips navigate away immediately, so
     // keeping them selected would lie about the Home content on return.
+    function chipLabel(key) {
+        if (key === "songs")
+            return qsTr("Tracks");
+        if (key === "artists")
+            return qsTr("Artists");
+        if (key === "albums")
+            return qsTr("Albums");
+        if (key === "playlists")
+            return qsTr("Playlists");
+        if (key === "folders")
+            return qsTr("Folders");
+        return qsTr("All");
+    }
+
     function activateChip(key) {
         if (key === "all") {
             root.chipKey = key;
@@ -150,40 +164,18 @@ Item {
                 width: parent.width
                 spacing: Theme.spaceSm
 
-                Chip {
-                    label: qsTr("All")
-                    selected: root.chipKey === "all"
-                    onActivated: root.activateChip("all")
-                }
+                // Static key model: one Chip per destination, labels
+                // resolved inside the delegate.
+                Repeater {
+                    model: ["all", "artists", "albums", "songs", "playlists", "folders"]
 
-                Chip {
-                    label: qsTr("Artists")
-                    selected: root.chipKey === "artists"
-                    onActivated: root.activateChip("artists")
-                }
+                    Chip {
+                        required property string modelData
 
-                Chip {
-                    label: qsTr("Albums")
-                    selected: root.chipKey === "albums"
-                    onActivated: root.activateChip("albums")
-                }
-
-                Chip {
-                    label: qsTr("Tracks")
-                    selected: root.chipKey === "songs"
-                    onActivated: root.activateChip("songs")
-                }
-
-                Chip {
-                    label: qsTr("Playlists")
-                    selected: root.chipKey === "playlists"
-                    onActivated: root.activateChip("playlists")
-                }
-
-                Chip {
-                    label: qsTr("Folders")
-                    selected: root.chipKey === "folders"
-                    onActivated: root.activateChip("folders")
+                        label: root.chipLabel(modelData)
+                        selected: root.chipKey === modelData
+                        onActivated: root.activateChip(modelData)
+                    }
                 }
             }
 
