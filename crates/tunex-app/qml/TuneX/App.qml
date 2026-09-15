@@ -711,7 +711,7 @@ Window {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontBody
                                 leftPadding: Theme.spaceXl + Theme.spaceSm
-                                rightPadding: Theme.spaceMd
+                                rightPadding: Theme.buttonHeight + Theme.spaceSm
                                 onTextChanged: {
                                     if (searchField.text !== "" && root.section !== "search")
                                         root.navigate("search");
@@ -762,6 +762,24 @@ Window {
                                 name: "search"
                                 iconSize: Theme.navIconSize
                                 stroke: Theme.muted
+                            }
+
+                            // Discoverable reset: Esc also clears, but only
+                            // while the field has focus. 32px like the row
+                            // ⋯ actions, keyboard reachable with a tooltip.
+                            IconButton {
+                                anchors.right: parent.right
+                                anchors.rightMargin: Theme.spaceXs
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: searchField.text !== ""
+                                size: Theme.buttonHeight
+                                glyphSize: Theme.navIconSize
+                                iconName: "x"
+                                accessibleName: qsTr("Clear search")
+                                onActivated: {
+                                    searchField.text = "";
+                                    searchField.forceActiveFocus();
+                                }
                             }
                         }
 
