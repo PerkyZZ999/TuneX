@@ -277,6 +277,7 @@ Popup {
 
             Flickable {
                 id: scroller
+                ScrollBar.vertical: ListScrollBar {}
 
                 anchors.fill: parent
                 anchors.topMargin: Theme.spaceMd
@@ -341,6 +342,7 @@ Popup {
 
                         Flickable {
                             visible: root.lyricsOn
+                            ScrollBar.vertical: ListScrollBar {}
                             anchors.fill: parent
                             clip: true
                             contentWidth: width

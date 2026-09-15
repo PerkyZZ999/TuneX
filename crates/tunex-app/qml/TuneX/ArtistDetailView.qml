@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import TuneX
 
 // Artist landing page: header with play, album grid, then tracks.
@@ -101,6 +102,7 @@ Item {
 
     Flickable {
         id: scroller
+        ScrollBar.vertical: ListScrollBar {}
 
         anchors.fill: parent
         clip: true

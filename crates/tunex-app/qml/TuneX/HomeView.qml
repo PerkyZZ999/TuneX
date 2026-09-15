@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import TuneX
 
 // Home (DESIGN_BRIEF + IA): hero, library-backed chips, album rail,
@@ -113,6 +114,7 @@ Item {
 
     Flickable {
         id: scroller
+        ScrollBar.vertical: ListScrollBar {}
 
         anchors.fill: parent
         clip: true

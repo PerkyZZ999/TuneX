@@ -70,6 +70,7 @@ fn main() {
                 "qml/TuneX/AmbientWash.qml",
                 "qml/TuneX/TextLink.qml",
                 "qml/TuneX/ProgressSlider.qml",
+                "qml/TuneX/ListScrollBar.qml",
                 "qml/TuneX/GlassMenu.qml",
                 "qml/TuneX/GlassMenuItem.qml",
                 "qml/TuneX/GlassMenuSeparator.qml",

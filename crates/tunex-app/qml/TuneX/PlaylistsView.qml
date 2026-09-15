@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import TuneX
 
 // PlaylistsView (S3 W-024, glass in S6 W-038): sidebar of user playlists
@@ -293,6 +294,7 @@ Item {
 
                 ListView {
                     id: playlistsView
+                    ScrollBar.vertical: ListScrollBar {}
 
                     width: parent.width
                     height: parent.height - newButton.height - smartButton.height - Theme.spaceMd * 2
@@ -513,6 +515,7 @@ Item {
 
                     ListView {
                         id: entriesView
+                        ScrollBar.vertical: ListScrollBar {}
 
                         visible: root.playlistId >= 0 && count > 0
                         anchors.fill: parent

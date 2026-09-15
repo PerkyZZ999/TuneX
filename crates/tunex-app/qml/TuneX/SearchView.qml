@@ -464,6 +464,7 @@ Item {
 
                 ListView {
                     id: songsView
+                    ScrollBar.vertical: ListScrollBar {}
 
                     anchors.fill: parent
                     model: songs
@@ -612,6 +613,7 @@ Item {
 
                 GridView {
                     id: albumsView
+                    ScrollBar.vertical: ListScrollBar {}
 
                     anchors.fill: parent
                     model: albums
@@ -684,6 +686,7 @@ Item {
 
                 GridView {
                     id: artistsView
+                    ScrollBar.vertical: ListScrollBar {}
 
                     anchors.fill: parent
                     model: artists

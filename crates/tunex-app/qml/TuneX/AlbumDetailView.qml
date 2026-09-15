@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import TuneX
 
 // Album landing page: large art header, one primary Play, meta, virtualized
@@ -221,6 +222,7 @@ Item {
 
         ListView {
             id: tracksView
+            ScrollBar.vertical: ListScrollBar {}
 
             width: parent.width
             height: parent.height - Theme.nowPlayingArt - Theme.targetMin * 2 - Theme.spaceMd * 6 - (moreView.visible ? moreView.height + Theme.spaceMd : 0)

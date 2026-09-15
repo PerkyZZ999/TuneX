@@ -356,6 +356,7 @@ Item {
 
             Flickable {
                 width: parent.width - 220 - 1 - Theme.spaceXl * 2
+                ScrollBar.vertical: ListScrollBar {}
                 height: parent.height
                 clip: true
                 contentWidth: width

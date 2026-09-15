@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import TuneX
 
 // QueuePanel: Now Playing list plus the persistent-player summary. Docked as
@@ -578,6 +579,7 @@ Rectangle {
 
             ListView {
                 id: queueList
+                ScrollBar.vertical: ListScrollBar {}
 
                 visible: count > 0
                 anchors.left: parent.left

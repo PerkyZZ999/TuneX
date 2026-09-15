@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import TuneX
 
 // LibraryView (S2 W-016, S9 landing pages): browse the indexed library —
@@ -783,6 +784,7 @@ Item {
         // Songs tab: virtualized list over the capped songs query.
         ListView {
             id: songsView
+            ScrollBar.vertical: ListScrollBar {}
 
             visible: root.showingBrowse && ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
             anchors.fill: parent
@@ -930,6 +932,7 @@ Item {
         // Albums tab: fluid artwork grid over the album query.
         GridView {
             id: albumsView
+            ScrollBar.vertical: ListScrollBar {}
 
             visible: root.showingBrowse && root.tab === "albums" && !root.libraryEmpty
             anchors.fill: parent
@@ -994,6 +997,7 @@ Item {
         // focus-gated ring is a reading cursor, not a selection.
         GridView {
             id: artistsView
+            ScrollBar.vertical: ListScrollBar {}
 
             visible: root.showingBrowse && root.tab === "artists" && !root.libraryEmpty
             anchors.fill: parent
@@ -1044,6 +1048,7 @@ Item {
         // Folders tab: browse indexed tracks by parent directory.
         ListView {
             id: foldersView
+            ScrollBar.vertical: ListScrollBar {}
 
             visible: root.showingBrowse && root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
             anchors.fill: parent
@@ -1165,6 +1170,7 @@ Item {
 
         ListView {
             id: facetsView
+            ScrollBar.vertical: ListScrollBar {}
 
             visible: root.showingBrowse && (root.tab === "genres" || root.tab === "composers") && !root.libraryEmpty
             anchors.fill: parent
@@ -1355,6 +1361,7 @@ Item {
 
             ListView {
                 id: facetTracksView
+                ScrollBar.vertical: ListScrollBar {}
 
                 width: parent.width
                 height: parent.height - Theme.fontHeadline - Theme.spaceMd * 2
