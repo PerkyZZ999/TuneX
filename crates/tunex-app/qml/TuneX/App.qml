@@ -28,6 +28,9 @@ Window {
     // Cover of the playing track, mirrored here so the ambient wash and the
     // chrome that sits over it share one source.
     property url ambientArt
+    // Mirrored for the window title (taskbars, Alt-Tab).
+    property string nowPlayingTitle: ""
+    property string nowPlayingArtist: ""
     // The rail's playlist entries are list delegates, and a delegate scope
     // resolves `root` but not the other ids in this file, so both the open
     // playlist and the call that opens one travel through the root item.
@@ -113,6 +116,8 @@ Window {
     function syncPlayer() {
         queueModel.poll();
         root.ambientArt = queueModel.currentArtUrl();
+        root.nowPlayingTitle = queueModel.currentTitle();
+        root.nowPlayingArtist = queueModel.currentArtist();
         const state = queueModel.playbackState();
         const cursor = queueModel.currentIndex();
         if (cursor >= 0 || state === 1 || state === 2 || state === 3)
@@ -159,7 +164,8 @@ Window {
     width: 1280
     height: 800
     visible: true
-    title: qsTr("TuneX")
+    // Taskbars and Alt-Tab name the track, not just the app.
+    title: root.nowPlayingTitle !== "" ? qsTr("%1 — %2 · TuneX").arg(root.nowPlayingTitle).arg(root.nowPlayingArtist !== "" ? root.nowPlayingArtist : qsTr("Unknown Artist")) : qsTr("TuneX")
     color: Theme.background
     onActiveChanged: queueModel.setWindowActive(root.active && root.visible)
     onVisibleChanged: queueModel.setWindowActive(root.active && root.visible)
