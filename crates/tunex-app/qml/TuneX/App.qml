@@ -601,6 +601,7 @@ Window {
                         ListView {
                             width: parent.width
                             height: Math.min(contentHeight, parent.height * 0.28)
+                            ScrollBar.vertical: ListScrollBar {}
                             clip: true
                             spacing: Theme.listRowGap
                             model: playlistModel
