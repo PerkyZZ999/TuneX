@@ -559,3 +559,10 @@
 - **Waiver:** none
 - **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
 
+### 2026-09-15 — UI/UX polish pass C0–C12 (post-S16, owner-requested)
+- **Slice:** none (outside WORK_ITEMS; no locked decision touched, no new screens or models)
+- **Result:** pass (13 commits, each: `scripts/qml-lint.sh` clean + CMake build green + hook checks green)
+- **Evidence:** C0 committed the in-tree DnD polish (drag chip, drop wash+caption, compact Now Playing rows, DESIGN/BRIEF/IA drag contract). C1 search-field clear button. C2 Sort button mirrors key+direction with spelled-out accessible name. C3 GlassDialog confirms queue Clear with count. C4 docked rail shares the drawer EmptyState. C5 hour-long durations print h:mm:ss in all four formatTime copies (shared Format.js deferred: needs qmldir plumbing in cxx-qt-build). C6 tnum on rail times. C7 missing/dangling rows dim 50% with no hover tint (selection fill kept). C8 shared ListScrollBar on all 18 list/grid/page scrollers. C9 recents labeled with Clear via new `clearRecentSearches` + core test (316 tests). C10 position labels preview the scrub target while dragged. C11 Play all carries the live tab count (library + search). C12 volume percent tooltip on both volume sliders via shared `tipText`. Media-test flakes in hook runs (gapless, play-now, mp3 codec) each pass solo — parallel-load flakes, not regressions.
+- **Waiver:** none
+- **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
+
