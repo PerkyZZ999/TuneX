@@ -1,11 +1,14 @@
-# Work items (current slice: S16 — Artwork / visualizer modes)
+# Work items (current slice: W-074 — Positional drops + playlist-add toast)
 
-> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060). S12 done (W-061–W-063). S13 done (W-064–W-066). S14 done (W-067–W-070, W-073). S15 done (W-071). S16 done (W-072).
+> S1 done (W-001a/b–W-010). S2 done (W-011–W-018). S3 done (W-019–W-025). S4 done (W-026–W-031). S5 done (W-032–W-037). S6 done (W-038–W-045). S7 done (W-046, W-047). S8 done (W-048–W-051). S9 done (W-052–W-055). S10 done (W-056–W-057). S11 done (W-058–W-060). S12 done (W-061–W-063). S13 done (W-064–W-066). S14 done (W-067–W-070, W-073). S15 done (W-071). S16 done (W-072). W-074 done 2026-09-15.
 
 ## Current slice
-S16 — Artwork / Spectrum / Waveform / Visualizer on the Now Playing well. **Done 2026-09-14** (W-072). Depends on S15's audio bin; does not reopen S14/S15.
+W-074 — Positional drops onto Now Playing + playlist detail, and a toast for every playlist add. **Done 2026-09-15**. Post-S16 polish; reopens no slice.
 
-**Done condition:** Artwork well modes switch while playing; reduce-motion forces Artwork; analysis is a pad probe after EQ.
+**Done condition:** Drops land at the insertion line (`#N of M`); internal drags move rows without duplicating; every menu/sidebar playlist add closes the menu and toasts the count + list.
+
+## Queue (post-S16 polish)
+- [x] W-074 — Positional drops onto Now Playing + playlist detail (insertion line + `#N of M`); internal drags move rows (no duplicates); shell toast confirms every playlist add with count + list (R-010, R-012).
 
 ## Queue (S16)
 - [x] W-072 — Promote L-008: spectrum/PCM tap after EQ; Artwork | Spectrum | Waveform | Visualizer + View menu + Settings → Appearance; lyrics still wins on the overlay; `reduce_motion` → Artwork (R-023).

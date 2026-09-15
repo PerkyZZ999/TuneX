@@ -42,6 +42,7 @@ Item {
     signal backRequested
     signal albumRequested(int albumId)
     signal artistRequested(string name)
+    signal notice(string text, bool isError)
 
     function formatTime(ms) {
         const total = Math.max(0, Math.floor(ms / 1000));
@@ -123,6 +124,7 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: songs.refreshAlbum(root.albumId)
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Column {
@@ -221,6 +223,7 @@ Item {
             height: parent.height - Theme.nowPlayingArt - Theme.targetMin * 2 - Theme.spaceMd * 6 - (moreView.visible ? moreView.height + Theme.spaceMd : 0)
             model: songs
             clip: true
+            spacing: Theme.listRowGap
             activeFocusOnTab: true
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             header: SelectionBar {
@@ -233,6 +236,7 @@ Item {
                     return root.trackMimeIds();
                 }
                 onCleared: trackSelection.clear()
+                onNotice: (text, isError) => root.notice(text, isError)
             }
             Accessible.role: Accessible.List
             Accessible.selectable: true

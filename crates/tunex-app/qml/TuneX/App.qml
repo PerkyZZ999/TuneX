@@ -602,6 +602,7 @@ Window {
                             width: parent.width
                             height: Math.min(contentHeight, parent.height * 0.28)
                             clip: true
+                            spacing: Theme.listRowGap
                             model: playlistModel
                             boundsBehavior: Flickable.StopAtBounds
 
@@ -831,6 +832,7 @@ Window {
                                 queue: queueModel
                                 playlists: playlistModel
                                 library: library
+                                onNotice: (text, isError) => toast.show(text, isError)
                                 onFocusFieldRequested: searchField.forceActiveFocus()
                                 onClearRequested: {
                                     searchField.text = "";
@@ -857,6 +859,7 @@ Window {
                                 queue: queueModel
                                 playlists: playlistModel
                                 library: library
+                                onNotice: (text, isError) => toast.show(text, isError)
                                 onSettingsRequested: pickFolder => root.openSettings("library", pickFolder)
                             }
 
@@ -866,6 +869,7 @@ Window {
                                 visible: root.section === "playlists"
                                 queue: queueModel
                                 playlists: playlistModel
+                                onNotice: (text, isError) => toast.show(text, isError)
                             }
 
                             SettingsView {
@@ -913,6 +917,17 @@ Window {
                 onQueueToggleRequested: root.toggleQueue()
                 onExpandRequested: root.openNowPlaying()
             }
+        }
+
+        // Shell toast (DESIGN.md Components): one-line confirmations above
+        // the persistent player, fed by the views' `notice` signals.
+        Toast {
+            id: toast
+
+            z: 30
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: (miniPlayer.visible ? miniPlayer.height : 0) + Theme.spaceLg
         }
     }
     Loader {

@@ -207,6 +207,16 @@ impl Queue {
         at
     }
 
+    /// Insert at an arbitrary position (clamped into range); returns the
+    /// index the item landed on. Powers positional drops onto Now Playing:
+    /// external tracks land exactly where the insertion line showed.
+    pub fn insert_at(&mut self, at: usize, item: QueueItem) -> usize {
+        let at = at.min(self.items.len());
+        self.items.insert(at, item);
+        self.shift_cursor_for_insert(at);
+        at
+    }
+
     /// Remove an entry, returning it. Removing the cursor clears it (the
     /// loaded track keeps playing; the next advance starts fresh).
     pub fn remove(&mut self, index: usize) -> Option<QueueItem> {
@@ -239,6 +249,52 @@ impl Queue {
             for past in &mut self.history {
                 *past = remap_index(*past, from, to);
             }
+        }
+    }
+
+    /// Move a set of entries to `to` as one block, keeping their relative
+    /// order. `to` is an insertion index in the current list (clamped into
+    /// range), so a drop line between rows lands exactly there; out-of-range
+    /// rows are ignored and an empty set is a no-op. The cursor and history
+    /// keep pointing at the same tracks (moved rows included).
+    pub fn move_items(&mut self, rows: &[usize], to: usize) {
+        let len = self.items.len();
+        let mut moving: Vec<usize> = rows.iter().copied().filter(|row| *row < len).collect();
+        moving.sort_unstable();
+        moving.dedup();
+        if moving.is_empty() {
+            return;
+        }
+        let to = to.min(len);
+        let before = moving.iter().filter(|row| **row < to).count();
+        let dest = to - before;
+        let mut block = Vec::with_capacity(moving.len());
+        for row in moving.iter().rev() {
+            if let Some(item) = self.items.remove(*row) {
+                block.push(item);
+            }
+        }
+        block.reverse();
+        let width = block.len();
+        let remap = |index: usize| -> usize {
+            if let Ok(pos) = moving.binary_search(&index) {
+                return dest + pos;
+            }
+            let removed_before = moving.iter().filter(|row| **row < index).count();
+            let after_removal = index.saturating_sub(removed_before);
+            if after_removal >= dest {
+                after_removal + width
+            } else {
+                after_removal
+            }
+        };
+        self.current = self.current.map(remap);
+        for past in &mut self.history {
+            *past = remap(*past);
+        }
+        let at = dest.min(self.items.len());
+        for (offset, item) in block.into_iter().enumerate() {
+            self.items.insert(at + offset, item);
         }
     }
 
@@ -703,5 +759,84 @@ mod tests {
         let queue = three_track_queue();
         assert_eq!(queue.get(1).map(|item| item.title.as_str()), Some("B"));
         assert!(queue.get(99).is_none());
+    }
+
+    fn titles(queue: &Queue) -> Vec<String> {
+        queue
+            .items()
+            .iter()
+            .map(|item| item.title.clone())
+            .collect()
+    }
+
+    #[test]
+    fn insert_at_lands_exactly_where_asked() {
+        let mut queue = three_track_queue();
+        assert_eq!(queue.next(), Advance::Item(0));
+        assert_eq!(queue.insert_at(1, QueueItem::new("file:///x.flac", "X")), 1);
+        assert_eq!(titles(&queue), ["A", "X", "B", "C"]);
+        assert_eq!(
+            queue.current().map(|item| item.title.as_str()),
+            Some("A"),
+            "inserting after the cursor keeps it on the same track"
+        );
+        assert_eq!(queue.insert_at(0, QueueItem::new("file:///y.flac", "Y")), 0);
+        assert_eq!(titles(&queue), ["Y", "A", "X", "B", "C"]);
+        assert_eq!(queue.current_index(), Some(1));
+    }
+
+    #[test]
+    fn insert_at_clamps_past_the_end() {
+        let mut queue = three_track_queue();
+        assert_eq!(
+            queue.insert_at(99, QueueItem::new("file:///x.flac", "X")),
+            3
+        );
+        assert_eq!(titles(&queue), ["A", "B", "C", "X"]);
+    }
+
+    #[test]
+    fn move_items_reorders_a_block_without_duplicating() {
+        let mut queue = three_track_queue();
+        queue.push_back(QueueItem::new("file:///d.flac", "D"));
+        queue.push_back(QueueItem::new("file:///e.flac", "E"));
+        // [A, B, C, D, E]: drop B + D at index 4 (the line before E).
+        queue.move_items(&[1, 3], 4);
+        assert_eq!(titles(&queue), ["A", "C", "B", "D", "E"]);
+        assert_eq!(queue.len(), 5, "a move never copies");
+    }
+
+    #[test]
+    fn move_items_up_keeps_relative_order() {
+        let mut queue = three_track_queue();
+        queue.push_back(QueueItem::new("file:///d.flac", "D"));
+        // [A, B, C, D]: drop C + D at the top.
+        queue.move_items(&[3, 2], 0);
+        assert_eq!(titles(&queue), ["C", "D", "A", "B"]);
+    }
+
+    #[test]
+    fn move_items_keeps_the_cursor_on_the_same_track() {
+        let mut queue = three_track_queue();
+        assert_eq!(queue.next(), Advance::Item(0));
+        assert_eq!(queue.next(), Advance::Item(1));
+        // Cursor on B; move B + C to the end.
+        queue.move_items(&[1, 2], 3);
+        assert_eq!(titles(&queue), ["A", "B", "C"]);
+        assert_eq!(queue.current().map(|item| item.title.as_str()), Some("B"));
+        assert_eq!(queue.current_index(), Some(1));
+        // Cursor off the block still tracks its track: move A past C.
+        queue.move_items(&[0], 3);
+        assert_eq!(titles(&queue), ["B", "C", "A"]);
+        assert_eq!(queue.current().map(|item| item.title.as_str()), Some("B"));
+        assert_eq!(queue.current_index(), Some(0));
+    }
+
+    #[test]
+    fn move_items_ignores_junk() {
+        let mut queue = three_track_queue();
+        queue.move_items(&[], 1);
+        queue.move_items(&[9, 99], 0);
+        assert_eq!(titles(&queue), ["A", "B", "C"]);
     }
 }

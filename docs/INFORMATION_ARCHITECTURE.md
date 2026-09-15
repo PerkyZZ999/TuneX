@@ -80,7 +80,7 @@ View ids in `monospace` (QML view names, S1–S4 scope). Max depth: 2.
 3. Esc clears query → previous view + scroll position restored.
 
 ### Build an evening queue (queue-as-instrument)
-1. From any row: ⋯ → "Play next" / "Add to Now Playing". Ctrl/Shift select several TrackRows, then Play selected / Add to Now Playing / New playlist.
+1. From any library/search/playlist row: ⋯ → "Play next" / "Add to Now Playing". Now Playing rows use right-click / Menu / Shift+F10 (no ⋯). Ctrl/Shift select several TrackRows, then Play selected / Add to Now Playing / New playlist.
 2. Open QueuePanel → reorder via drag/keyboard; playing row marked; drop songs onto the list.
 3. Gapless handoff between consecutive albums (about-to-finish preload, no user action).
 
@@ -143,8 +143,8 @@ Every secondary layer below has exactly one explicit affordance and is keyboard/
 
 | Hidden layer | Revealed by | Context |
 |--------------|-------------|---------|
-| Row actions (play, play-next, add to Now Playing, add-to-playlist, remove) | Hover/focus on row; always-visible ⋯; right-click / Menu / Shift+F10 | All TrackLists |
-| Multi-select bar | Ctrl/Shift/Ctrl+A on TrackRows; Esc clears | TrackRow lists only (not album/artist grids) |
+| Row actions (play, play-next, add to Now Playing, add-to-playlist, remove) | Hover/focus on row; always-visible ⋯ on library/search/playlist lists; right-click / Menu / Shift+F10 everywhere | All TrackLists; Now Playing omits ⋯ |
+| Playlist / Now Playing drop | Drag a TrackRow (12px); chip follows the pointer; drop target washes + accent edge + caption | Now Playing, playlist detail, playlist sidebar |
 | Now Playing list | Queue toggle in persistent player | Global (drawer/overlay by width); same session playlist as the overlay |
 | Now Playing expanded | Mini-player click or shortcut | Global overlay, same state |
 | Artwork / Spectrum / Waveform / Visualizer | Artwork well context menu View; Settings → Appearance | QueuePanel + overlay; lyrics still wins |

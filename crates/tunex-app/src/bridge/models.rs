@@ -1184,6 +1184,18 @@ pub mod qobject {
         #[cxx_name = "enqueueTrackIds"]
         fn enqueue_track_ids(self: Pin<&mut QueueModel>, ids: &QString) -> i32;
 
+        /// Insert library tracks by comma-separated row ids at `position`
+        /// (clamped into range). Exposed as `enqueueTrackIdsAt`.
+        #[qinvokable]
+        #[cxx_name = "enqueueTrackIdsAt"]
+        fn enqueue_track_ids_at(self: Pin<&mut QueueModel>, ids: &QString, position: i32) -> i32;
+
+        /// Move queue rows (comma-separated positions) to `to` as one block.
+        /// Exposed as `moveItems`.
+        #[qinvokable]
+        #[cxx_name = "moveItems"]
+        fn move_items(self: Pin<&mut QueueModel>, rows: &QString, to: i32);
+
         /// Play comma-separated library ids now, with the rest inserted to
         /// play next in order. Exposed as `playTrackIds`.
         #[qinvokable]
@@ -1359,6 +1371,17 @@ pub mod qobject {
         #[cxx_name = "addTracks"]
         fn add_tracks(self: Pin<&mut PlaylistModel>, playlist_id: i32, ids: &QString) -> i32;
 
+        /// Insert comma-separated library ids at `position` in one playlist.
+        /// Exposed as `addTracksAt`.
+        #[qinvokable]
+        #[cxx_name = "addTracksAt"]
+        fn add_tracks_at(
+            self: Pin<&mut PlaylistModel>,
+            playlist_id: i32,
+            ids: &QString,
+            position: i32,
+        ) -> i32;
+
         /// Playlist id at `row` (-1 when out of range).
         /// Exposed to QML as `playlistIdAt`.
         #[qinvokable]
@@ -1425,6 +1448,18 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "addTrack"]
         fn add_track(self: Pin<&mut PlaylistTrackModel>, track_id: i32) -> i32;
+
+        /// Insert comma-separated library ids at `position` in the open
+        /// playlist. Exposed to QML as `insertTracks`.
+        #[qinvokable]
+        #[cxx_name = "insertTracks"]
+        fn insert_tracks(self: Pin<&mut PlaylistTrackModel>, ids: &QString, position: i32) -> i32;
+
+        /// Move open-playlist rows (comma-separated positions) to `to` as
+        /// one block. Exposed to QML as `moveItems`.
+        #[qinvokable]
+        #[cxx_name = "moveItems"]
+        fn move_items(self: Pin<&mut PlaylistTrackModel>, rows: &QString, to: i32);
 
         /// Entry id at `row` (-1 when out of range).
         /// Exposed to QML as `entryIdAt`.

@@ -308,6 +308,44 @@ impl PlaylistModelRust {
         added
     }
 
+    /// Insert many library ids at `position` (clamped into range),
+    /// preserving list order.
+    fn do_add_tracks_at(&mut self, playlist_id: i64, ids: &[i64], position: usize) -> i32 {
+        let Some(mut db) = self.open_writable() else {
+            return 0;
+        };
+        let mut added = 0;
+        for (offset, track_id) in ids.iter().enumerate() {
+            match tunex_library::track_by_id(&db, *track_id) {
+                Ok(Some(row)) if !row.missing => {}
+                Ok(Some(_)) => {
+                    self.last_error = Some("That file is missing from disk.".to_owned());
+                    continue;
+                }
+                _ => {
+                    self.last_error = Some("That track is no longer in the library.".to_owned());
+                    continue;
+                }
+            }
+            match tunex_library::insert_into_playlist(
+                &mut db,
+                playlist_id,
+                *track_id,
+                position + offset,
+            ) {
+                Ok(()) => {
+                    added += 1;
+                    self.last_error = None;
+                }
+                Err(err) => self.last_error = Some(friendly_error(&err)),
+            }
+        }
+        if added > 0 {
+            self.refresh_rows();
+        }
+        added
+    }
+
     /// Last failure, if any (cleared by the next success).
     fn error_message(&self) -> Option<String> {
         self.last_error.clone()
@@ -471,6 +509,41 @@ impl qobject::PlaylistModel {
         added
     }
 
+    /// Insert comma-separated library ids at `position` in one playlist.
+    #[must_use]
+    pub fn add_tracks_at(
+        mut self: Pin<&mut Self>,
+        playlist_id: i32,
+        ids: &QString,
+        position: i32,
+    ) -> i32 {
+        let parsed = ids
+            .to_string()
+            .split(',')
+            .filter_map(|part| {
+                let part = part.trim();
+                if part.is_empty() {
+                    None
+                } else {
+                    part.parse::<i64>().ok()
+                }
+            })
+            .collect::<Vec<_>>();
+        let at = usize::try_from(position.max(0)).unwrap_or(usize::MAX);
+        let added = self
+            .as_mut()
+            .rust_mut()
+            .do_add_tracks_at(i64::from(playlist_id), &parsed, at);
+        if added > 0 {
+            // SAFETY: reset pair strictly paired on this single path.
+            unsafe {
+                self.as_mut().begin_reset_model_playlists();
+                self.as_mut().end_reset_model_playlists();
+            };
+        }
+        added
+    }
+
     /// Playlist name at `row` (empty when out of range).
     pub fn playlist_name_at(&self, row: i32) -> QString {
         self.rust().playlist_name_at(row)
@@ -620,6 +693,31 @@ mod tests {
         assert_eq!(model.playlists[0].2, 1, "count follows adds");
         assert_eq!(model.do_add_track(i64::from(first), 999_999), 0);
         assert!(model.error_message().is_some_and(|text| !text.is_empty()));
+    }
+
+    #[test]
+    fn insert_at_position_keeps_order() {
+        let (mut model, _guard) = model_with_seeded_library("pl-insert-at");
+        let id = model.do_create("Order");
+        assert!(id > 0);
+        let db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        let ids: Vec<i64> = tunex_library::list_tracks(&db)
+            .expect("list works")
+            .into_iter()
+            .map(|track| track.id)
+            .collect();
+        drop(db);
+        assert!(ids.len() >= 3);
+        assert_eq!(model.do_add_tracks(i64::from(id), &ids[..2]), 2);
+        assert_eq!(model.do_add_tracks_at(i64::from(id), &ids[2..3], 1), 1);
+        let db = tunex_library::open_file(&model.index_path).expect("reopen works");
+        let order: Vec<i64> = tunex_library::list_entries(&db, i64::from(id))
+            .expect("entries list")
+            .into_iter()
+            .map(|entry| entry.track_id)
+            .collect();
+        assert_eq!(order, vec![ids[0], ids[2], ids[1]]);
+        assert!(model.error_message().is_none());
     }
 
     #[test]

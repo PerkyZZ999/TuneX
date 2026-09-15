@@ -46,8 +46,8 @@ pub use lyrics::{LyricLine, Lyrics, active_line, load_lyrics, parse_lrc};
 pub use metadata::{EmbeddedArtwork, FileMetadata, TagEdit, read_metadata, write_tags};
 pub use playlist::{
     Playlist, PlaylistEntry, SmartRule, add_to_playlist, create_playlist, create_smart_playlist,
-    delete_playlist, evaluate_smart_playlist, list_entries, list_playlists, move_entry,
-    remove_from_playlist, rename_playlist, smart_rule,
+    delete_playlist, evaluate_smart_playlist, insert_into_playlist, list_entries, list_playlists,
+    move_entries, move_entry, remove_from_playlist, rename_playlist, smart_rule,
 };
 pub use scan::{
     SUPPORTED_EXTENSIONS, ScanProgress, ScanStats, collect_media_files, file_id, is_supported,

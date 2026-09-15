@@ -40,6 +40,7 @@ Item {
     signal queryRequested(string text)
     signal albumRequested(int albumId)
     signal artistRequested(string name)
+    signal notice(string text, bool isError)
 
     function loadRecents() {
         const items = [];
@@ -236,6 +237,7 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: root.submitAll()
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Timer {
@@ -472,6 +474,7 @@ Item {
                     // focusResults() plus normal Tab order.
                     activeFocusOnTab: true
                     clip: true
+                    spacing: Theme.listRowGap
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     header: SelectionBar {
                         width: songsView.width
@@ -483,6 +486,7 @@ Item {
                             return root.songsMimeIds();
                         }
                         onCleared: songsSelection.clear()
+                        onNotice: (text, isError) => root.notice(text, isError)
                     }
                     Accessible.role: Accessible.List
                     Accessible.selectable: true

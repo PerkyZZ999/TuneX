@@ -27,6 +27,7 @@ Item {
 
     signal backRequested
     signal albumRequested(int albumId)
+    signal notice(string text, bool isError)
 
     function playArtist() {
         root.queue.clearQueue();
@@ -97,6 +98,7 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: songs.refreshArtist(root.artistName)
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Flickable {
@@ -228,10 +230,11 @@ Item {
 
                 visible: count > 0
                 width: parent.width
-                height: visible ? count * Theme.trackRowHeight + (trackSelection.count > 0 ? Theme.targetMin : 0) : 0
+                height: visible ? count * Theme.trackRowHeight + Math.max(0, count - 1) * Theme.listRowGap + (trackSelection.count > 0 ? Theme.targetMin : 0) : 0
                 model: songs
                 interactive: false
                 clip: true
+                spacing: Theme.listRowGap
                 activeFocusOnTab: true
                 header: SelectionBar {
                     width: tracksView.width
@@ -243,6 +246,7 @@ Item {
                         return root.trackMimeIds();
                     }
                     onCleared: trackSelection.clear()
+                    onNotice: (text, isError) => root.notice(text, isError)
                 }
                 Accessible.role: Accessible.List
                 Accessible.selectable: true

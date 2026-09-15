@@ -90,6 +90,13 @@ Rectangle {
         return stamp >= 0 ? ids.join(",") : ids.join(",");
     }
 
+    // Source rows for an internal drag (comma positions). The target moves
+    // rows, never track ids, so repeated tracks stay independent.
+    function queueRowsCsv() {
+        queueSelection.stamp;
+        return queueSelection.sorted().join(",");
+    }
+
     function removeSelected() {
         const rows = queueSelection.sorted().reverse();
         for (let i = 0; i < rows.length; i++)
@@ -545,14 +552,6 @@ Rectangle {
                 color: Theme.muted
             }
 
-            TrackDropArea {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: selectionBar.bottom
-                anchors.bottom: parent.bottom
-                onTracksDropped: ids => root.queue.enqueueTrackIds(ids)
-            }
-
             ListView {
                 id: queueList
 
@@ -564,6 +563,7 @@ Rectangle {
                 model: root.queue
                 activeFocusOnTab: true
                 clip: true
+                spacing: Theme.listRowGap
                 highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 // Row insert/remove, 160ms per the DESIGN.md motion budget.
                 // These only run when the model reports a single row moving,
@@ -669,12 +669,18 @@ Rectangle {
                     isCurrent: model.isCurrent
                     isPlaying: model.isCurrent && root.transportState === 2
                     missing: model.missing
+                    compact: true
                     reorderable: true
                     selected: {
                         queueSelection.stamp;
                         return queueSelection.contains(index);
                     }
                     dragTrackIds: selected && root.mimeIds !== "" ? root.mimeIds : (model.trackId >= 0 ? String(model.trackId) : "")
+                    dragOrigin: "queue"
+                    dragRows: {
+                        queueSelection.stamp;
+                        return selected ? root.queueRowsCsv() : String(index);
+                    }
                     onPlayRequested: (trackId, rowIndex) => {
                         queueSelection.clear();
                         queueList.currentIndex = rowIndex;
@@ -698,6 +704,25 @@ Rectangle {
                         queueList.currentIndex = row;
                         queueSelection.setRange(row);
                     }
+                }
+            }
+
+            // Positional landing: the insertion line shows the index, an
+            // internal drag moves rows there, an external one inserts.
+            TrackDropArea {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: selectionBar.bottom
+                anchors.bottom: parent.bottom
+                z: 2
+                targetView: queueList
+                showHint: false
+                onTracksDroppedAt: (ids, index, origin, rows) => {
+                    if (origin === "queue" && rows !== "")
+                        root.queue.moveItems(rows, index);
+                    else
+                        root.queue.enqueueTrackIdsAt(ids, index);
+                    queueSelection.clear();
                 }
             }
         }

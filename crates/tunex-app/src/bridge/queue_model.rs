@@ -1979,6 +1979,53 @@ impl QueueModelRust {
         added
     }
 
+    /// Insert tracks by database id at `position` (clamped into range),
+    /// preserving list order. Returns the number inserted; failures surface
+    /// as text and leave the queue untouched.
+    fn do_enqueue_track_ids_at(&mut self, ids: &[i64], position: usize) -> i32 {
+        if ids.is_empty() {
+            return 0;
+        }
+        if !self.ensure_controller() {
+            return 0;
+        }
+        let Some(db) = self.open_index() else {
+            return 0;
+        };
+        let mut items = Vec::new();
+        for track_id in ids {
+            if let Some(item) = self.resolve_track(&db, *track_id) {
+                items.push(item);
+            }
+        }
+        if items.is_empty() {
+            self.last_error = Some("Nothing playable in that list.".to_owned());
+            return 0;
+        }
+        let mut added = 0;
+        if let Some(controller) = &mut self.controller {
+            let at = position.min(controller.queue_len());
+            for (offset, item) in items.into_iter().enumerate() {
+                controller.insert_at(at + offset, item);
+                added += 1;
+            }
+        }
+        self.sync_rows();
+        self.last_error = None;
+        added
+    }
+
+    /// Move queue rows (comma positions from QML) to `to` as one block.
+    fn do_move_items(&mut self, rows: &[usize], to: usize) {
+        if !self.ensure_controller() {
+            return;
+        }
+        if let Some(controller) = &mut self.controller {
+            controller.move_items(rows, to);
+        }
+        self.sync_rows();
+    }
+
     /// Enqueue tracks by database id, one model reset at the end.
     fn do_enqueue_track_ids(&mut self, ids: &[i64]) -> i32 {
         if ids.is_empty() {
@@ -2672,6 +2719,34 @@ impl qobject::QueueModel {
         added
     }
 
+    /// Insert library tracks by comma-separated row ids at `position`
+    /// (clamped into range), preserving list order. Returns the number added.
+    #[must_use]
+    pub fn enqueue_track_ids_at(mut self: Pin<&mut Self>, ids: &QString, position: i32) -> i32 {
+        let parsed = parse_id_list(&ids.to_string());
+        let at = usize::try_from(position.max(0)).unwrap_or(usize::MAX);
+        let added = self
+            .as_mut()
+            .rust_mut()
+            .do_enqueue_track_ids_at(&parsed, at);
+        if added > 0 {
+            self.as_mut().apply_rows();
+        }
+        added
+    }
+
+    /// Move queue rows (comma-separated positions) to `to` as one block.
+    pub fn move_items(mut self: Pin<&mut Self>, rows: &QString, to: i32) {
+        let parsed = parse_id_list(&rows.to_string());
+        let rows = parsed
+            .into_iter()
+            .filter_map(|row| usize::try_from(row).ok())
+            .collect::<Vec<_>>();
+        let to = usize::try_from(to.max(0)).unwrap_or(usize::MAX);
+        self.as_mut().rust_mut().do_move_items(&rows, to);
+        self.as_mut().apply_rows();
+    }
+
     /// Play comma-separated library ids now; the rest play next in order.
     #[must_use]
     pub fn play_track_ids(mut self: Pin<&mut Self>, ids: &QString) -> i32 {
@@ -2949,6 +3024,50 @@ mod tests {
     fn parse_id_list_skips_junk() {
         assert_eq!(parse_id_list("1, 2,x,3,"), vec![1, 2, 3]);
         assert!(parse_id_list("").is_empty());
+    }
+
+    #[test]
+    fn insert_ids_at_position_keeps_order() {
+        let (mut model, _guard) = model_with_seeded_library("queue-insert-at");
+        let db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        let ids: Vec<i64> = tunex_library::list_tracks(&db)
+            .expect("list works")
+            .into_iter()
+            .map(|track| track.id)
+            .collect();
+        assert!(ids.len() >= 3);
+        assert_eq!(model.do_enqueue_track_ids(&ids[..2]), 2);
+        assert_eq!(model.do_enqueue_track_ids_at(&ids[2..3], 1), 1);
+        assert_eq!(model.row_count(), 3);
+        let at = |row| i64::from(model.track_id_at(row));
+        assert_eq!((at(0), at(1), at(2)), (ids[0], ids[2], ids[1]));
+        assert!(model.error_message().is_none());
+        // Overshoot clamps to the end instead of failing.
+        assert_eq!(model.do_enqueue_track_ids_at(&ids[2..3], 99), 1);
+        assert_eq!(
+            model.track_id_at(3),
+            i32::try_from(ids[2]).expect("seed ids fit")
+        );
+    }
+
+    #[test]
+    fn move_items_block_keeps_count() {
+        let (mut model, _guard) = model_with_seeded_library("queue-move-items");
+        let db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        let ids: Vec<i64> = tunex_library::list_tracks(&db)
+            .expect("list works")
+            .into_iter()
+            .map(|track| track.id)
+            .collect();
+        assert!(ids.len() >= 3);
+        assert_eq!(
+            model.do_enqueue_track_ids(&ids),
+            i32::try_from(ids.len()).expect("fits")
+        );
+        model.do_move_items(&[0, 2], 3);
+        assert_eq!(model.row_count(), 3, "a move never copies");
+        let at = |row| i64::from(model.track_id_at(row));
+        assert_eq!((at(0), at(1), at(2)), (ids[1], ids[0], ids[2]));
     }
 
     #[test]

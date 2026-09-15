@@ -5,7 +5,9 @@ import TuneX
 // now-playing marker. Solid text on the canvas behind the list (never glass). Left-click (or keyboard press)
 // plays the row now; right-click, the Menu key, Shift+F10, or the always-
 // visible ⋯ button opens the container-owned row menu (queueing is
-// "Add to Now Playing", never the click).
+// "Add to Now Playing", never the click). Now Playing sets `compact` so
+// the leading index and ⋯ drop out — the rail is too narrow for both,
+// and the same menu is on the right-click.
 // Edge-anchored layout: the middle column fills whatever the fixed edges
 // leave, so no spacing is hand-counted and nothing depends on sibling
 // creation order.
@@ -27,7 +29,18 @@ Item {
     property bool isPlaying: false
     property bool reorderable: false
     property bool selected: false
+    // Now Playing rail/drawer: no track number, no ⋯, title/artist one step down.
+    property bool compact: false
+    readonly property int indexSlotWidth: root.compact ? 14 : 32
+    readonly property int titleSize: root.compact ? Theme.fontBodySm : Theme.fontBody
+    readonly property int artistSize: root.compact ? Theme.fontCaption : Theme.fontBodySm
     property string dragTrackIds: root.trackId >= 0 ? String(root.trackId) : ""
+    // Drag origin for drop routing: "" means an external copy (library /
+    // search); "queue" and "playlist:<id>" mark an internal move, with the
+    // source display rows in `dragRows` so the target moves rows, never ids
+    // (queue and playlist rows can repeat the same track).
+    property string dragOrigin: ""
+    property string dragRows: ""
     // m:ss, em dash when unknown. Numbers need no translation.
     readonly property string durationText: root.durationMs > 0 ? Math.floor(root.durationMs / 60000) + ":" + String(Math.floor(root.durationMs / 1000) % 60).padStart(2, "0") : "—"
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
@@ -38,17 +51,34 @@ Item {
     signal toggleSelectRequested(int rowIndex)
     signal rangeSelectRequested(int rowIndex)
 
-    Drag.keys: ["application/x-tunex-trackids"]
+    readonly property int dragCount: {
+        if (root.dragTrackIds.length === 0)
+            return 0;
+        return root.dragTrackIds.split(",").length;
+    }
+    readonly property bool dragging: rowArea.drag.active
+
+    Drag.keys: ["application/x-tunex-trackids", "application/x-tunex-origin", "application/x-tunex-rows"]
     Drag.mimeData: {
         "text/plain": root.dragTrackIds,
-        "application/x-tunex-trackids": root.dragTrackIds
+        "application/x-tunex-trackids": root.dragTrackIds,
+        "application/x-tunex-origin": root.dragOrigin,
+        "application/x-tunex-rows": root.dragRows
     }
     Drag.dragType: Drag.Automatic
     Drag.active: rowArea.drag.active
-    Drag.hotSpot.x: root.width / 2
-    Drag.hotSpot.y: root.height / 2
+    Drag.hotSpot.x: Theme.spaceMd
+    Drag.hotSpot.y: Theme.trackRowHeight / 2
+    opacity: root.dragging ? 0.5 : 1
     width: ListView.view.width
     height: Theme.trackRowHeight
+
+    Behavior on opacity {
+        NumberAnimation {
+            duration: Appearance.duration(Theme.motionHover)
+            easing.type: Easing.OutCubic
+        }
+    }
     Accessible.role: Accessible.ListItem
     Accessible.name: root.title + ", " + root.artist + (root.isCurrent ? ", " + qsTr("now playing") : "") + (root.missing ? ", " + qsTr("missing") : "") + (root.dangling ? ", " + qsTr("unavailable") : "")
     Accessible.onPressAction: {
@@ -151,9 +181,15 @@ Item {
         enabled: true
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        cursorShape: root.dangling || root.missing ? Qt.ArrowCursor : Qt.PointingHandCursor
-        drag.target: root.reorderable ? root : dragGhost
-        drag.axis: root.reorderable ? Drag.YAxis : Drag.XAndYAxis
+        cursorShape: {
+            if (root.dangling || root.missing)
+                return Qt.ArrowCursor;
+            if (root.dragging)
+                return Qt.ClosedHandCursor;
+            return Qt.PointingHandCursor;
+        }
+        drag.target: dragGhost
+        drag.axis: Drag.XAndYAxis
         drag.threshold: 12
         onReleased: mouse => {
             if (mouse.button === Qt.RightButton) {
@@ -175,7 +211,7 @@ Item {
                 if (root.reorderable) {
                     const view = root.ListView.view;
                     if (view) {
-                        const point = root.mapToItem(view.contentItem, root.width / 2, root.height / 2);
+                        const point = root.mapToItem(view.contentItem, rowArea.mouseX, rowArea.mouseY);
                         const to = view.indexAt(point.x, point.y);
                         if (to >= 0 && to !== root.rowIndex)
                             root.reorderRequested(root.rowIndex, to);
@@ -197,6 +233,89 @@ Item {
         visible: false
     }
 
+    // In-window drag chip. Wayland often has no compositor pixmap for
+    // Drag.Automatic, so the chip is the visible grab (surface-raised,
+    // 1px border, never glow). It rides up and right of the cursor so the
+    // tip — and the list's insertion line under it — stays visible while
+    // aiming a positional drop.
+    Rectangle {
+        id: dragProxy
+
+        parent: root.dragging && Window.window ? Window.window.contentItem : root
+        visible: root.dragging
+        width: Math.min(Theme.panelWidth - Theme.spaceMd, Math.max(Theme.railNarrow * 2, root.width))
+        height: Theme.trackRowHeight
+        x: {
+            if (!root.dragging || !parent)
+                return 0;
+            return root.mapToItem(parent, rowArea.mouseX, rowArea.mouseY).x + Theme.spaceMd;
+        }
+        y: {
+            if (!root.dragging || !parent)
+                return 0;
+            return root.mapToItem(parent, rowArea.mouseX, rowArea.mouseY).y - height - Theme.spaceSm;
+        }
+        z: 10000
+        radius: Theme.radiusSm
+        color: Theme.surfaceRaised
+        border.width: 1
+        border.color: Theme.accent
+        opacity: 0.96
+
+        Rectangle {
+            visible: root.dragCount > 1
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.spaceXs
+            anchors.verticalCenter: parent.verticalCenter
+            width: countLabel.implicitWidth + Theme.spaceSm
+            height: Theme.fontCaption + Theme.spaceXs
+            radius: Theme.radiusXs
+            color: Theme.hover
+
+            Text {
+                id: countLabel
+
+                anchors.centerIn: parent
+                text: String(root.dragCount)
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontCaption
+                color: Theme.foreground
+            }
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.spaceSm
+            anchors.right: parent.right
+            anchors.rightMargin: root.dragCount > 1 ? Theme.spaceXl : Theme.spaceSm
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 0
+
+            Text {
+                width: parent.width
+                elide: Text.ElideRight
+                text: root.dragCount > 1 ? qsTr("%n songs", "", root.dragCount) : root.title
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBodySm
+                font.weight: Font.DemiBold
+                color: Theme.foreground
+            }
+
+            Text {
+                width: parent.width
+                elide: Text.ElideRight
+                visible: root.dragCount <= 1
+                text: root.artist
+                textFormat: Text.PlainText
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontCaption
+                color: Theme.muted
+            }
+        }
+    }
+
     Text {
         anchors.left: parent.left
         anchors.leftMargin: Theme.spaceMd
@@ -204,7 +323,7 @@ Item {
         width: 32
         horizontalAlignment: Text.AlignRight
         text: root.numberText
-        visible: !root.isCurrent
+        visible: !root.isCurrent && !root.compact
         textFormat: Text.PlainText
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBodySm
@@ -282,21 +401,25 @@ Item {
         id: menuButton
 
         anchors.right: danglingBadge.left
-        anchors.rightMargin: Theme.spaceSm
+        anchors.rightMargin: root.compact ? 0 : Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
+        visible: !root.compact
+        enabled: !root.compact
+        width: root.compact ? 0 : Theme.buttonHeight
         size: Theme.buttonHeight
         glyphSize: Theme.navIconSize
         iconName: "ellipsis"
         glyphColor: Theme.muted
         accessibleName: qsTr("More actions for %1").arg(root.title)
+        Accessible.ignored: root.compact
         onActivated: root.menuRequested(root.trackId, root.rowIndex, root.dangling)
     }
 
     Column {
         anchors.left: parent.left
-        anchors.leftMargin: Theme.spaceMd + 32 + Theme.spaceMd
+        anchors.leftMargin: Theme.spaceMd + root.indexSlotWidth + Theme.spaceMd
         anchors.right: menuButton.left
-        anchors.rightMargin: Theme.spaceSm
+        anchors.rightMargin: root.compact ? 0 : Theme.spaceSm
         anchors.verticalCenter: parent.verticalCenter
         spacing: 0
 
@@ -306,7 +429,7 @@ Item {
             text: root.title
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
+            font.pixelSize: root.titleSize
             font.weight: root.isCurrent ? Font.DemiBold : Font.Normal
             lineHeight: Theme.listLineHeight
             color: Theme.foreground
@@ -318,7 +441,7 @@ Item {
             text: root.artist
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBodySm
+            font.pixelSize: root.artistSize
             lineHeight: Theme.listLineHeight
             color: Theme.muted
         }

@@ -40,6 +40,7 @@ Item {
     readonly property int gridCell: Math.max(Theme.gridMin, Math.floor(content.width / Math.max(1, Math.floor(content.width / Theme.gridTarget))))
 
     signal settingsRequested(bool pickFolder)
+    signal notice(string text, bool isError)
 
     // Display name for one tab key (the tab strip models keys, not labels).
     function tabLabel(key) {
@@ -405,6 +406,7 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: root.refresh()
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Timer {
@@ -750,6 +752,7 @@ Item {
             focus: root.showingBrowse && ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
+            spacing: Theme.listRowGap
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             header: SelectionBar {
                 width: songsView.width
@@ -761,6 +764,7 @@ Item {
                     return root.songsMimeIds();
                 }
                 onCleared: songsSelection.clear()
+                onNotice: (text, isError) => root.notice(text, isError)
             }
             Accessible.role: Accessible.List
             Accessible.selectable: true
@@ -1010,6 +1014,7 @@ Item {
             focus: root.showingBrowse && root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
+            spacing: Theme.listRowGap
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             Accessible.role: Accessible.List
             Accessible.name: qsTr("Folders")
@@ -1130,6 +1135,7 @@ Item {
             focus: root.showingBrowse && (root.tab === "genres" || root.tab === "composers") && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
+            spacing: Theme.listRowGap
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             Accessible.role: Accessible.List
             Accessible.name: root.tab === "composers" ? qsTr("Composers") : qsTr("Genres")
@@ -1250,6 +1256,7 @@ Item {
         onBackRequested: root.goBack()
         onAlbumRequested: id => root.openAlbum(id)
         onArtistRequested: name => root.openArtist(name)
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     ArtistDetailView {
@@ -1262,6 +1269,7 @@ Item {
         library: root.library
         onBackRequested: root.goBack()
         onAlbumRequested: id => root.openAlbum(id)
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Item {
@@ -1317,6 +1325,7 @@ Item {
                 height: parent.height - Theme.fontHeadline - Theme.spaceMd * 2
                 model: songs
                 clip: true
+                spacing: Theme.listRowGap
                 activeFocusOnTab: true
                 highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 header: SelectionBar {
@@ -1329,6 +1338,7 @@ Item {
                         return root.facetMimeIds();
                     }
                     onCleared: facetSelection.clear()
+                    onNotice: (text, isError) => root.notice(text, isError)
                 }
                 Accessible.role: Accessible.List
                 Accessible.selectable: true
