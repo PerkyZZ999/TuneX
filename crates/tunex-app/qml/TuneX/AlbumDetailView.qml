@@ -29,7 +29,7 @@ Item {
         parts.push(root.countLine);
         if (root.durationLine !== "")
             parts.push(root.durationLine);
-        return parts.join(" • ");
+        return Format.meta(parts);
     }
 
     signal backRequested

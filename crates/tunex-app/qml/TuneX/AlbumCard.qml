@@ -28,7 +28,7 @@ Item {
     // No translation files ship in V1, so %n plurals would render literally
     // ("40 song(s)"); translators get an explicit singular/plural pair.
     readonly property string countLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
-    readonly property string metaLine: root.artist + (root.year > 0 ? " • " + root.year : "") + " • " + countLine
+    readonly property string metaLine: Format.meta([root.artist, root.year > 0 ? String(root.year) : "", countLine])
 
     signal activated(int id)
 

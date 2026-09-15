@@ -74,4 +74,12 @@ QtObject {
     function muteIcon(muted: bool): string {
         return muted ? "volume-x" : "volume";
     }
+
+    // Meta-line join: dot-separated parts, empties dropped
+    // ("Ash Pilot • 2024 • 3 songs").
+    function meta(parts) {
+        return parts.filter(function (part) {
+            return part !== "";
+        }).join(" • ");
+    }
 }

@@ -131,7 +131,7 @@ Item {
                     }
 
                     Text {
-                        text: root.albumsLine + " • " + root.songsLine
+                        text: Format.meta([root.albumsLine, root.songsLine])
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontBody
                         color: Theme.muted

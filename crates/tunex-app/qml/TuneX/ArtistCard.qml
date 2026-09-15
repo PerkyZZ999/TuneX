@@ -22,7 +22,7 @@ Item {
     // translators get explicit singular/plural pairs instead.
     readonly property string albumsLine: Format.plural(root.albumCount, qsTr("1 album"), qsTr("%1 albums"))
     readonly property string songsLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
-    readonly property string metaLine: albumsLine + " • " + songsLine
+    readonly property string metaLine: Format.meta([albumsLine, songsLine])
 
     signal activated(string name)
 
