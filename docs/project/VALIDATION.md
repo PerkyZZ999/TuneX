@@ -566,3 +566,9 @@
 - **Waiver:** none
 - **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
 
+### 2026-09-15 — UI/UX polish pass E1–E12 (pass two, owner-requested)
+- **Slice:** none (outside WORK_ITEMS; no locked decision touched, no new screens or models)
+- **Result:** pass (12 commits, each: `scripts/qml-lint.sh` clean + CMake build green + hook checks green)
+- **Evidence:** E8 dropped the dead QueuePanel togglesRow spacer. E10 gave the rail playlist list the themed scrollbar C8 missed. E4 stops Home chips latching across navigation. E2 makes the album artist name a keyboard-reachable link (Link role, accent + underline focus). E6 names smart playlists in the sidebar. E3 announces Settings slider values (volume %, EQ dB, fps + tooltip; viz mode in the accessible name). E9 finishes Play-all counts on facet + playlist details. E5 names the track in the window title. E1 confirms track + folder removal, naming the target and the dangling consequence. E11 scrolls Home rails to the keyboard-focused card. E7 shows the smart rule in the detail header via a packed `smartRule` invokable + wire-format test (317 tests). E12 shows result counts on search tab chips (bare labels with no query). Dropped: lyrics-toggle glyph swap — no lyrics glyph exists in the set and transcribing a rect-based Lucide path by hand was rejected as unverified. Ordering lesson recorded: qml-lint must run after the bridge rebuild when new invokables land (E7/C9 first-run findings were stale qmltypes, not code issues). Media-test flakes under parallel load persist, green solo.
+- **Waiver:** none
+- **Follow-up:** Phase 7 Release (AUR publish) stays a human confirmation.
