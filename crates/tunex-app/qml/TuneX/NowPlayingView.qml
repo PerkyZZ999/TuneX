@@ -75,6 +75,24 @@ Popup {
         return qsTr("Repeat: Off");
     }
 
+    // Karaoke follow: keep the sung line on screen, gliding inside the
+    // motion budget (zeroed by reduce-motion like every animation).
+    function followLyrics() {
+        if (!root.lyricsOn || root.lyricsActive < 0 || !root.queue.lyricsSynced())
+            return;
+        const item = lyricsRepeater.itemAt(root.lyricsActive);
+        if (!item)
+            return;
+        const top = lyricsFlick.contentY;
+        if (item.y < top || item.y + item.height > top + lyricsFlick.height) {
+            lyricsScroll.to = Math.max(0, item.y - lyricsFlick.height / 3);
+            lyricsScroll.restart();
+        }
+    }
+
+    onLyricsActiveChanged: root.followLyrics()
+    onLyricsOnChanged: root.followLyrics()
+
     function sync() {
         root.transportState = root.queue.playbackState();
         root.shuffleOn = root.queue.isShuffle();
@@ -341,6 +359,8 @@ Popup {
                         }
 
                         Flickable {
+                            id: lyricsFlick
+
                             visible: root.lyricsOn
                             ScrollBar.vertical: ListScrollBar {}
                             anchors.fill: parent
@@ -350,6 +370,15 @@ Popup {
                             boundsBehavior: Flickable.StopAtBounds
                             Accessible.role: Accessible.List
                             Accessible.name: qsTr("Lyrics")
+
+                            NumberAnimation {
+                                id: lyricsScroll
+
+                                target: lyricsFlick
+                                property: "contentY"
+                                duration: Appearance.duration(Theme.motionRow)
+                                easing.type: Easing.OutCubic
+                            }
 
                             Column {
                                 id: lyricsColumn
@@ -370,6 +399,8 @@ Popup {
                                 }
 
                                 Repeater {
+                                    id: lyricsRepeater
+
                                     model: root.queue.lyricsSynced() ? root.queue.lyricsLineCount() : 0
 
                                     Text {
