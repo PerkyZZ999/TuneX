@@ -6,6 +6,7 @@
 //! adds flow through [`PlaylistModel`](super::playlist_list_model) (which
 //! owns the list counts) and land here on the next refresh.
 
+use super::friendly_error;
 use super::models::qobject;
 
 use core::pin::Pin;
@@ -271,15 +272,6 @@ fn display_entry(entry: &tunex_library::PlaylistEntry) -> PlaylistTrackRow {
             true,
         ),
     }
-}
-
-/// Backend errors already carry user-readable messages; strip the
-/// `database error: ` prefix the core Display adds.
-fn friendly_error(err: &tunex_core::Error) -> String {
-    let text = err.to_string();
-    text.strip_prefix("database error: ")
-        .unwrap_or(&text)
-        .to_owned()
 }
 
 impl qobject::PlaylistTrackModel {

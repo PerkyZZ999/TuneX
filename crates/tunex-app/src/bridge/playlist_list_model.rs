@@ -10,6 +10,7 @@
 //! unit-tested); the `impl` below only pairs Qt model notifications around
 //! it (see the S1 proof model for the pairing pattern).
 
+use super::friendly_error;
 use super::models::qobject;
 
 use core::pin::Pin;
@@ -339,15 +340,6 @@ impl PlaylistModelRust {
     fn reload_index_path(&mut self) {
         self.index_path = tunex_core::library_db_path();
     }
-}
-
-/// Backend errors already carry user-readable messages; strip the
-/// `database error: ` prefix the core Display adds.
-fn friendly_error(err: &tunex_core::Error) -> String {
-    let text = err.to_string();
-    text.strip_prefix("database error: ")
-        .unwrap_or(&text)
-        .to_owned()
 }
 
 impl qobject::PlaylistModel {

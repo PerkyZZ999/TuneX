@@ -19,6 +19,15 @@ pub mod queue_model;
 pub mod track_list_model;
 pub mod tray_controller;
 
+/// Backend errors already carry user-readable messages; strip the
+/// `database error: ` prefix the core Display adds.
+pub(crate) fn friendly_error(err: &tunex_core::Error) -> String {
+    let text = err.to_string();
+    text.strip_prefix("database error: ")
+        .unwrap_or(&text)
+        .to_owned()
+}
+
 #[cfg(test)]
 pub mod test_support {
     //! Shared browse-model fixtures: one seeded throwaway index for every
