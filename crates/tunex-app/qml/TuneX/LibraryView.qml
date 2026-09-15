@@ -38,7 +38,7 @@ Item {
     // View counts (the models expose rows, not a count property).
     readonly property bool libraryEmpty: songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
     // Fluid artwork columns shared by both grids (160–220px cards).
-    readonly property int gridCell: Math.max(Theme.gridMin, Math.floor(content.width / Math.max(1, Math.floor(content.width / Theme.gridTarget))))
+    readonly property int gridCell: Format.gridCell(content.width)
 
     signal settingsRequested(bool pickFolder)
 

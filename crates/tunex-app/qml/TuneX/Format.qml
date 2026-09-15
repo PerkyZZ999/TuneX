@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import TuneX
 
 // Format: shared text shaping, sibling to the Theme/Appearance singletons.
 // One copy of the monogram, duration, and singular/plural rules behind a
@@ -56,5 +57,11 @@ QtObject {
             return qsTr("Repeat: One");
 
         return qsTr("Repeat: Off");
+    }
+
+    // Artwork grid cell for an available width: whole cards fill the row
+    // instead of clipping one mid-card at the panel edge.
+    function gridCell(available: int): int {
+        return Math.max(Theme.gridMin, Math.floor(available / Math.max(1, Math.floor(available / Theme.gridTarget))));
     }
 }

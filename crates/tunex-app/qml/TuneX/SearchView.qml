@@ -33,7 +33,7 @@ Item {
     readonly property bool settledEmpty: root.songsSettled && root.albumsSettled && root.artistsSettled && !root.drilled && songsView.count === 0 && albumsView.count === 0 && artistsView.count === 0
     readonly property bool showContent: root.query !== "" && !root.awaitingFirst && !root.settledEmpty
     // Fluid artwork columns shared by both grids (160–220px cards).
-    readonly property int gridCell: Math.max(Theme.gridMin, Math.floor(content.width / Math.max(1, Math.floor(content.width / Theme.gridTarget))))
+    readonly property int gridCell: Format.gridCell(content.width)
 
     signal focusFieldRequested
     signal clearRequested

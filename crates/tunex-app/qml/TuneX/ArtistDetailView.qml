@@ -16,7 +16,7 @@ Item {
     readonly property string monogram: Format.monogram(root.shownName)
     readonly property string albumsLine: Format.plural(root.albumCount, qsTr("1 album"), qsTr("%1 albums"))
     readonly property string songsLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
-    readonly property int gridCell: Math.max(Theme.gridMin, Math.floor((width - Theme.spaceLg * 2) / Math.max(1, Math.floor((width - Theme.spaceLg * 2) / Theme.gridTarget))))
+    readonly property int gridCell: Format.gridCell(width - Theme.spaceLg * 2)
 
     signal backRequested
     signal albumRequested(int albumId)
