@@ -621,11 +621,10 @@ Item {
                     }
                 }
 
-                BusyIndicator {
-                    visible: root.query !== "" && !root.songsSettled && !root.drilled && songsView.count === 0
-                    running: root.query !== "" && !root.songsSettled && !root.drilled && songsView.count === 0
+                SearchingIndicator {
+                    active: root.query !== "" && !root.songsSettled && !root.drilled && songsView.count === 0
                     anchors.centerIn: parent
-                    Accessible.name: qsTr("Searching songs")
+                    accessibleName: qsTr("Searching songs")
                 }
 
                 EmptyState {
@@ -696,11 +695,10 @@ Item {
                     }
                 }
 
-                BusyIndicator {
-                    visible: root.query !== "" && !root.albumsSettled && albumsView.count === 0
-                    running: root.query !== "" && !root.albumsSettled && albumsView.count === 0
+                SearchingIndicator {
+                    active: root.query !== "" && !root.albumsSettled && albumsView.count === 0
                     anchors.centerIn: parent
-                    Accessible.name: qsTr("Searching albums")
+                    accessibleName: qsTr("Searching albums")
                 }
 
                 EmptyState {
@@ -765,11 +763,10 @@ Item {
                     }
                 }
 
-                BusyIndicator {
-                    visible: root.query !== "" && !root.artistsSettled && artistsView.count === 0
-                    running: root.query !== "" && !root.artistsSettled && artistsView.count === 0
+                SearchingIndicator {
+                    active: root.query !== "" && !root.artistsSettled && artistsView.count === 0
                     anchors.centerIn: parent
-                    Accessible.name: qsTr("Searching artists")
+                    accessibleName: qsTr("Searching artists")
                 }
 
                 EmptyState {
