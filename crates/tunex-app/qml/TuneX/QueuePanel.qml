@@ -411,6 +411,7 @@ Rectangle {
                 to: 100
                 stepSize: 1
                 Accessible.name: qsTr("Volume")
+                tipText: qsTr("%1%").arg(Math.round(value))
                 onMoved: root.queue.setVolumePct(Math.round(value))
             }
         }

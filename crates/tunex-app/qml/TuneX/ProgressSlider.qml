@@ -13,6 +13,9 @@ Slider {
     // Seek hosts set this to 5000 so Left/Right skip five seconds.
     // Volume leaves it at 1 (percent steps).
     property real keyStep: 1
+    // Optional value readout: volume hosts bind this to the percent text.
+    // Seek hosts leave it empty — the time labels already cover them.
+    property string tipText: ""
 
     implicitHeight: Theme.targetMin
     padding: 0
@@ -20,6 +23,9 @@ Slider {
     wheelEnabled: true
     stepSize: root.keyStep
     snapMode: Slider.NoSnap
+    ToolTip.visible: root.tipText !== "" && (root.hovered || root.pressed)
+    ToolTip.text: root.tipText
+    ToolTip.delay: 400
 
     background: Item {
         x: root.leftPadding
