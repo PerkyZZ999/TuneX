@@ -184,16 +184,39 @@ Item {
                     color: Theme.foreground
                 }
 
+                // The artist name is a real link: accent on hover/focus,
+                // underline while keyboard-focused, reachable by Tab.
                 Text {
+                    id: artistLink
+
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: root.metaLine
+                    textFormat: Text.PlainText
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontBody
-                    color: Theme.muted
+                    font.underline: artistLink.activeFocus
+                    color: artistMouse.containsMouse || artistLink.activeFocus ? Theme.accent : Theme.muted
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Link
+                    Accessible.name: root.artistText
+                    Accessible.onPressAction: root.artistRequested(root.artistText)
+                    Keys.onReturnPressed: root.artistRequested(root.artistText)
+                    Keys.onEnterPressed: root.artistRequested(root.artistText)
+                    Keys.onSpacePressed: root.artistRequested(root.artistText)
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Appearance.duration(Theme.motionHover)
+                            easing.type: Easing.OutCubic
+                        }
+                    }
 
                     MouseArea {
+                        id: artistMouse
+
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.artistRequested(root.artistText)
                     }
