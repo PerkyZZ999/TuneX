@@ -67,6 +67,7 @@ fn main() {
                 "qml/TuneX/TagEditDialog.qml",
                 "qml/TuneX/PlayButton.qml",
                 "qml/TuneX/PlayBadge.qml",
+                "qml/TuneX/HoverPlay.qml",
                 "qml/TuneX/AmbientWash.qml",
                 "qml/TuneX/TextLink.qml",
                 "qml/TuneX/ProgressSlider.qml",

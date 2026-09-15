@@ -75,18 +75,9 @@ Item {
                     stroke: Theme.accent
                 }
 
-                Rectangle {
-                    anchors.fill: parent
-                    radius: Theme.radiusSm
-                    color: Theme.foreground
-                    opacity: hoverArea.containsMouse ? 0.04 : 0
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Appearance.duration(Theme.motionHover)
-                            easing.type: Easing.OutCubic
-                        }
-                    }
+                HoverPlay {
+                    hovered: hoverArea.containsMouse || root.activeFocus
+                    showBadge: false
                 }
             }
 
@@ -137,25 +128,9 @@ Item {
                     stroke: Theme.accent
                 }
 
-                Rectangle {
-                    anchors.fill: parent
-                    radius: Theme.radiusSm
-                    color: Theme.foreground
-                    opacity: hoverArea.containsMouse ? 0.04 : 0
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Appearance.duration(Theme.motionHover)
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-                }
-
-                PlayBadge {
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    anchors.margins: Theme.spaceSm
-                    shown: hoverArea.containsMouse || root.activeFocus
+                HoverPlay {
+                    hovered: hoverArea.containsMouse || root.activeFocus
+                    badgeInset: Theme.spaceSm
                 }
             }
 

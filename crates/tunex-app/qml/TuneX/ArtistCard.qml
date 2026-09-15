@@ -79,29 +79,13 @@ Item {
                         Accessible.ignored: true
                     }
 
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: width / 2
-                        color: Theme.foreground
-                        opacity: hoverArea.containsMouse ? 0.04 : 0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: Appearance.duration(Theme.motionHover)
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                    }
-                }
-
-                PlayBadge {
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
                     // The crest is a circle inscribed in this square, so the
-                    // corner sits outside it; inset until the badge rests on
-                    // the arc instead of floating past it.
-                    anchors.margins: Theme.spaceXs
-                    shown: hoverArea.containsMouse || root.activeFocus
+                    // badge insets until it rests on the arc instead of floating
+                    // past it (the default inset already does).
+                    HoverPlay {
+                        hovered: hoverArea.containsMouse || root.activeFocus
+                        circular: true
+                    }
                 }
             }
 
