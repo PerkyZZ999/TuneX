@@ -60,6 +60,15 @@ Item {
         root.loadRecents();
     }
 
+    function moveList(view, delta) {
+        if (view.count <= 0)
+            return;
+
+        const at = view.currentIndex < 0 ? 0 : view.currentIndex + delta;
+        view.currentIndex = Math.max(0, Math.min(view.count - 1, at));
+        view.positionViewAtIndex(view.currentIndex, ListView.Contain);
+    }
+
     function cycleGroup(back) {
         const order = ["songs", "albums", "artists"];
         let at = order.indexOf(root.tab);
@@ -510,6 +519,16 @@ Item {
                             event.accepted = true;
                             return;
                         }
+                        if (event.key === Qt.Key_J) {
+                            root.moveList(songsView, 1);
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_K) {
+                            root.moveList(songsView, -1);
+                            event.accepted = true;
+                            return;
+                        }
                         if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
                             trackMenu.openFor(songsView.currentIndex >= 0 ? songsView.currentIndex : 0, songsView, songsSelection, songs);
                             event.accepted = true;
@@ -604,9 +623,29 @@ Item {
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Album results")
+                    Keys.onReturnPressed: {
+                        const at = albumsView.currentIndex >= 0 ? albumsView.currentIndex : 0;
+                        if (at < albumsView.count)
+                            root.albumRequested(albums.albumIdAt(at));
+                    }
+                    Keys.onEnterPressed: {
+                        const at = albumsView.currentIndex >= 0 ? albumsView.currentIndex : 0;
+                        if (at < albumsView.count)
+                            root.albumRequested(albums.albumIdAt(at));
+                    }
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Tab) {
                             root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_J) {
+                            root.moveList(albumsView, 1);
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_K) {
+                            root.moveList(albumsView, -1);
                             event.accepted = true;
                         }
                     }
@@ -670,9 +709,29 @@ Item {
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Artist results")
+                    Keys.onReturnPressed: {
+                        const at = artistsView.currentIndex >= 0 ? artistsView.currentIndex : 0;
+                        if (at < artistsView.count)
+                            root.artistRequested(artists.nameAt(at));
+                    }
+                    Keys.onEnterPressed: {
+                        const at = artistsView.currentIndex >= 0 ? artistsView.currentIndex : 0;
+                        if (at < artistsView.count)
+                            root.artistRequested(artists.nameAt(at));
+                    }
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Tab) {
                             root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_J) {
+                            root.moveList(artistsView, 1);
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_K) {
+                            root.moveList(artistsView, -1);
                             event.accepted = true;
                         }
                     }
