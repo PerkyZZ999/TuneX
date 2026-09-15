@@ -551,18 +551,18 @@ Rectangle {
                 onActionRequested: root.browseRequested()
             }
 
-            Text {
+            // Same guidance as the drawer empty state, minus the
+            // illustration that would crowd the narrow rail.
+            EmptyState {
                 visible: queueList.count === 0 && root.embedded
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: selectionBar.bottom
-                width: parent.width
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Nothing queued yet.")
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontBody
-                color: Theme.muted
+                anchors.bottom: parent.bottom
+                title: qsTr("Now Playing is empty")
+                note: qsTr("Play any song, album, or artist and it will queue up here.")
+                actionLabel: qsTr("Browse library")
+                onActionRequested: root.browseRequested()
             }
 
             ListView {
