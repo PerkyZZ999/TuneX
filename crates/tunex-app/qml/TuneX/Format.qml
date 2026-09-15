@@ -45,4 +45,16 @@ QtObject {
     function durationOrDash(ms: int): string {
         return ms > 0 ? duration(ms) : "—";
     }
+
+    // Transport repeat vocabulary (queue rail and overlay share it; the
+    // Settings value reads "All tracks" instead and stays put).
+    function repeatLabel(mode: int): string {
+        if (mode === 1)
+            return qsTr("Repeat: All");
+
+        if (mode === 2)
+            return qsTr("Repeat: One");
+
+        return qsTr("Repeat: Off");
+    }
 }

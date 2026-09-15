@@ -47,16 +47,6 @@ Popup {
 
     // Durations shape through the Format singleton.
 
-    function repeatText(mode: int): string {
-        if (mode === 1)
-            return qsTr("Repeat: All");
-
-        if (mode === 2)
-            return qsTr("Repeat: One");
-
-        return qsTr("Repeat: Off");
-    }
-
     // Karaoke follow: keep the sung line on screen, gliding inside the
     // motion budget (zeroed by reduce-motion like every animation).
     function followLyrics() {
@@ -79,7 +69,7 @@ Popup {
         root.transportState = root.queue.playbackState();
         root.shuffleOn = root.queue.isShuffle();
         root.repeatModeValue = root.queue.repeatMode();
-        root.repeatLabel = root.repeatText(root.repeatModeValue);
+        root.repeatLabel = Format.repeatLabel(root.repeatModeValue);
         root.errorLine = root.queue.errorText();
         root.titleText = root.queue.currentTitle();
         root.artistText = root.queue.currentArtist();
