@@ -491,6 +491,19 @@ Item {
                     return foldersView.count > 0;
                 return facetsView.count > 0;
             }
+            // Scope confirmation for the destructive-by-replacement Play
+            // all: the count behind it, per tab.
+            readonly property int playAllCount: {
+                if (root.tab === "songs" || (root.tab === "folders" && root.folderDrilled))
+                    return songsView.count;
+                if (root.tab === "albums")
+                    return albumsView.count;
+                if (root.tab === "artists")
+                    return artistsView.count;
+                if (root.tab === "folders")
+                    return foldersView.count;
+                return facetsView.count;
+            }
 
             visible: !root.libraryEmpty && root.showingBrowse
             width: parent.width
@@ -502,9 +515,9 @@ Item {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 glyph: "play"
-                text: qsTr("Play all")
+                text: qsTr("Play all (%1)").arg(sortRow.playAllCount)
                 enabled: sortRow.canPlayAll
-                Accessible.name: qsTr("Play all shown")
+                Accessible.name: qsTr("Play all %1 shown items").arg(sortRow.playAllCount)
                 onClicked: root.playAll()
             }
 

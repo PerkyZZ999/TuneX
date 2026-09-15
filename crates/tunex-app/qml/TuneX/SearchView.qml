@@ -309,6 +309,7 @@ Item {
             visible: root.showContent && !root.drilled
             width: parent.width
             height: visible ? playAllButton.height : 0
+            readonly property int playAllCount: root.tab === "albums" ? albumsView.count : (root.tab === "artists" ? artistsView.count : songsView.count)
 
             PrimaryButton {
                 id: playAllButton
@@ -316,9 +317,9 @@ Item {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 glyph: "play"
-                text: qsTr("Play all")
+                text: qsTr("Play all (%1)").arg(playAllRow.playAllCount)
                 enabled: (root.tab === "songs" && songsView.count > 0) || (root.tab === "albums" && albumsView.count > 0) || (root.tab === "artists" && artistsView.count > 0)
-                Accessible.name: qsTr("Play all results")
+                Accessible.name: qsTr("Play all %1 results").arg(playAllRow.playAllCount)
                 onClicked: root.playAll()
             }
         }
