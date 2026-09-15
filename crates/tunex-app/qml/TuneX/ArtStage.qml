@@ -104,10 +104,14 @@ Item {
     Connections {
         target: root
         function onWaveformCsvChanged() {
-            wave.requestPaint();
+            // The CSV ticks at the frame cap in every mode; repainting an
+            // invisible Canvas is pure main-thread cost.
+            if (root.shownMode === 2)
+                wave.requestPaint();
         }
         function onShownModeChanged() {
-            wave.requestPaint();
+            if (root.shownMode === 2)
+                wave.requestPaint();
         }
     }
 
