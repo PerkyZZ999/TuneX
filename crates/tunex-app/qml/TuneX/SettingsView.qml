@@ -390,21 +390,10 @@ Item {
                     width: parent.width
                     spacing: Theme.spaceLg
 
-                    Column {
+                    SettingsSection {
                         visible: root.section === "library"
                         width: parent.width
-                        spacing: Theme.spaceMd
-
-                        Text {
-                            text: qsTr("Music folders")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontTitle
-                            font.weight: Font.DemiBold
-                            color: Theme.foreground
-                            Accessible.role: Accessible.Heading
-                            Accessible.name: text
-                        }
+                        title: qsTr("Music folders")
 
                         Text {
                             width: parent.width
@@ -658,31 +647,11 @@ Item {
                         }
                     }
 
-                    Column {
+                    SettingsSection {
                         visible: root.section === "playback"
                         width: parent.width
-                        spacing: Theme.spaceMd
-
-                        Text {
-                            text: qsTr("Playback")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontTitle
-                            font.weight: Font.DemiBold
-                            color: Theme.foreground
-                            Accessible.role: Accessible.Heading
-                            Accessible.name: text
-                        }
-
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: qsTr("Playback is gapless between consecutive tracks. ReplayGain sits after the volume slider. A crossfade of 0 seconds keeps the gapless cut. Reduce motion does not turn the fade off.")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            color: Theme.muted
-                        }
+                        title: qsTr("Playback")
+                        description: qsTr("Playback is gapless between consecutive tracks. ReplayGain sits after the volume slider. A crossfade of 0 seconds keeps the gapless cut. Reduce motion does not turn the fade off.")
 
                         Text {
                             text: qsTr("Volume")
@@ -901,31 +870,11 @@ Item {
                         }
                     }
 
-                    Column {
+                    SettingsSection {
                         visible: root.section === "notifications"
                         width: parent.width
-                        spacing: Theme.spaceMd
-
-                        Text {
-                            text: qsTr("Notifications")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontTitle
-                            font.weight: Font.DemiBold
-                            color: Theme.foreground
-                            Accessible.role: Accessible.Heading
-                            Accessible.name: text
-                        }
-
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: qsTr("Track changes only toast when TuneX is in the background. Playback errors still toast while you are looking at the window.")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            color: Theme.muted
-                        }
+                        title: qsTr("Notifications")
+                        description: qsTr("Track changes only toast when TuneX is in the background. Playback errors still toast while you are looking at the window.")
 
                         SettingsToggle {
                             width: parent.width
@@ -963,31 +912,11 @@ Item {
                         }
                     }
 
-                    Column {
+                    SettingsSection {
                         visible: root.section === "appearance"
                         width: parent.width
-                        spacing: Theme.spaceMd
-
-                        Text {
-                            text: qsTr("Appearance")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontTitle
-                            font.weight: Font.DemiBold
-                            color: Theme.foreground
-                            Accessible.role: Accessible.Heading
-                            Accessible.name: text
-                        }
-
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: qsTr("TuneX is dark-only in V1. The royal blue accent is the brand colour — there is no picker yet.")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            color: Theme.muted
-                        }
+                        title: qsTr("Appearance")
+                        description: qsTr("TuneX is dark-only in V1. The royal blue accent is the brand colour — there is no picker yet.")
 
                         SettingsToggle {
                             width: parent.width
@@ -1045,31 +974,11 @@ Item {
                         }
                     }
 
-                    Column {
+                    SettingsSection {
                         visible: root.section === "shortcuts"
                         width: parent.width
-                        spacing: Theme.spaceMd
-
-                        Text {
-                            text: qsTr("Shortcuts")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontTitle
-                            font.weight: Font.DemiBold
-                            color: Theme.foreground
-                            Accessible.role: Accessible.Heading
-                            Accessible.name: text
-                        }
-
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: qsTr("Bindings are fixed in V1. Customisation comes later.")
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            color: Theme.muted
-                        }
+                        title: qsTr("Shortcuts")
+                        description: qsTr("Bindings are fixed in V1. Customisation comes later.")
 
                         Repeater {
                             model: root.shortcutKeys
