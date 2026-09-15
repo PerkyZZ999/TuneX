@@ -237,6 +237,29 @@ impl PlaylistModelRust {
         tunex_library::smart_rule(&db, id).ok().flatten().is_some()
     }
 
+    /// Packed stored rule for `id`: `kind\x1fvalue\x1fexclude(0/1)`;
+    /// empty when the playlist is manual or missing.
+    fn smart_rule_packed(&self, id: i64) -> String {
+        if !self.index_path.is_file() {
+            return String::new();
+        }
+        let Ok(db) = tunex_library::open_file(&self.index_path) else {
+            return String::new();
+        };
+        tunex_library::smart_rule(&db, id)
+            .ok()
+            .flatten()
+            .map(|rule| {
+                format!(
+                    "{}\u{1f}{}\u{1f}{}",
+                    rule.kind,
+                    rule.value,
+                    u8::from(rule.exclude_missing)
+                )
+            })
+            .unwrap_or_default()
+    }
+
     /// Rename a playlist; blank/taken/missing ids surface text.
     fn do_rename(&mut self, id: i64, name: &str) {
         let Some(db) = self.open_writable() else {
@@ -400,6 +423,12 @@ impl qobject::PlaylistModel {
     #[must_use]
     pub fn is_smart(&self, id: i32) -> bool {
         self.rust().is_smart_id(i64::from(id))
+    }
+
+    /// Packed stored rule (`kind\x1fvalue\x1fexclude`); empty when manual.
+    #[must_use]
+    pub fn smart_rule(&self, id: i32) -> QString {
+        QString::from(self.rust().smart_rule_packed(i64::from(id)).as_str())
     }
 
     /// Rename a playlist; failures surface through `errorText`.
@@ -599,6 +628,21 @@ mod tests {
         drop(db);
         assert_eq!(model.do_add_track(i64::from(id), track), 0);
         assert!(model.error_message().is_some_and(|text| !text.is_empty()));
+    }
+
+    #[test]
+    fn smart_rule_packed_round_trips() {
+        let (mut model, _guard) = model_with_seeded_library("pl-rule-text");
+        let smart = model.do_create_smart("Recent", "added_days", "7", false);
+        assert!(smart > 0);
+        assert_eq!(
+            model.smart_rule_packed(i64::from(smart)),
+            "added_days\u{1f}7\u{1f}0"
+        );
+        let manual = model.do_create("Evening");
+        assert!(manual > 0);
+        assert_eq!(model.smart_rule_packed(i64::from(manual)), "");
+        assert_eq!(model.smart_rule_packed(999_999), "");
     }
 
     #[test]

@@ -1336,6 +1336,12 @@ pub mod qobject {
         #[cxx_name = "isSmart"]
         fn is_smart(self: &PlaylistModel, id: i32) -> bool;
 
+        /// Packed stored rule (`kind\x1fvalue\x1fexclude`); empty when manual.
+        /// Exposed as `smartRule`.
+        #[qinvokable]
+        #[cxx_name = "smartRule"]
+        fn smart_rule(self: &PlaylistModel, id: i32) -> QString;
+
         /// Rename a playlist; failures surface through `errorText`.
         /// Exposed to QML as `renamePlaylist`.
         #[qinvokable]

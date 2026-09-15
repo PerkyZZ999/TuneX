@@ -18,11 +18,41 @@ Item {
     property string errorLine: ""
     property bool renaming: false
     property bool playlistIsSmart: false
+    // Packed stored rule (`kind value exclude`), refreshed on selection.
+    property string smartRulePacked: ""
+
+    // Human line for the stored smart rule; empty when manual/unknown so
+    // the header stays quiet.
+    function smartRuleLine() {
+        if (!root.playlistIsSmart || root.smartRulePacked === "")
+            return "";
+        const parts = root.smartRulePacked.split("");
+        if (parts.length < 3)
+            return "";
+        const kind = parts[0];
+        const value = parts[1];
+        const skipMissing = parts[2] === "1";
+        let line = "";
+        if (kind === "added_days")
+            line = value === "1" ? qsTr("Added in the last day") : qsTr("Added in the last %1 days").arg(value);
+        else if (kind === "never_played")
+            line = qsTr("Never played");
+        else if (kind === "artist")
+            line = qsTr("Artist: %1").arg(value);
+        else if (kind === "genre")
+            line = qsTr("Genre: %1").arg(value);
+        else if (kind === "composer")
+            line = qsTr("Composer: %1").arg(value);
+        if (line !== "" && skipMissing)
+            line += qsTr(" · Skips missing files");
+        return line;
+    }
 
     function selectPlaylist(id, name) {
         root.playlistId = id;
         root.playlistName = name;
         root.playlistIsSmart = playlists.isSmart(id);
+        root.smartRulePacked = root.playlistIsSmart ? String(playlists.smartRule(id)) : "";
         root.errorLine = "";
         entrySelection.clear();
         entries.refreshPlaylist(id);
@@ -441,6 +471,18 @@ Item {
                         font.pixelSize: Theme.fontTitle
                         font.weight: Font.DemiBold
                         color: Theme.foreground
+                    }
+
+                    Text {
+                        visible: root.smartRuleLine() !== ""
+                        width: parent.width
+                        elide: Text.ElideRight
+                        clip: true
+                        text: root.smartRuleLine()
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontBodySm
+                        color: Theme.muted
                     }
 
                     Row {
