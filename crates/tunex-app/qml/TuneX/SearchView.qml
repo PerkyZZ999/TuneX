@@ -565,16 +565,8 @@ Item {
                         }
                     }
 
-                    footer: Text {
-                        visible: songsView.count >= 200
-                        width: songsView.width
-                        height: visible ? implicitHeight : 0
-                        horizontalAlignment: Text.AlignHCenter
-                        text: qsTr("Showing the first 200 matches.")
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontCaption
-                        color: Theme.muted
+                    footer: CapFooter {
+                        capped: songsView.count >= 200
                     }
                 }
 
@@ -639,16 +631,8 @@ Item {
                         }
                     }
 
-                    footer: Text {
-                        visible: albumsView.count >= 200
-                        width: albumsView.width
-                        height: visible ? implicitHeight : 0
-                        horizontalAlignment: Text.AlignHCenter
-                        text: qsTr("Showing the first 200 matches.")
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontCaption
-                        color: Theme.muted
+                    footer: CapFooter {
+                        capped: albumsView.count >= 200
                     }
                 }
 
@@ -707,16 +691,8 @@ Item {
                         onActivated: name => root.artistRequested(name)
                     }
 
-                    footer: Text {
-                        visible: artistsView.count >= 200
-                        width: artistsView.width
-                        height: visible ? implicitHeight : 0
-                        horizontalAlignment: Text.AlignHCenter
-                        text: qsTr("Showing the first 200 matches.")
-                        textFormat: Text.PlainText
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontCaption
-                        color: Theme.muted
+                    footer: CapFooter {
+                        capped: artistsView.count >= 200
                     }
                 }
 

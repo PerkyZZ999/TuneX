@@ -60,6 +60,7 @@ fn main() {
                 "qml/TuneX/PlaylistCard.qml",
                 "qml/TuneX/EmptyState.qml",
                 "qml/TuneX/SearchView.qml",
+                "qml/TuneX/CapFooter.qml",
                 "qml/TuneX/SearchingIndicator.qml",
                 "qml/TuneX/QueuePanel.qml",
                 "qml/TuneX/MiniPlayer.qml",
