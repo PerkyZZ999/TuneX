@@ -231,6 +231,12 @@ Item {
                             recentlyPlayed.requestArt(index);
                             homeArtPump.start();
                         }
+                        // Keyboard users Tab through the rail: keep the
+                        // focused card scrolled into view.
+                        onActiveFocusChanged: {
+                            if (activeFocus)
+                                recentlyPlayedRail.positionViewAtIndex(index, ListView.Contain);
+                        }
                         onActivated: id => {
                             root.queue.clearQueue();
                             root.queue.enqueueAlbum(id);
@@ -291,6 +297,12 @@ Item {
                         Component.onCompleted: {
                             albums.requestArt(index);
                             homeArtPump.start();
+                        }
+                        // Keyboard users Tab through the rail: keep the
+                        // focused card scrolled into view.
+                        onActiveFocusChanged: {
+                            if (activeFocus)
+                                albumRail.positionViewAtIndex(index, ListView.Contain);
                         }
                         onActivated: id => {
                             root.queue.clearQueue();
@@ -359,6 +371,12 @@ Item {
                         horizontal: true
                         horizontalHeight: root.playlistCellHeight
                         explicitWidth: root.playlistCell
+                        // Keyboard users Tab through the rail: keep the
+                        // focused card scrolled into view.
+                        onActiveFocusChanged: {
+                            if (activeFocus)
+                                playlistsRail.positionViewAtIndex(index, ListView.Contain);
+                        }
                         onActivated: (id, name) => {
                             return root.playlistOpened(id, name);
                         }
