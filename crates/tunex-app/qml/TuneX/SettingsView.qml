@@ -237,32 +237,16 @@ Item {
             }
         }
 
-        TextField {
+        Field {
             id: nameField
 
             width: parent.width
-            implicitHeight: Theme.targetMin
             placeholderText: qsTr("Profile name")
             maximumLength: 80
-            color: Theme.foreground
-            placeholderTextColor: Theme.muted
-            selectionColor: Theme.primary
-            selectedTextColor: Theme.primaryText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
-            leftPadding: Theme.spaceMd
-            rightPadding: Theme.spaceMd
             Accessible.name: qsTr("Profile name")
             onAccepted: {
                 if (profileDialog.acceptEnabled)
                     profileDialog.accept();
-            }
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: Theme.chrome
-                border.color: nameField.activeFocus ? Theme.focus : Theme.border
-                border.width: nameField.activeFocus ? 2 : 1
             }
         }
     }

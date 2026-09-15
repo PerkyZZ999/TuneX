@@ -56,32 +56,16 @@ GlassDialog {
         width: parent.width
         spacing: Theme.spaceMd
 
-        TextField {
+        Field {
             id: nameField
 
             width: parent.width
-            implicitHeight: Theme.targetMin
             placeholderText: qsTr("Playlist name")
             maximumLength: 120
-            color: Theme.foreground
-            placeholderTextColor: Theme.muted
-            selectionColor: Theme.primary
-            selectedTextColor: Theme.primaryText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
-            leftPadding: Theme.spaceMd
-            rightPadding: Theme.spaceMd
             Accessible.name: qsTr("Playlist name")
             onAccepted: {
                 if (root.acceptEnabled)
                     root.accept();
-            }
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: Theme.chrome
-                border.color: nameField.activeFocus ? Theme.focus : Theme.border
-                border.width: nameField.activeFocus ? 2 : 1
             }
         }
 
@@ -120,7 +104,7 @@ GlassDialog {
             }
         }
 
-        TextField {
+        Field {
             id: valueField
 
             visible: root.valueNeeded()
@@ -130,25 +114,10 @@ GlassDialog {
             maximumLength: 120
             validator: root.kind === "added_days" ? daysValidator : null
             inputMethodHints: root.kind === "added_days" ? Qt.ImhDigitsOnly : Qt.ImhNone
-            color: Theme.foreground
-            placeholderTextColor: Theme.muted
-            selectionColor: Theme.primary
-            selectedTextColor: Theme.primaryText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
-            leftPadding: Theme.spaceMd
-            rightPadding: Theme.spaceMd
             Accessible.name: placeholderText
             onAccepted: {
                 if (root.acceptEnabled)
                     root.accept();
-            }
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: Theme.chrome
-                border.color: valueField.activeFocus ? Theme.focus : Theme.border
-                border.width: valueField.activeFocus ? 2 : 1
             }
         }
 

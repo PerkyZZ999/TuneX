@@ -54,32 +54,16 @@ GlassDialog {
             color: Theme.error
         }
 
-        TextField {
+        Field {
             id: nameField
 
             width: parent.width
-            implicitHeight: Theme.targetMin
             placeholderText: qsTr("Playlist name")
             maximumLength: 120
-            color: Theme.foreground
-            placeholderTextColor: Theme.muted
-            selectionColor: Theme.primary
-            selectedTextColor: Theme.primaryText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
-            leftPadding: Theme.spaceMd
-            rightPadding: Theme.spaceMd
             Accessible.name: qsTr("Playlist name")
             onAccepted: {
                 if (root.acceptEnabled)
                     root.accept();
-            }
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: Theme.chrome
-                border.color: nameField.activeFocus ? Theme.focus : Theme.border
-                border.width: nameField.activeFocus ? 2 : 1
             }
         }
     }

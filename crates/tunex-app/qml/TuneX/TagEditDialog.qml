@@ -57,36 +57,36 @@ GlassDialog {
             color: Theme.error
         }
 
-        TagField {
+        Field {
             id: titleField
 
             width: parent.width
-            label: qsTr("Title")
+            placeholderText: qsTr("Title")
         }
 
-        TagField {
+        Field {
             id: artistField
 
             width: parent.width
-            label: qsTr("Artist")
+            placeholderText: qsTr("Artist")
         }
 
-        TagField {
+        Field {
             id: albumField
 
             width: parent.width
-            label: qsTr("Album")
+            placeholderText: qsTr("Album")
         }
 
         Row {
             width: parent.width
             spacing: Theme.spaceSm
 
-            TagField {
+            Field {
                 id: trackField
 
                 width: (parent.width - Theme.spaceSm * 2) / 3
-                label: qsTr("Track")
+                placeholderText: qsTr("Track")
                 // Digits only: letters would parse to empty and drop the
                 // edit silently.
                 validator: IntValidator {
@@ -96,11 +96,11 @@ GlassDialog {
                 inputMethodHints: Qt.ImhDigitsOnly
             }
 
-            TagField {
+            Field {
                 id: discField
 
                 width: (parent.width - Theme.spaceSm * 2) / 3
-                label: qsTr("Disc")
+                placeholderText: qsTr("Disc")
                 validator: IntValidator {
                     bottom: 1
                     top: 9999
@@ -108,11 +108,11 @@ GlassDialog {
                 inputMethodHints: Qt.ImhDigitsOnly
             }
 
-            TagField {
+            Field {
                 id: yearField
 
                 width: (parent.width - Theme.spaceSm * 2) / 3
-                label: qsTr("Year")
+                placeholderText: qsTr("Year")
                 validator: IntValidator {
                     bottom: 0
                     top: 9999
@@ -121,48 +121,18 @@ GlassDialog {
             }
         }
 
-        TagField {
+        Field {
             id: genreField
 
             width: parent.width
-            label: qsTr("Genre")
+            placeholderText: qsTr("Genre")
         }
 
-        TagField {
+        Field {
             id: composerField
 
             width: parent.width
-            label: qsTr("Composer")
-        }
-    }
-
-    component TagField: TextField {
-        id: field
-
-        property string label: ""
-
-        implicitHeight: Theme.targetMin
-        placeholderText: field.label
-        maximumLength: 200
-        color: Theme.foreground
-        placeholderTextColor: Theme.muted
-        selectionColor: Theme.primary
-        selectedTextColor: Theme.primaryText
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontBody
-        leftPadding: Theme.spaceMd
-        rightPadding: Theme.spaceMd
-        Accessible.name: field.label
-        onAccepted: {
-            if (root.acceptEnabled)
-                root.accept();
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: Theme.chrome
-            border.color: field.activeFocus ? Theme.focus : Theme.border
-            border.width: field.activeFocus ? 2 : 1
+            placeholderText: qsTr("Composer")
         }
     }
 }
