@@ -30,6 +30,19 @@ GlassDialog {
 
     title: qsTr("Edit tags")
     acceptLabel: qsTr("Save")
+
+    // A failed save reopens past accept()'s close (same timing as the
+    // playlist name dialog): reopening synchronously loses to it.
+    Timer {
+        id: reopenTimer
+
+        interval: 1
+        onTriggered: {
+            root.open();
+            titleField.forceActiveFocus();
+            titleField.selectAll();
+        }
+    }
     onAccepted: {
         const packed = [titleField.text, artistField.text, albumField.text, trackField.text, discField.text, yearField.text, genreField.text, composerField.text].join("\u001f");
         const ok = root.library.saveTags(root.trackId, packed);
@@ -37,7 +50,7 @@ GlassDialog {
             root.tagsSaved();
         else {
             root.errorLine = root.library.errorText();
-            root.open();
+            reopenTimer.restart();
         }
     }
 

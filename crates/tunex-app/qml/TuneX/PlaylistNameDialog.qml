@@ -25,12 +25,23 @@ GlassDialog {
     }
 
     // Rejection keeps the typed name on screen with the reason, instead
-    // of closing and losing the input.
+    // of closing and losing the input. The reopen defers past accept()'s
+    // close — reopening synchronously inside onAccepted loses to it
+    // (proven live: the dialog still closed).
     function reopenWithError(message: string) {
         root.errorLine = message;
-        root.open();
-        nameField.forceActiveFocus();
-        nameField.selectAll();
+        reopenTimer.restart();
+    }
+
+    Timer {
+        id: reopenTimer
+
+        interval: 1
+        onTriggered: {
+            root.open();
+            nameField.forceActiveFocus();
+            nameField.selectAll();
+        }
     }
 
     title: root.initialName === "" ? qsTr("New playlist") : qsTr("Rename playlist")
