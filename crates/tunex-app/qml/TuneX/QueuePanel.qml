@@ -54,10 +54,7 @@ Rectangle {
     }
 
     function removeSelected() {
-        const rows = queueSelection.sorted().reverse();
-        for (let i = 0; i < rows.length; i++)
-            root.queue.removeAt(rows[i]);
-        queueSelection.clear();
+        queueSelection.removeSelected(root.queue);
     }
 
     TrackListSelection {

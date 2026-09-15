@@ -83,4 +83,13 @@ QtObject {
         }
         return ids.join(",");
     }
+
+    // Remove the selection through one model's removeAt, bottom-up so
+    // indices hold. Playlist hosts refresh their sidebar afterwards.
+    function removeSelected(model) {
+        const rows = root.sorted().reverse();
+        for (let i = 0; i < rows.length; i++)
+            model.removeAt(rows[i]);
+        root.clear();
+    }
 }

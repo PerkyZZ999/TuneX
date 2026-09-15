@@ -573,11 +573,8 @@ Item {
                             trackIds: entrySelection.mimeIds(entries)
                             onCleared: entrySelection.clear()
                             onRemoveRequested: {
-                                const rows = entrySelection.sorted().reverse();
-                                for (let i = 0; i < rows.length; i++)
-                                    entries.removeAt(rows[i]);
+                                entrySelection.removeSelected(entries);
                                 playlists.refresh();
-                                entrySelection.clear();
                             }
                         }
                         Accessible.role: Accessible.List
