@@ -140,11 +140,15 @@ Item {
                 root.errorLine = playlists.errorText();
                 if (root.errorLine === "")
                     root.playlistName = name;
+                else
+                    nameDialog.reopenWithError(root.errorLine);
             } else {
                 const id = playlists.createPlaylist(name);
                 root.errorLine = playlists.errorText();
                 if (id >= 0)
                     root.selectPlaylist(id, name);
+                else
+                    nameDialog.reopenWithError(root.errorLine);
             }
         }
     }
