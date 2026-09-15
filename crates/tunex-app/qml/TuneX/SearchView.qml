@@ -472,6 +472,7 @@ Item {
                     // focusResults() plus normal Tab order.
                     activeFocusOnTab: true
                     clip: true
+                    spacing: Theme.listRowGap
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     header: SelectionBar {
                         width: songsView.width

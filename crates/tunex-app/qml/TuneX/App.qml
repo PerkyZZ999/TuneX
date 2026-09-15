@@ -602,6 +602,7 @@ Window {
                             width: parent.width
                             height: Math.min(contentHeight, parent.height * 0.28)
                             clip: true
+                            spacing: Theme.listRowGap
                             model: playlistModel
                             boundsBehavior: Flickable.StopAtBounds
 

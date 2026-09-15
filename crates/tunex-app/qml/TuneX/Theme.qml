@@ -84,6 +84,8 @@ QtObject {
     readonly property int topBarHeight: 48
     // Same 32px compact chrome as labeled nav rows (Penpot Home density).
     readonly property int trackRowHeight: 32
+    // Hairline between 32px list rows so hover/selected chips do not fuse.
+    readonly property int listRowGap: 2
     readonly property real listLineHeight: 1.0
     readonly property int pageBannerHeight: 128
     readonly property int brandMark: 24

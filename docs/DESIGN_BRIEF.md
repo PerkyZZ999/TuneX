@@ -73,7 +73,7 @@ Greenfield UI — no code, no tokens, no components exist yet (verified 2026-09-
 
 The interface follows progressive disclosure throughout (Hick's + Miller's laws): essential actions are visible; advanced and secondary controls reveal on demand. One explicit affordance per hidden layer — never mystery meat.
 
-- Track rows show title/artist/duration; hover (or focus) reveals play + ⋯ actions. Touch and keyboard users get an always-visible 44px ⋯ target — hover-only controls are a bug.
+- Track rows show title/artist/duration; hover (or focus) reveals play + ⋯ actions on library, search, and playlist lists. Touch and keyboard users get an always-visible ⋯ on those lists — hover-only controls are a bug. Now Playing omits ⋯ (right-click / Menu / Shift+F10) so the title can use the rail width.
 - Queue lives in the Now Playing drawer/rail; Now Playing overlay expands the same session playlist. Secondary surfaces never get top-level nav items.
 - Search groups show top hits with "See all" escalation; chip strips collapse extras behind "More".
 - Settings shows common options first; advanced (watcher status, cache controls, shortcut reference) sits one level deeper per section.

@@ -545,14 +545,6 @@ Rectangle {
                 color: Theme.muted
             }
 
-            TrackDropArea {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: selectionBar.bottom
-                anchors.bottom: parent.bottom
-                onTracksDropped: ids => root.queue.enqueueTrackIds(ids)
-            }
-
             ListView {
                 id: queueList
 
@@ -564,6 +556,7 @@ Rectangle {
                 model: root.queue
                 activeFocusOnTab: true
                 clip: true
+                spacing: Theme.listRowGap
                 highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 // Row insert/remove, 160ms per the DESIGN.md motion budget.
                 // These only run when the model reports a single row moving,
@@ -669,6 +662,7 @@ Rectangle {
                     isCurrent: model.isCurrent
                     isPlaying: model.isCurrent && root.transportState === 2
                     missing: model.missing
+                    compact: true
                     reorderable: true
                     selected: {
                         queueSelection.stamp;
@@ -699,6 +693,16 @@ Rectangle {
                         queueSelection.setRange(row);
                     }
                 }
+            }
+
+            TrackDropArea {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: selectionBar.bottom
+                anchors.bottom: parent.bottom
+                z: 2
+                dropHint: qsTr("Drop in Now Playing")
+                onTracksDropped: ids => root.queue.enqueueTrackIds(ids)
             }
         }
     }

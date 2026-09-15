@@ -221,6 +221,7 @@ Item {
             height: parent.height - Theme.nowPlayingArt - Theme.targetMin * 2 - Theme.spaceMd * 6 - (moreView.visible ? moreView.height + Theme.spaceMd : 0)
             model: songs
             clip: true
+            spacing: Theme.listRowGap
             activeFocusOnTab: true
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             header: SelectionBar {

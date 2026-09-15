@@ -750,6 +750,7 @@ Item {
             focus: root.showingBrowse && ((root.tab === "songs") || (root.tab === "folders" && root.folderDrilled)) && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
+            spacing: Theme.listRowGap
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             header: SelectionBar {
                 width: songsView.width
@@ -1010,6 +1011,7 @@ Item {
             focus: root.showingBrowse && root.tab === "folders" && !root.folderDrilled && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
+            spacing: Theme.listRowGap
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             Accessible.role: Accessible.List
             Accessible.name: qsTr("Folders")
@@ -1130,6 +1132,7 @@ Item {
             focus: root.showingBrowse && (root.tab === "genres" || root.tab === "composers") && !root.libraryEmpty
             activeFocusOnTab: true
             clip: true
+            spacing: Theme.listRowGap
             highlightMoveDuration: Appearance.duration(Theme.motionHover)
             Accessible.role: Accessible.List
             Accessible.name: root.tab === "composers" ? qsTr("Composers") : qsTr("Genres")
@@ -1317,6 +1320,7 @@ Item {
                 height: parent.height - Theme.fontHeadline - Theme.spaceMd * 2
                 model: songs
                 clip: true
+                spacing: Theme.listRowGap
                 activeFocusOnTab: true
                 highlightMoveDuration: Appearance.duration(Theme.motionHover)
                 header: SelectionBar {

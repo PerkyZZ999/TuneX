@@ -299,6 +299,7 @@ Item {
                     model: playlists
                     activeFocusOnTab: true
                     clip: true
+                    spacing: Theme.listRowGap
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Playlists")
@@ -363,15 +364,6 @@ Item {
                             }
                         }
 
-                        TrackDropArea {
-                            anchors.fill: parent
-                            enabled: !root.playlists.isSmart(sidebarRow.playlistId)
-                            onTracksDropped: ids => {
-                                if (!root.playlists.isSmart(sidebarRow.playlistId))
-                                    root.playlists.addTracks(sidebarRow.playlistId, ids);
-                            }
-                        }
-
                         Column {
                             anchors.left: parent.left
                             anchors.leftMargin: Theme.spaceMd
@@ -402,6 +394,16 @@ Item {
                                 font.pixelSize: Theme.fontCaption
                                 lineHeight: Theme.listLineHeight
                                 color: Theme.muted
+                            }
+                        }
+
+                        TrackDropArea {
+                            anchors.fill: parent
+                            enabled: !root.playlists.isSmart(sidebarRow.playlistId)
+                            showHint: false
+                            onTracksDropped: ids => {
+                                if (!root.playlists.isSmart(sidebarRow.playlistId))
+                                    root.playlists.addTracks(sidebarRow.playlistId, ids);
                             }
                         }
                     }
@@ -509,15 +511,6 @@ Item {
                         note: root.playlistIsSmart ? qsTr("No tracks match this rule yet.") : qsTr("Add songs from any row menu, then play the whole list here.")
                     }
 
-                    TrackDropArea {
-                        anchors.fill: parent
-                        enabled: root.playlistId >= 0 && !root.playlistIsSmart
-                        onTracksDropped: ids => {
-                            if (root.playlistId >= 0 && !root.playlistIsSmart)
-                                root.playlists.addTracks(root.playlistId, ids);
-                        }
-                    }
-
                     ListView {
                         id: entriesView
 
@@ -526,6 +519,7 @@ Item {
                         model: entries
                         activeFocusOnTab: true
                         clip: true
+                        spacing: Theme.listRowGap
                         highlightMoveDuration: Appearance.duration(Theme.motionHover)
                         header: SelectionBar {
                             width: entriesView.width
@@ -664,6 +658,17 @@ Item {
                                 entriesView.currentIndex = row;
                                 entrySelection.setRange(row);
                             }
+                        }
+                    }
+
+                    TrackDropArea {
+                        anchors.fill: parent
+                        z: 2
+                        enabled: root.playlistId >= 0 && !root.playlistIsSmart
+                        dropHint: qsTr("Drop in playlist")
+                        onTracksDropped: ids => {
+                            if (root.playlistId >= 0 && !root.playlistIsSmart)
+                                root.playlists.addTracks(root.playlistId, ids);
                         }
                     }
                 }

@@ -228,10 +228,11 @@ Item {
 
                 visible: count > 0
                 width: parent.width
-                height: visible ? count * Theme.trackRowHeight + (trackSelection.count > 0 ? Theme.targetMin : 0) : 0
+                height: visible ? count * Theme.trackRowHeight + Math.max(0, count - 1) * Theme.listRowGap + (trackSelection.count > 0 ? Theme.targetMin : 0) : 0
                 model: songs
                 interactive: false
                 clip: true
+                spacing: Theme.listRowGap
                 activeFocusOnTab: true
                 header: SelectionBar {
                     width: tracksView.width
