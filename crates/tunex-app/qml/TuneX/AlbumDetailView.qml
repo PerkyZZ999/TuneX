@@ -375,6 +375,12 @@ Item {
                     more.requestArt(index);
                     moreArtPump.start();
                 }
+                // Keyboard users Tab through the rail: keep the focused
+                // card scrolled into view.
+                onActiveFocusChanged: {
+                    if (activeFocus)
+                        moreView.positionViewAtIndex(index, ListView.Contain);
+                }
                 onActivated: id => root.albumRequested(id)
             }
         }
