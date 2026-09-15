@@ -1,20 +1,16 @@
 import QtQuick
 
 // View-local multi-select (S14 W-073). Rows are indices, not SQL ids, so
-// duplicate playlist/queue entries stay independent. `stamp` exists so
-// delegate bindings re-evaluate after a JS mutation.
+// duplicate playlist/queue entries stay independent. Every mutation
+// reassigns `rows`, so host bindings stay subscribed by reading it —
+// no version counter needed.
 QtObject {
     id: root
 
     property int anchor: -1
-    property int stamp: 0
     property list<int> rows
 
     readonly property int count: root.rows.length
-
-    function bump() {
-        root.stamp = root.stamp + 1;
-    }
 
     function contains(row) {
         const rows = root.rows;
@@ -30,7 +26,6 @@ QtObject {
             return false;
         root.rows = [];
         root.anchor = -1;
-        root.bump();
         return true;
     }
 
@@ -48,7 +43,6 @@ QtObject {
             next.push(row);
         root.rows = next;
         root.anchor = row;
-        root.bump();
     }
 
     function setRange(to) {
@@ -59,7 +53,6 @@ QtObject {
         for (let i = lo; i <= hi; i++)
             next.push(i);
         root.rows = next;
-        root.bump();
     }
 
     function selectAll(count) {
@@ -69,7 +62,6 @@ QtObject {
         root.rows = next;
         if (count > 0)
             root.anchor = 0;
-        root.bump();
     }
 
     function sorted() {
@@ -80,7 +72,7 @@ QtObject {
 
     // Comma ids for the selection through one model's trackIdAt — the
     // drag/drop/clipboard wire format every track list shares. Reading
-    // `rows` here keeps host bindings subscribed without a stamp dance.
+    // `rows` keeps host bindings subscribed.
     function mimeIds(model) {
         const rows = root.sorted();
         const ids = [];

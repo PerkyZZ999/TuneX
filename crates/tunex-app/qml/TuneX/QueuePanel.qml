@@ -677,10 +677,7 @@ Rectangle {
                     missing: model.missing
                     compact: true
                     reorderable: true
-                    selected: {
-                        queueSelection.stamp;
-                        return queueSelection.contains(index);
-                    }
+                    selected: queueSelection.contains(index)
                     dragTrackIds: selected && root.mimeIds !== "" ? root.mimeIds : (model.trackId >= 0 ? String(model.trackId) : "")
                     onPlayRequested: (trackId, rowIndex) => {
                         queueSelection.clear();

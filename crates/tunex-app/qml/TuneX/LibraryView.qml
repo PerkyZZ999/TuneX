@@ -847,10 +847,7 @@ Item {
                 trackNumber: model.trackNumber
                 durationMs: model.durationMs
                 missing: model.missing
-                selected: {
-                    songsSelection.stamp;
-                    return songsSelection.contains(index);
-                }
+                selected: songsSelection.contains(index)
                 dragTrackIds: selected && songsSelection.mimeIds(songs) !== "" ? songsSelection.mimeIds(songs) : String(model.trackId)
                 onPlayRequested: (trackId, rowIndex, dangling) => {
                     songsSelection.clear();
@@ -1261,10 +1258,7 @@ Item {
                     trackNumber: model.trackNumber
                     durationMs: model.durationMs
                     missing: model.missing
-                    selected: {
-                        facetSelection.stamp;
-                        return facetSelection.contains(index);
-                    }
+                    selected: facetSelection.contains(index)
                     dragTrackIds: selected && facetSelection.mimeIds(songs) !== "" ? facetSelection.mimeIds(songs) : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
                         facetSelection.clear();

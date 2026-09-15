@@ -234,10 +234,7 @@ Item {
                     trackNumber: model.trackNumber
                     durationMs: model.durationMs
                     missing: model.missing
-                    selected: {
-                        trackSelection.stamp;
-                        return trackSelection.contains(index);
-                    }
+                    selected: trackSelection.contains(index)
                     dragTrackIds: selected && trackSelection.mimeIds(songs) !== "" ? trackSelection.mimeIds(songs) : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
                         trackSelection.clear();

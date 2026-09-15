@@ -667,10 +667,7 @@ Item {
                             missing: model.missing
                             dangling: model.dangling
                             reorderable: !root.playlistIsSmart
-                            selected: {
-                                entrySelection.stamp;
-                                return entrySelection.contains(index);
-                            }
+                            selected: entrySelection.contains(index)
                             dragTrackIds: selected && entrySelection.mimeIds(entries) !== "" ? entrySelection.mimeIds(entries) : String(model.trackId)
                             onPlayRequested: (trackId, rowIndex, dangling) => {
                                 entrySelection.clear();
