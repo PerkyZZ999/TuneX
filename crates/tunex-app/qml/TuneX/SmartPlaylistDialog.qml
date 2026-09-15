@@ -72,34 +72,18 @@ GlassDialog {
             width: parent.width
             spacing: Theme.spaceSm
 
-            Chip {
-                label: root.kindLabel("never_played")
-                selected: root.kind === "never_played"
-                onActivated: root.kind = "never_played"
-            }
+            // Static key model: one Chip per rule kind, labels resolved
+            // inside the delegate.
+            Repeater {
+                model: ["never_played", "added_days", "artist", "genre", "composer"]
 
-            Chip {
-                label: root.kindLabel("added_days")
-                selected: root.kind === "added_days"
-                onActivated: root.kind = "added_days"
-            }
+                Chip {
+                    required property string modelData
 
-            Chip {
-                label: root.kindLabel("artist")
-                selected: root.kind === "artist"
-                onActivated: root.kind = "artist"
-            }
-
-            Chip {
-                label: root.kindLabel("genre")
-                selected: root.kind === "genre"
-                onActivated: root.kind = "genre"
-            }
-
-            Chip {
-                label: root.kindLabel("composer")
-                selected: root.kind === "composer"
-                onActivated: root.kind = "composer"
+                    label: root.kindLabel(modelData)
+                    selected: root.kind === modelData
+                    onActivated: root.kind = modelData
+                }
             }
         }
 
