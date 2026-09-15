@@ -624,6 +624,16 @@ Rectangle {
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
                         queueSelection.selectAll(queueList.count);
                         event.accepted = true;
+                        return;
+                    }
+                    if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                        const at = queueList.currentIndex >= 0 ? queueList.currentIndex : 0;
+                        if (at < queueList.count) {
+                            queueList.currentIndex = at;
+                            rowMenu.rowIndex = at;
+                            rowMenu.popup();
+                            event.accepted = true;
+                        }
                     }
                 }
                 Keys.onUpPressed: event => {

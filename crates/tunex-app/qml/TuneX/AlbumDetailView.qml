@@ -250,6 +250,11 @@ Item {
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
                     trackSelection.selectAll(tracksView.count);
                     event.accepted = true;
+                    return;
+                }
+                if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                    root.openSongMenu(tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0);
+                    event.accepted = true;
                 }
             }
             Keys.onUpPressed: event => {

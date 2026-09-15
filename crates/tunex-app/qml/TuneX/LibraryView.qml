@@ -240,6 +240,16 @@ Item {
         trackMenu.popup();
     }
 
+    function openFacetMenu(at) {
+        if (at < 0 || at >= facetTracksView.count)
+            return;
+
+        facetTracksView.currentIndex = at;
+        trackMenu.trackId = songs.trackIdAt(at);
+        trackMenu.trackIds = facetSelection.contains(at) ? facetSelection.mimeIds(songs) : "";
+        trackMenu.popup();
+    }
+
     function drillIntoAlbum(id, title) {
         root.openAlbum(id);
     }
@@ -1382,6 +1392,11 @@ Item {
                 Keys.onPressed: event => {
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
                         facetSelection.selectAll(facetTracksView.count);
+                        event.accepted = true;
+                        return;
+                    }
+                    if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+                        root.openFacetMenu(facetTracksView.currentIndex >= 0 ? facetTracksView.currentIndex : 0);
                         event.accepted = true;
                     }
                 }

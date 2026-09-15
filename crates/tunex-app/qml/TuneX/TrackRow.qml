@@ -3,9 +3,11 @@ import TuneX
 
 // TrackRow: one song row — number, title/artist, duration, missing badge,
 // now-playing marker. Solid text on the canvas behind the list (never glass). Left-click (or keyboard press)
-// plays the row now; right-click, the Menu key, Shift+F10, or the always-
-// visible ⋯ button opens the container-owned row menu (queueing is
-// "Add to Now Playing", never the click). Now Playing sets `compact` so
+// plays the row now; right-click or the always-visible ⋯ button opens the
+// container-owned row menu (queueing is "Add to Now Playing", never the
+// click). Keyboard Menu/Shift+F10 arrives at the owning list, which opens
+// the menu for its cursor row — rows never take focus, so they own no key
+// handling. Now Playing sets `compact` so
 // the leading index and ⋯ drop out — the rail is too narrow for both,
 // and the same menu is on the right-click.
 // Edge-anchored layout: the middle column fills whatever the fixed edges
@@ -79,13 +81,6 @@ Item {
         if (!root.dangling && !root.missing)
             root.playRequested(root.trackId, root.rowIndex, root.dangling);
     }
-    Keys.onMenuPressed: root.menuRequested(root.trackId, root.rowIndex, root.dangling)
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)) {
-            root.menuRequested(root.trackId, root.rowIndex, root.dangling);
-            event.accepted = true;
-        }
-    }
 
     // Hover/focus surface (DESIGN.md `track-row` → `track-row-hover`): the
     // row itself stays transparent over the view, and the tint fades within
@@ -97,7 +92,7 @@ Item {
         color: {
             if (root.selected)
                 return Theme.selected;
-            if ((rowArea.containsMouse || root.activeFocus) && !root.missing && !root.dangling)
+            if (rowArea.containsMouse && !root.missing && !root.dangling)
                 return Theme.hover;
             return "transparent";
         }
