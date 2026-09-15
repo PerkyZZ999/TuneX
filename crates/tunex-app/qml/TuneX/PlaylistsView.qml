@@ -64,17 +64,6 @@ Item {
         return entrySelection.clear();
     }
 
-    function entryMimeIds() {
-        const rows = entrySelection.sorted();
-        const ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const id = entries.trackIdAt(rows[i]);
-            if (id >= 0)
-                ids.push(id);
-        }
-        return ids.join(",");
-    }
-
     TrackListSelection {
         id: entrySelection
     }
@@ -581,11 +570,7 @@ Item {
                             queue: root.queue
                             playlists: root.playlists
                             count: entrySelection.count
-                            trackIds: {
-                                entrySelection.stamp;
-                                return root.entryMimeIds();
-                            }
-                            showRemove: !root.playlistIsSmart
+                            trackIds: entrySelection.mimeIds(entries)
                             onCleared: entrySelection.clear()
                             onRemoveRequested: {
                                 const rows = entrySelection.sorted().reverse();
@@ -686,7 +671,7 @@ Item {
                                 entrySelection.stamp;
                                 return entrySelection.contains(index);
                             }
-                            dragTrackIds: selected && root.entryMimeIds() !== "" ? root.entryMimeIds() : String(model.trackId)
+                            dragTrackIds: selected && entrySelection.mimeIds(entries) !== "" ? entrySelection.mimeIds(entries) : String(model.trackId)
                             onPlayRequested: (trackId, rowIndex, dangling) => {
                                 entrySelection.clear();
                                 entriesView.currentIndex = rowIndex;

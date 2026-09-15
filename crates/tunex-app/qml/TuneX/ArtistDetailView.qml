@@ -38,23 +38,12 @@ Item {
         return trackSelection.clear();
     }
 
-    function trackMimeIds() {
-        const rows = trackSelection.sorted();
-        const ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const id = songs.trackIdAt(rows[i]);
-            if (id >= 0)
-                ids.push(id);
-        }
-        return ids.join(",");
-    }
-
     function openSongMenu(at) {
         if (at < 0 || at >= tracksView.count)
             return;
         tracksView.currentIndex = at;
         trackMenu.trackId = songs.trackIdAt(at);
-        trackMenu.trackIds = trackSelection.contains(at) ? root.trackMimeIds() : "";
+        trackMenu.trackIds = trackSelection.contains(at) ? trackSelection.mimeIds(songs) : "";
         trackMenu.popup();
     }
 
@@ -233,10 +222,7 @@ Item {
                     queue: root.queue
                     playlists: root.playlists
                     count: trackSelection.count
-                    trackIds: {
-                        trackSelection.stamp;
-                        return root.trackMimeIds();
-                    }
+                    trackIds: trackSelection.mimeIds(songs)
                     onCleared: trackSelection.clear()
                 }
                 Accessible.role: Accessible.List
@@ -261,7 +247,7 @@ Item {
                         trackSelection.stamp;
                         return trackSelection.contains(index);
                     }
-                    dragTrackIds: selected && root.trackMimeIds() !== "" ? root.trackMimeIds() : String(model.trackId)
+                    dragTrackIds: selected && trackSelection.mimeIds(songs) !== "" ? trackSelection.mimeIds(songs) : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
                         trackSelection.clear();
                         if (!dangling && songs.isPlayableAt(index))

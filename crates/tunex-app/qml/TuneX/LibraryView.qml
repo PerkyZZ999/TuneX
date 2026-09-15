@@ -145,28 +145,6 @@ Item {
         return songsSelection.clear() || facetSelection.clear() || albumDetail.clearSelection() || artistDetail.clearSelection();
     }
 
-    function songsMimeIds() {
-        const rows = songsSelection.sorted();
-        const ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const id = songs.trackIdAt(rows[i]);
-            if (id >= 0)
-                ids.push(id);
-        }
-        return ids.join(",");
-    }
-
-    function facetMimeIds() {
-        const rows = facetSelection.sorted();
-        const ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const id = songs.trackIdAt(rows[i]);
-            if (id >= 0)
-                ids.push(id);
-        }
-        return ids.join(",");
-    }
-
     TrackListSelection {
         id: songsSelection
     }
@@ -258,7 +236,7 @@ Item {
 
         songsView.currentIndex = at;
         trackMenu.trackId = songs.trackIdAt(at);
-        trackMenu.trackIds = songsSelection.contains(at) ? root.songsMimeIds() : "";
+        trackMenu.trackIds = songsSelection.contains(at) ? songsSelection.mimeIds(songs) : "";
         trackMenu.popup();
     }
 
@@ -812,10 +790,7 @@ Item {
                 queue: root.queue
                 playlists: root.playlists
                 count: songsSelection.count
-                trackIds: {
-                    songsSelection.stamp;
-                    return root.songsMimeIds();
-                }
+                trackIds: songsSelection.mimeIds(songs)
                 onCleared: songsSelection.clear()
             }
             Accessible.role: Accessible.List
@@ -891,7 +866,7 @@ Item {
                     songsSelection.stamp;
                     return songsSelection.contains(index);
                 }
-                dragTrackIds: selected && root.songsMimeIds() !== "" ? root.songsMimeIds() : String(model.trackId)
+                dragTrackIds: selected && songsSelection.mimeIds(songs) !== "" ? songsSelection.mimeIds(songs) : String(model.trackId)
                 onPlayRequested: (trackId, rowIndex, dangling) => {
                     songsSelection.clear();
                     songsView.currentIndex = index;
@@ -902,7 +877,7 @@ Item {
                 onMenuRequested: trackId => {
                     songsView.currentIndex = index;
                     trackMenu.trackId = trackId;
-                    trackMenu.trackIds = songsSelection.contains(index) ? root.songsMimeIds() : "";
+                    trackMenu.trackIds = songsSelection.contains(index) ? songsSelection.mimeIds(songs) : "";
                     trackMenu.popup();
                 }
                 onToggleSelectRequested: row => {
@@ -1388,10 +1363,7 @@ Item {
                     queue: root.queue
                     playlists: root.playlists
                     count: facetSelection.count
-                    trackIds: {
-                        facetSelection.stamp;
-                        return root.facetMimeIds();
-                    }
+                    trackIds: facetSelection.mimeIds(songs)
                     onCleared: facetSelection.clear()
                 }
                 Accessible.role: Accessible.List
@@ -1447,7 +1419,7 @@ Item {
                         facetSelection.stamp;
                         return facetSelection.contains(index);
                     }
-                    dragTrackIds: selected && root.facetMimeIds() !== "" ? root.facetMimeIds() : String(model.trackId)
+                    dragTrackIds: selected && facetSelection.mimeIds(songs) !== "" ? facetSelection.mimeIds(songs) : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
                         facetSelection.clear();
                         facetTracksView.currentIndex = index;
@@ -1457,7 +1429,7 @@ Item {
                     onMenuRequested: (trackId, rowIndex, dangling) => {
                         facetTracksView.currentIndex = index;
                         trackMenu.trackId = trackId;
-                        trackMenu.trackIds = facetSelection.contains(index) ? root.facetMimeIds() : "";
+                        trackMenu.trackIds = facetSelection.contains(index) ? facetSelection.mimeIds(songs) : "";
                         trackMenu.popup();
                     }
                     onToggleSelectRequested: row => {

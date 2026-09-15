@@ -77,4 +77,18 @@ QtObject {
             return a - b;
         });
     }
+
+    // Comma ids for the selection through one model's trackIdAt — the
+    // drag/drop/clipboard wire format every track list shares. Reading
+    // `rows` here keeps host bindings subscribed without a stamp dance.
+    function mimeIds(model) {
+        const rows = root.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = model.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
+    }
 }

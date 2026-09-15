@@ -41,10 +41,7 @@ Rectangle {
     readonly property string positionText: Format.duration(root.positionMs)
     readonly property string durationText: root.durationMs > 0 ? Format.duration(root.durationMs) : "—"
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
-    readonly property string mimeIds: {
-        queueSelection.stamp;
-        return root.queueMimeIds();
-    }
+    readonly property string mimeIds: queueSelection.mimeIds(root.queue)
 
     signal browseRequested
     signal closeRequested
@@ -64,18 +61,6 @@ Rectangle {
 
     function clearSelection() {
         return queueSelection.clear();
-    }
-
-    function queueMimeIds() {
-        const stamp = queueSelection.stamp;
-        const rows = queueSelection.sorted();
-        const ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const id = root.queue.trackIdAt(rows[i]);
-            if (id >= 0)
-                ids.push(id);
-        }
-        return stamp >= 0 ? ids.join(",") : ids.join(",");
     }
 
     function removeSelected() {
