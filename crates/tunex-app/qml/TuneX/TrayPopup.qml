@@ -15,8 +15,8 @@ Window {
     property string titleText: ""
     property string artistText: ""
     property url artUrl
-    readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
-    readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
+    readonly property string shownTitle: Format.fallback(root.titleText, qsTr("Unknown Title"))
+    readonly property string shownArtist: Format.fallback(root.artistText, qsTr("Unknown Artist"))
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
     readonly property string monogram: Format.monogram(root.shownTitle)
 

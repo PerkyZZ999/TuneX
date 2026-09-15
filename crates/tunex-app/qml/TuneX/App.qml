@@ -165,7 +165,7 @@ Window {
     height: 800
     visible: true
     // Taskbars and Alt-Tab name the track, not just the app.
-    title: root.nowPlayingTitle !== "" ? qsTr("%1 — %2 · TuneX").arg(root.nowPlayingTitle).arg(root.nowPlayingArtist !== "" ? root.nowPlayingArtist : qsTr("Unknown Artist")) : qsTr("TuneX")
+    title: root.nowPlayingTitle !== "" ? qsTr("%1 — %2 · TuneX").arg(root.nowPlayingTitle).arg(Format.fallback(root.nowPlayingArtist, qsTr("Unknown Artist"))) : qsTr("TuneX")
     color: Theme.background
     onActiveChanged: queueModel.setWindowActive(root.active && root.visible)
     onVisibleChanged: queueModel.setWindowActive(root.active && root.visible)

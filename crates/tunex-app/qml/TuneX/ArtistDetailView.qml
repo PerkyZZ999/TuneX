@@ -12,7 +12,7 @@ Item {
     property string artistName: ""
     property int albumCount: 0
     property int trackCount: 0
-    readonly property string shownName: root.artistName !== "" ? root.artistName : qsTr("Unknown Artist")
+    readonly property string shownName: Format.fallback(root.artistName, qsTr("Unknown Artist"))
     readonly property string monogram: Format.monogram(root.shownName)
     readonly property string albumsLine: Format.plural(root.albumCount, qsTr("1 album"), qsTr("%1 albums"))
     readonly property string songsLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))

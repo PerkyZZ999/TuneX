@@ -34,4 +34,15 @@ QtObject {
     function plural(n: int, one: string, many: string): string {
         return n === 1 ? one : many.arg(n);
     }
+
+    // Empty text falls back to the label ("Unknown Artist"). Centralizes
+    // the wording so a dozen call sites cannot drift apart.
+    function fallback(text: string, label: string): string {
+        return text !== "" ? text : label;
+    }
+
+    // Durations with no length read as an em dash, never 0:00.
+    function durationOrDash(ms: int): string {
+        return ms > 0 ? duration(ms) : "—";
+    }
 }

@@ -36,7 +36,7 @@ Item {
     readonly property int artistSize: root.compact ? Theme.fontCaption : Theme.fontBodySm
     property string dragTrackIds: root.trackId >= 0 ? String(root.trackId) : ""
     // m:ss, em dash when unknown (shaping lives in Format).
-    readonly property string durationText: root.durationMs > 0 ? Format.duration(root.durationMs) : "—"
+    readonly property string durationText: Format.durationOrDash(root.durationMs)
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
 
     signal playRequested(int trackId, int rowIndex, bool dangling)

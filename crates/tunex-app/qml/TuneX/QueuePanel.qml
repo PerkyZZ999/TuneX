@@ -35,11 +35,11 @@ Rectangle {
     property int visualizerMode: 0
     property string spectrumCsv: ""
     property string waveformCsv: ""
-    readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Title")
-    readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
+    readonly property string shownTitle: Format.fallback(root.titleText, qsTr("Unknown Title"))
+    readonly property string shownArtist: Format.fallback(root.artistText, qsTr("Unknown Artist"))
     readonly property string monogram: Format.monogram(root.shownTitle)
     readonly property string positionText: Format.duration(root.positionMs)
-    readonly property string durationText: root.durationMs > 0 ? Format.duration(root.durationMs) : "—"
+    readonly property string durationText: Format.durationOrDash(root.durationMs)
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
     readonly property string mimeIds: queueSelection.mimeIds(root.queue)
 

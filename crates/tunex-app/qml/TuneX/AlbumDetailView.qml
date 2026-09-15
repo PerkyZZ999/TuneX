@@ -17,8 +17,8 @@ Item {
     property int trackCount: 0
     property int durationMs: 0
     property url artUrl
-    readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Album")
-    readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
+    readonly property string shownTitle: Format.fallback(root.titleText, qsTr("Unknown Album"))
+    readonly property string shownArtist: Format.fallback(root.artistText, qsTr("Unknown Artist"))
     readonly property string monogram: Format.monogram(root.shownTitle)
     readonly property string countLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
     readonly property string durationLine: root.durationMs > 0 ? Format.duration(root.durationMs) : ""
