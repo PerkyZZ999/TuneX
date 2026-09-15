@@ -87,6 +87,7 @@ fn main() {
                 "qml/TuneX/SettingsCycleRow.qml",
                 "qml/TuneX/SettingsToggle.qml",
                 "qml/TuneX/TrayPopup.qml",
+                "qml/TuneX/TrayMenu.qml",
             ])
             .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true))
             .qml_file(QmlFile::from("qml/TuneX/Appearance.qml").singleton(true))

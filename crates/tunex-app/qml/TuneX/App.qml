@@ -978,13 +978,26 @@ Window {
         onQuitRequested: Qt.quit()
     }
 
+    TrayMenu {
+        id: trayMenu
+
+        onOpenAppRequested: {
+            root.visible = true;
+            root.raise();
+            root.requestActivate();
+        }
+        onQuitRequested: Qt.quit()
+    }
+
     Connections {
         function onPopupRequested(x, y) {
+            trayMenu.dismiss();
             trayPopup.openAt(x, y);
         }
 
         function onMenuRequested(x, y) {
-            trayPopup.openAt(x, y);
+            trayPopup.dismiss();
+            trayMenu.openAt(x, y);
         }
 
         function onPlayPauseRequested() {

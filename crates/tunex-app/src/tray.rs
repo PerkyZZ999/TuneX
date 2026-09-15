@@ -6,9 +6,10 @@
 //! blocks. Hosts that expose no tray watcher are a debug log, never an
 //! error — the app stays usable headless and offline (R-017).
 //!
-//! Hover: the host draws the SNI tooltip (title/artist). Activate and
-//! context-menu coordinates are forwarded to QML so the compact glass popup
-//! can sit next to the icon. Secondary-activate is play/pause.
+//! Hover: the host draws the SNI tooltip (title/artist). Activate opens the
+//! compact now-playing card next to the icon; context-menu opens the
+//! Open App / Quit menu at the same coordinates. Secondary-activate is
+//! play/pause.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
