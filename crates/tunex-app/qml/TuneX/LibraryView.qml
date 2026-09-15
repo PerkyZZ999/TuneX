@@ -1365,9 +1365,9 @@ Item {
 
                     anchors.verticalCenter: parent.verticalCenter
                     glyph: "play"
-                    text: qsTr("Play all")
+                    text: qsTr("Play all (%1)").arg(facetTracksView.count)
                     enabled: facetTracksView.count > 0
-                    Accessible.name: qsTr("Play all in %1").arg(root.facetName)
+                    Accessible.name: qsTr("Play all in %1, %2 items").arg(root.facetName).arg(facetTracksView.count)
                     onClicked: root.playFacet()
                 }
             }

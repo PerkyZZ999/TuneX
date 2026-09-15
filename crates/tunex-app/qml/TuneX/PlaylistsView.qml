@@ -450,8 +450,9 @@ Item {
                             id: playAllButton
 
                             glyph: "play"
-                            text: qsTr("Play all")
+                            text: qsTr("Play all (%1)").arg(entriesView.count)
                             enabled: entriesView.count > 0
+                            Accessible.name: qsTr("Play all %1 tracks in %2").arg(entriesView.count).arg(root.playlistName)
                             onClicked: root.playAll()
                         }
 
