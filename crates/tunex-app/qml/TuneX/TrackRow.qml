@@ -61,7 +61,9 @@ Item {
     Drag.active: rowArea.drag.active
     Drag.hotSpot.x: Theme.spaceMd
     Drag.hotSpot.y: Theme.trackRowHeight / 2
-    opacity: root.dragging ? 0.5 : 1
+    // Unavailable rows sit at 50% per DESIGN.md (badges carry the reason,
+    // so the dim is never colour-only).
+    opacity: root.dragging || root.missing || root.dangling ? 0.5 : 1
     width: ListView.view.width
     height: Theme.trackRowHeight
 
@@ -87,15 +89,15 @@ Item {
 
     // Hover/focus surface (DESIGN.md `track-row` → `track-row-hover`): the
     // row itself stays transparent over the view, and the tint fades within
-    // the 120ms colour-only budget. Unavailable rows never light up — their
-    // click area is disabled, so they report no hover.
+    // the 120ms colour-only budget. Unavailable rows never light up — the
+    // tint binding skips them, so hover reads as nothing to do here.
     Rectangle {
         anchors.fill: parent
         radius: Theme.radiusSm
         color: {
             if (root.selected)
                 return Theme.selected;
-            if (rowArea.containsMouse || root.activeFocus)
+            if ((rowArea.containsMouse || root.activeFocus) && !root.missing && !root.dangling)
                 return Theme.hover;
             return "transparent";
         }
