@@ -1766,6 +1766,11 @@ pub mod qobject {
         #[cxx_name = "recentSearchAt"]
         fn recent_search_at(self: &LibraryManager, index: i32) -> QString;
 
+        /// Clear all recent searches. Exposed as `clearRecentSearches`.
+        #[qinvokable]
+        #[cxx_name = "clearRecentSearches"]
+        fn clear_recent_searches(self: Pin<&mut LibraryManager>);
+
         /// One tag field for the editor (`title` / `artist` / `album` / `genre` /
         /// `composer` / `year` / `track` / `disc`). Exposed as `trackValue`.
         #[qinvokable]

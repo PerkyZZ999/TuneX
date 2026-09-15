@@ -310,6 +310,15 @@ impl qobject::LibraryManager {
         }
     }
 
+    /// Clear all recent searches.
+    pub fn clear_recent_searches(self: Pin<&mut Self>) {
+        if let Err(err) = self.rust().core.set_view_prefs(|view| {
+            view.recent_searches.clear();
+        }) {
+            tracing::warn!(name = "library.search_clear_failed", error = %err, "recents not cleared");
+        }
+    }
+
     /// How many recent searches are stored.
     pub fn recent_search_count(&self) -> i32 {
         i32::try_from(self.rust().core.view_prefs().recent_searches.len()).unwrap_or(i32::MAX)

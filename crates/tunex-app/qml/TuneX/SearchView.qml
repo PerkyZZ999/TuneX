@@ -406,21 +406,63 @@ Item {
                 onActionRequested: root.focusFieldRequested()
             }
 
-            Flow {
+            // Labeled recents with a way out: chips alone gave no name
+            // to the row and no way to remove entries.
+            Column {
                 visible: root.query === "" && root.recents.length > 0
                 anchors.bottom: parent.bottom
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width, 520)
                 spacing: Theme.spaceXs
 
-                Repeater {
-                    model: root.recents
+                Row {
+                    width: parent.width
+                    spacing: Theme.spaceSm
 
-                    Chip {
-                        required property string modelData
+                    Text {
+                        id: recentsLabel
 
-                        label: modelData
-                        onActivated: root.queryRequested(modelData)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("RECENT SEARCHES")
+                        textFormat: Text.PlainText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontCaption
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 0.8
+                        color: Theme.muted
+                    }
+
+                    Item {
+                        width: parent.width - recentsLabel.implicitWidth - clearRecents.implicitWidth - parent.spacing * 2
+                        height: 1
+                    }
+
+                    TextLink {
+                        id: clearRecents
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Clear")
+                        accessibleName: qsTr("Clear recent searches")
+                        onActivated: {
+                            root.library.clearRecentSearches();
+                            root.loadRecents();
+                        }
+                    }
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: Theme.spaceXs
+
+                    Repeater {
+                        model: root.recents
+
+                        Chip {
+                            required property string modelData
+
+                            label: modelData
+                            onActivated: root.queryRequested(modelData)
+                        }
                     }
                 }
             }

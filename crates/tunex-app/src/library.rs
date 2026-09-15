@@ -1020,6 +1020,22 @@ mod tests {
     }
 
     #[test]
+    fn recent_searches_clear_empties_the_list() {
+        let (config, db, dir) = scratch("recent-clear");
+        let core = LibraryCore::with_paths(config, db);
+        core.set_view_prefs(|view| {
+            view.recent_searches = vec!["nova".to_owned(), "harbor".to_owned()];
+        })
+        .expect("seed works");
+        core.set_view_prefs(|view| {
+            view.recent_searches.clear();
+        })
+        .expect("clear works");
+        assert!(core.view_prefs().recent_searches.is_empty());
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
     fn save_track_tags_writes_and_reindexes() {
         let (config, db, dir) = scratch("tag-edit");
         let music = dir.join("music");
