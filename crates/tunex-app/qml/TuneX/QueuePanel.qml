@@ -209,6 +209,26 @@ Rectangle {
         }
     }
 
+    // Clearing is destructive with no undo, so it confirms like the
+    // playlist delete does. The current track keeps playing.
+    GlassDialog {
+        id: clearDialog
+
+        title: qsTr("Clear Now Playing?")
+        acceptLabel: qsTr("Clear")
+        onAccepted: root.queue.clearQueue()
+
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: qsTr("Remove all %1 queued tracks? The current track keeps playing.").arg(queueList.count)
+            textFormat: Text.PlainText
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
+            color: Theme.foreground
+        }
+    }
+
     Column {
         anchors.fill: parent
         anchors.margins: Theme.spaceLg
@@ -474,7 +494,7 @@ Rectangle {
                 text: qsTr("Clear")
                 enabled: queueList.count > 0
                 Accessible.name: qsTr("Clear the queue (keeps playing)")
-                onClicked: root.queue.clearQueue()
+                onClicked: clearDialog.open()
             }
         }
 
