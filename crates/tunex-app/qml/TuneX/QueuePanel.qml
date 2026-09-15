@@ -337,6 +337,9 @@ Rectangle {
                 textFormat: Text.PlainText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontCaption
+                font.features: {
+                    "tnum": 1
+                }
                 color: Theme.muted
             }
 
@@ -349,6 +352,9 @@ Rectangle {
                 textFormat: Text.PlainText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontCaption
+                font.features: {
+                    "tnum": 1
+                }
                 color: Theme.muted
             }
 
