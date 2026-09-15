@@ -61,15 +61,10 @@ Item {
         id: trackSelection
     }
 
-    Timer {
+    ArtPump {
         id: artPump
 
-        interval: 120
-        repeat: true
-        onTriggered: {
-            if (!albums.pollArt())
-                artPump.stop();
-        }
+        models: [albums]
     }
 
     TrackMenu {

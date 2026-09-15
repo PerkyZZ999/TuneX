@@ -82,15 +82,10 @@ Item {
         id: more
     }
 
-    Timer {
+    ArtPump {
         id: moreArtPump
 
-        interval: 120
-        repeat: true
-        onTriggered: {
-            if (!more.pollArt())
-                moreArtPump.stop();
-        }
+        models: [more]
     }
 
     TrackMenu {

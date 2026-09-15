@@ -51,6 +51,7 @@ fn main() {
                 "qml/TuneX/SelectionBar.qml",
                 "qml/TuneX/TrackDropArea.qml",
                 "qml/TuneX/Artwork.qml",
+                "qml/TuneX/ArtPump.qml",
                 "qml/TuneX/ArtStage.qml",
                 "qml/TuneX/AlbumCard.qml",
                 "qml/TuneX/ArtistCard.qml",

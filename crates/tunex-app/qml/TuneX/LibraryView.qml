@@ -400,15 +400,10 @@ Item {
 
     // Covers land one row at a time; this pump publishes them and stops
     // itself as soon as the resolver runs dry.
-    Timer {
+    ArtPump {
         id: artPump
 
-        interval: 120
-        repeat: true
-        onTriggered: {
-            if (!albums.pollArt())
-                artPump.stop();
-        }
+        models: [albums]
     }
 
     LibraryTrackModel {

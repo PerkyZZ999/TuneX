@@ -113,17 +113,10 @@ Item {
     }
 
     // Covers land one row at a time; stops itself when none are pending.
-    Timer {
+    ArtPump {
         id: homeArtPump
 
-        interval: 120
-        repeat: true
-        onTriggered: {
-            const albumsBusy = albums.pollArt();
-            const playedBusy = recentlyPlayed.pollArt();
-            if (!albumsBusy && !playedBusy)
-                homeArtPump.stop();
-        }
+        models: [albums, recentlyPlayed]
     }
 
     LibraryTrackModel {
