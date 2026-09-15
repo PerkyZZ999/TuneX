@@ -97,6 +97,16 @@ Item {
         root.sync();
     }
 
+    function vizModeLabel() {
+        if (root.visualizerMode === 1)
+            return qsTr("Spectrum");
+        if (root.visualizerMode === 2)
+            return qsTr("Waveform");
+        if (root.visualizerMode === 3)
+            return qsTr("Visualizer");
+        return qsTr("Artwork");
+    }
+
     function watcherLine() {
         if (root.folderTotal === 0)
             return qsTr("Add a music folder to start watching for new files.");
@@ -682,6 +692,7 @@ Item {
                             to: 100
                             value: root.volumePct
                             Accessible.name: qsTr("Volume")
+                            tipText: qsTr("%1%").arg(Math.round(value))
                             onMoved: root.queue.setVolumePct(Math.round(value))
                         }
 
@@ -1009,6 +1020,10 @@ Item {
                                     to: 12
                                     enabled: root.eqOn && !root.eqMissing
                                     Accessible.name: root.queue.eqBandLabel(eqBandRow.index)
+                                    tipText: {
+                                        root.eqStamp;
+                                        return qsTr("%1 dB").arg(root.queue.eqBand(eqBandRow.index).toFixed(1));
+                                    }
                                     value: {
                                         root.eqStamp;
                                         return root.queue.eqBand(eqBandRow.index);
@@ -1241,7 +1256,7 @@ Item {
                             height: Math.max(Theme.targetMin, vizCopy.implicitHeight + Theme.spaceSm * 2)
                             activeFocusOnTab: true
                             Accessible.role: Accessible.Button
-                            Accessible.name: qsTr("Now Playing view")
+                            Accessible.name: qsTr("Now Playing view") + ", " + root.vizModeLabel()
                             Keys.onSpacePressed: root.cycleVisualizer()
                             Keys.onReturnPressed: root.cycleVisualizer()
                             Keys.onEnterPressed: root.cycleVisualizer()
@@ -1271,7 +1286,7 @@ Item {
                                 }
 
                                 Text {
-                                    text: root.visualizerMode === 1 ? qsTr("Spectrum") : (root.visualizerMode === 2 ? qsTr("Waveform") : (root.visualizerMode === 3 ? qsTr("Visualizer") : qsTr("Artwork")))
+                                    text: root.vizModeLabel()
                                     textFormat: Text.PlainText
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontBodySm
@@ -1304,7 +1319,8 @@ Item {
                             to: 30
                             stepSize: 1
                             value: root.visualizerFps
-                            Accessible.name: qsTr("Visualizer frame cap")
+                            Accessible.name: qsTr("Visualizer frame cap") + ", " + qsTr("%1 frames per second").arg(root.visualizerFps)
+                            tipText: qsTr("%1 fps").arg(Math.round(value))
                             onMoved: {
                                 root.queue.setVisualizerFps(Math.round(value));
                                 root.sync();
