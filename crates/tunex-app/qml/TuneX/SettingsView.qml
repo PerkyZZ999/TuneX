@@ -861,7 +861,7 @@ Item {
                         SettingsToggle {
                             width: parent.width
                             title: qsTr("Keep TuneX in the tray when closing the window")
-                            description: root.trayAvailable ? qsTr("Closing hides the window. Quit from the tray card, or turn this off to quit on close.") : qsTr("No system tray on this session, so closing the window will still quit. The preference is saved for the next session that has a tray.")
+                            description: root.trayAvailable ? qsTr("Closing hides the window. Quit from the tray card or its right-click menu, or turn this off to quit on close.") : qsTr("No system tray on this session, so closing the window will still quit. The preference is saved for the next session that has a tray.")
                             checked: root.closeToTray
                             onToggled: {
                                 root.tray.setCloseToTray(!root.closeToTray);

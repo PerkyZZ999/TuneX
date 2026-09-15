@@ -208,6 +208,13 @@ Window {
                 }
             }
 
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: Theme.border
+                Accessible.ignored: true
+            }
+
             Item {
                 width: parent.width
                 height: Theme.targetMin
