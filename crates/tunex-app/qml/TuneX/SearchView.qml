@@ -654,6 +654,8 @@ Item {
                     visible: songsView.count === 0 && (root.songsSettled || root.drilled)
                     title: root.drilled ? qsTr("No tracks here") : qsTr("No songs match")
                     note: root.drilled ? qsTr("This album has no indexed tracks.") : qsTr("Try a different spelling, or browse the library.")
+                    actionLabel: root.drilled ? "" : qsTr("Clear search")
+                    onActionRequested: root.clearRequested()
                 }
             }
 
@@ -727,6 +729,8 @@ Item {
                     visible: root.albumsSettled && albumsView.count === 0
                     title: qsTr("No albums match")
                     note: qsTr("Try a different spelling, or browse the library.")
+                    actionLabel: qsTr("Clear search")
+                    onActionRequested: root.clearRequested()
                 }
             }
 
@@ -794,6 +798,8 @@ Item {
                     visible: root.artistsSettled && artistsView.count === 0
                     title: qsTr("No artists match")
                     note: qsTr("Try a different spelling, or browse the library.")
+                    actionLabel: qsTr("Clear search")
+                    onActionRequested: root.clearRequested()
                 }
             }
         }
