@@ -104,7 +104,7 @@ Window {
         border.width: 1
         border.color: Theme.border
         Accessible.role: Accessible.Pane
-        Accessible.name: root.hasCurrent ? qsTr("Now playing") + ", " + root.shownTitle + ", " + root.shownArtist : qsTr("Nothing playing")
+        Accessible.name: root.hasCurrent ? qsTr("Now playing, %1, %2").arg(root.shownTitle).arg(root.shownArtist) : qsTr("Nothing playing")
 
         MouseArea {
             id: cardHover

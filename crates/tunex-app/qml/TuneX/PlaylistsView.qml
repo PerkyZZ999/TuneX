@@ -44,7 +44,7 @@ Item {
         else if (kind === "composer")
             line = qsTr("Composer: %1").arg(value);
         if (line !== "" && skipMissing)
-            line += qsTr(" · Skips missing files");
+            line = qsTr("%1 · %2").arg(line).arg(qsTr("skips missing files"));
         return line;
     }
 
@@ -365,7 +365,7 @@ Item {
                         width: playlistsView.width
                         height: Theme.trackRowHeight
                         Accessible.role: Accessible.ListItem
-                        Accessible.name: sidebarRow.smart ? sidebarRow.name + ", " + qsTr("smart playlist") : sidebarRow.name
+                        Accessible.name: sidebarRow.smart ? qsTr("%1, %2").arg(sidebarRow.name).arg(qsTr("smart playlist")) : sidebarRow.name
 
                         // Hover surface, 120ms colour-only like the track rows;
                         // the selected row keeps the view's own highlight.

@@ -74,7 +74,7 @@ Item {
         }
     }
     Accessible.role: Accessible.ListItem
-    Accessible.name: root.title + ", " + root.artist + (root.isCurrent ? ", " + qsTr("now playing") : "") + (root.missing ? ", " + qsTr("missing") : "") + (root.dangling ? ", " + qsTr("unavailable") : "")
+    Accessible.name: qsTr("%1, %2").arg(root.title).arg(root.artist) + (root.isCurrent ? qsTr(", now playing") : "") + (root.missing ? qsTr(", missing") : "") + (root.dangling ? qsTr(", unavailable") : "")
     Accessible.onPressAction: {
         if (!root.dangling && !root.missing)
             root.playRequested(root.trackId, root.rowIndex, root.dangling);

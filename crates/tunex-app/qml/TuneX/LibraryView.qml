@@ -1084,7 +1084,7 @@ Item {
                 width: ListView.view.width
                 height: Theme.trackRowHeight
                 Accessible.role: Accessible.ListItem
-                Accessible.name: model.name + ", " + folderRow.countLine
+                Accessible.name: qsTr("%1, %2").arg(model.name).arg(folderRow.countLine)
                 Accessible.onPressAction: root.drillIntoFolder(model.path, model.name)
 
                 Rectangle {
@@ -1203,7 +1203,7 @@ Item {
                 width: ListView.view.width
                 height: Theme.trackRowHeight
                 Accessible.role: Accessible.ListItem
-                Accessible.name: model.name + ", " + facetRow.countLine
+                Accessible.name: qsTr("%1, %2").arg(model.name).arg(facetRow.countLine)
                 Accessible.onPressAction: root.openFacetName(model.name)
 
                 Rectangle {

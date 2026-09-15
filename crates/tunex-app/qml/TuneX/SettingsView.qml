@@ -690,8 +690,8 @@ Item {
                             title: qsTr("Repeat")
                             value: root.repeatLabel
                             iconName: root.repeatModeValue === 2 ? "repeat-1" : "repeat"
-                            accessibleName: qsTr("Repeat") + ", " + root.repeatLabel
-                            buttonAccessibleName: qsTr("Cycle repeat") + ", " + root.repeatLabel
+                            accessibleName: qsTr("Repeat, %1").arg(root.repeatLabel)
+                            buttonAccessibleName: qsTr("Cycle repeat, %1").arg(root.repeatLabel)
                             checkable: true
                             checked: root.repeatModeValue !== 0
                             onActivated: {
@@ -705,8 +705,8 @@ Item {
                             title: qsTr("ReplayGain")
                             value: root.replayGainLabel
                             iconName: "volume"
-                            accessibleName: qsTr("ReplayGain") + ", " + root.replayGainLabel
-                            buttonAccessibleName: qsTr("Cycle ReplayGain") + ", " + root.replayGainLabel
+                            accessibleName: qsTr("ReplayGain, %1").arg(root.replayGainLabel)
+                            buttonAccessibleName: qsTr("Cycle ReplayGain, %1").arg(root.replayGainLabel)
                             onActivated: {
                                 root.queue.cycleReplayGain();
                                 root.sync();
@@ -783,7 +783,7 @@ Item {
                             enabled: root.eqOn && !root.eqMissing
                             title: qsTr("Preset")
                             value: root.eqPreset
-                            accessibleName: qsTr("Equalizer preset") + ", " + root.eqPreset
+                            accessibleName: qsTr("Equalizer preset, %1").arg(root.eqPreset)
                             onActivated: root.cycleEqPreset()
                         }
 
@@ -850,8 +850,8 @@ Item {
                             title: qsTr("Output")
                             value: root.outputLabel
                             iconName: "sliders-horizontal"
-                            accessibleName: qsTr("Output") + ", " + root.outputLabel
-                            buttonAccessibleName: qsTr("Cycle output") + ", " + root.outputLabel
+                            accessibleName: qsTr("Output, %1").arg(root.outputLabel)
+                            buttonAccessibleName: qsTr("Cycle output, %1").arg(root.outputLabel)
                             onActivated: {
                                 root.queue.cycleOutput();
                                 root.sync();
@@ -946,7 +946,7 @@ Item {
                             width: parent.width
                             title: qsTr("Now Playing view")
                             value: root.vizModeLabel()
-                            accessibleName: qsTr("Now Playing view") + ", " + root.vizModeLabel()
+                            accessibleName: qsTr("Now Playing view, %1").arg(root.vizModeLabel())
                             onActivated: root.cycleVisualizer()
                         }
 
@@ -965,7 +965,7 @@ Item {
                             to: 30
                             stepSize: 1
                             value: root.visualizerFps
-                            Accessible.name: qsTr("Visualizer frame cap") + ", " + qsTr("%1 frames per second").arg(root.visualizerFps)
+                            Accessible.name: qsTr("Visualizer frame cap, %1").arg(qsTr("%1 frames per second").arg(root.visualizerFps))
                             tipText: qsTr("%1 fps").arg(Math.round(value))
                             onMoved: {
                                 root.queue.setVisualizerFps(Math.round(value));

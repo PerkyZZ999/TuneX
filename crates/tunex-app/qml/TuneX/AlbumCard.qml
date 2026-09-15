@@ -36,7 +36,7 @@ Item {
     height: root.explicitWidth > 0 ? root.explicitWidth + Theme.cardMetaHeight : GridView.view.cellHeight
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: root.title + ", " + root.artist
+    Accessible.name: qsTr("%1, %2").arg(root.title).arg(root.artist)
     Accessible.onPressAction: root.activated(root.albumId)
     Keys.onReturnPressed: root.activated(root.albumId)
     Keys.onEnterPressed: root.activated(root.albumId)

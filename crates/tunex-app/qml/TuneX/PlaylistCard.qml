@@ -27,7 +27,7 @@ Item {
     }
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: root.title + ", " + root.countLine
+    Accessible.name: qsTr("%1, %2").arg(root.title).arg(root.countLine)
     Accessible.onPressAction: root.activated(root.playlistId, root.title)
     Keys.onReturnPressed: root.activated(root.playlistId, root.title)
     Keys.onEnterPressed: root.activated(root.playlistId, root.title)

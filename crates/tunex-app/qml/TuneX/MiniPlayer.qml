@@ -47,7 +47,7 @@ Rectangle {
 
     color: Theme.panel
     Accessible.role: Accessible.Pane
-    Accessible.name: root.hasCurrent ? qsTr("Now playing") + ", " + root.shownTitle + ", " + root.shownArtist : qsTr("Nothing playing")
+    Accessible.name: root.hasCurrent ? qsTr("Now playing, %1, %2").arg(root.shownTitle).arg(root.shownArtist) : qsTr("Nothing playing")
 
     Rectangle {
         anchors.left: parent.left

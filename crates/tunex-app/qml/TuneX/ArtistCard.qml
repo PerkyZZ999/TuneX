@@ -30,7 +30,7 @@ Item {
     height: GridView.view.cellHeight
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: root.artistName + ", " + root.metaLine
+    Accessible.name: qsTr("%1, %2").arg(root.artistName).arg(root.metaLine)
     Accessible.description: qsTr("Play this artist")
     Accessible.onPressAction: root.activated(root.artistName)
     Keys.onReturnPressed: root.activated(root.artistName)

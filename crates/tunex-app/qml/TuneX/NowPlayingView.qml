@@ -260,7 +260,7 @@ Popup {
             y: root.opened ? 0 : Theme.spaceMd
             // Popup is not an Item, so the accessible pane lives here.
             Accessible.role: Accessible.Pane
-            Accessible.name: root.hasCurrent ? qsTr("Now Playing") + ", " + root.shownTitle + ", " + root.shownArtist : qsTr("Now Playing, nothing playing")
+            Accessible.name: root.hasCurrent ? qsTr("Now Playing, %1, %2").arg(root.shownTitle).arg(root.shownArtist) : qsTr("Now Playing, nothing playing")
 
             IconButton {
                 id: closeButton
