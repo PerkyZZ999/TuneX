@@ -69,6 +69,19 @@ pub fn enqueue_rows(controller: &mut PlaybackController, rows: &[TrackRow]) -> u
     enqueued
 }
 
+/// Concatenate one track list per group, in group order (albums in a
+/// Play-all sweep, artists in a genre drill, ids in a multi-enqueue).
+fn concat_group_tracks<G>(
+    groups: &[G],
+    mut tracks_for: impl FnMut(&G) -> Result<Vec<TrackRow>>,
+) -> Result<Vec<TrackRow>> {
+    let mut rows = Vec::new();
+    for group in groups {
+        rows.extend(tracks_for(group)?);
+    }
+    Ok(rows)
+}
+
 /// Enqueue one album's tracks in disc/track order. Returns the number
 /// enqueued (missing files skipped).
 ///
@@ -128,49 +141,25 @@ pub fn library_list_rows(
         "songs" => list_tracks_capped(db, songs_cap, TrackSort::from_key(sort_key), dir),
         "albums" => {
             let albums = list_albums(db, AlbumSort::from_key(sort_key), dir)?;
-            let mut rows = Vec::new();
-            for album in albums {
-                rows.extend(list_tracks_in_album(db, album.id)?);
-            }
-            Ok(rows)
+            concat_group_tracks(&albums, |album| list_tracks_in_album(db, album.id))
         }
         "artists" => {
             let artists = list_artists(db, ArtistSort::from_key(sort_key), dir)?;
-            let mut rows = Vec::new();
-            for artist in artists {
-                rows.extend(list_tracks_for_artist(db, &artist.name)?);
-            }
-            Ok(rows)
+            concat_group_tracks(&artists, |artist| list_tracks_for_artist(db, &artist.name))
         }
         "folders" => {
             let folders = list_track_folders(db)?;
             let sort = TrackSort::from_key(sort_key);
-            let mut rows = Vec::new();
-            for folder in folders {
-                rows.extend(list_tracks_in_folder(
-                    db,
-                    &folder.path,
-                    u32::MAX,
-                    sort,
-                    dir,
-                )?);
-            }
-            Ok(rows)
+            concat_group_tracks(&folders, |folder| {
+                list_tracks_in_folder(db, &folder.path, u32::MAX, sort, dir)
+            })
         }
-        "genres" => {
-            let mut rows = Vec::new();
-            for facet in list_genres(db)? {
-                rows.extend(list_tracks_for_genre(db, &facet.name)?);
-            }
-            Ok(rows)
-        }
-        "composers" => {
-            let mut rows = Vec::new();
-            for facet in list_composers(db)? {
-                rows.extend(list_tracks_for_composer(db, &facet.name)?);
-            }
-            Ok(rows)
-        }
+        "genres" => concat_group_tracks(&list_genres(db)?, |facet| {
+            list_tracks_for_genre(db, &facet.name)
+        }),
+        "composers" => concat_group_tracks(&list_composers(db)?, |facet| {
+            list_tracks_for_composer(db, &facet.name)
+        }),
         "genre" => list_tracks_for_genre(db, key),
         "composer" => list_tracks_for_composer(db, key),
         _ => Ok(Vec::new()),
@@ -209,10 +198,7 @@ pub fn enqueue_album_ids(
     db: &Connection,
     album_ids: &[i64],
 ) -> Result<usize> {
-    let mut rows = Vec::new();
-    for album_id in album_ids {
-        rows.extend(list_tracks_in_album(db, *album_id)?);
-    }
+    let rows = concat_group_tracks(album_ids, |album_id| list_tracks_in_album(db, *album_id))?;
     Ok(enqueue_rows(controller, &rows))
 }
 
@@ -227,10 +213,7 @@ pub fn enqueue_artist_names(
     db: &Connection,
     names: &[String],
 ) -> Result<usize> {
-    let mut rows = Vec::new();
-    for name in names {
-        rows.extend(list_tracks_for_artist(db, name)?);
-    }
+    let rows = concat_group_tracks(names, |name| list_tracks_for_artist(db, name))?;
     Ok(enqueue_rows(controller, &rows))
 }
 
@@ -381,6 +364,15 @@ mod tests {
                 .expect("enqueue works");
         // Untagged files are not on an album, so Play all on Albums skips them.
         assert_eq!(enqueued, 2);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn library_list_rows_genres_concatenates_facet_groups() {
+        let (db, dir) = scratch_db("play-all-genres");
+        // The seed carries no genres, so everything lands in one group.
+        let rows = library_list_rows(&db, "genres", "", "", false, 500).expect("list works");
+        assert_eq!(rows.len(), 3);
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 }
