@@ -740,8 +740,9 @@ Window {
                                         searchView.focusResults();
                                 }
                                 Keys.onPressed: event => {
-                                    if (root.section === "search" && event.key === Qt.Key_Tab) {
-                                        searchView.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                                    // A real Shift+Tab arrives as Key_Backtab, not Tab+Shift.
+                                    if (root.section === "search" && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
+                                        searchView.cycleGroup(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) !== 0);
                                         event.accepted = true;
                                     }
                                 }

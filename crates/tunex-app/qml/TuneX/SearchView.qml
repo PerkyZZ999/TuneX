@@ -514,8 +514,9 @@ Item {
                             event.accepted = true;
                             return;
                         }
-                        if (event.key === Qt.Key_Tab) {
-                            root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                            // A real Shift+Tab arrives as Key_Backtab, not Tab+Shift.
+                            root.cycleGroup(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) !== 0);
                             event.accepted = true;
                             return;
                         }
@@ -634,8 +635,9 @@ Item {
                             root.albumRequested(albums.albumIdAt(at));
                     }
                     Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Tab) {
-                            root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                            // A real Shift+Tab arrives as Key_Backtab, not Tab+Shift.
+                            root.cycleGroup(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) !== 0);
                             event.accepted = true;
                             return;
                         }
@@ -720,8 +722,9 @@ Item {
                             root.artistRequested(artists.nameAt(at));
                     }
                     Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Tab) {
-                            root.cycleGroup((event.modifiers & Qt.ShiftModifier) !== 0);
+                        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                            // A real Shift+Tab arrives as Key_Backtab, not Tab+Shift.
+                            root.cycleGroup(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) !== 0);
                             event.accepted = true;
                             return;
                         }
