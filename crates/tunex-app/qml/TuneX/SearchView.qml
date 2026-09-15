@@ -295,7 +295,15 @@ Item {
                     Chip {
                         required property string modelData
 
-                        label: root.tabLabel(modelData)
+                        // Counts resolve inside the delegate text binding, so
+                        // settling groups never rebuild (and unfocus) the tab
+                        // buttons. Bare labels while there is no query.
+                        label: {
+                            if (root.query === "")
+                                return root.tabLabel(modelData);
+                            const count = modelData === "albums" ? albumsView.count : (modelData === "artists" ? artistsView.count : songsView.count);
+                            return qsTr("%1 (%2)").arg(root.tabLabel(modelData)).arg(count);
+                        }
                         selected: root.tab === modelData
                         onActivated: root.tab = modelData
                     }
