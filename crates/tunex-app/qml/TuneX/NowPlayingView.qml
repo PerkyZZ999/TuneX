@@ -545,7 +545,9 @@ Popup {
 
                         IconButton {
                             anchors.verticalCenter: parent.verticalCenter
-                            iconName: "list-music"
+                            // A note, not the list: the queue toggle below
+                            // already owns `list-music`.
+                            iconName: "music"
                             accessibleName: root.lyricsOn ? qsTr("Hide lyrics") : qsTr("Show lyrics")
                             checkable: true
                             checked: root.lyricsOn
