@@ -27,6 +27,32 @@ GlassMenu {
         onTagsSaved: root.indexChanged()
     }
 
+    // Removing deletes the index row while playlists dangle, so it
+    // confirms like every other destructive action — naming the track.
+    GlassDialog {
+        id: removeDialog
+
+        property int pendingTrackId: -1
+        readonly property string pendingTitle: root.library.trackValue(pendingTrackId, "title")
+
+        title: qsTr("Remove from library?")
+        acceptLabel: qsTr("Remove")
+        onAccepted: {
+            root.library.removeTrack(removeDialog.pendingTrackId);
+            root.indexChanged();
+        }
+
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: removeDialog.pendingTitle !== "" ? qsTr("Remove “%1” from the library? Playlists keep a dangling entry.").arg(removeDialog.pendingTitle) : qsTr("Remove this track from the library? Playlists keep a dangling entry.")
+            textFormat: Text.PlainText
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
+            color: Theme.foreground
+        }
+    }
+
     GlassMenuItem {
         text: qsTr("Play now")
         Accessible.name: qsTr("Play now")
@@ -114,8 +140,8 @@ GlassMenu {
         text: qsTr("Remove from library")
         Accessible.name: qsTr("Remove from library")
         onTriggered: {
-            root.library.removeTrack(root.trackId);
-            root.indexChanged();
+            removeDialog.pendingTrackId = root.trackId;
+            removeDialog.open();
         }
     }
 }

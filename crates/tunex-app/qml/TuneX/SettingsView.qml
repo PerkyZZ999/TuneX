@@ -190,6 +190,31 @@ Item {
         }
     }
 
+    // Removing a folder drops its rows from the index (playlists dangle),
+    // so it confirms like every other destructive action.
+    GlassDialog {
+        id: removeFolderDialog
+
+        property string pendingFolder: ""
+
+        title: qsTr("Remove folder?")
+        acceptLabel: qsTr("Remove")
+        onAccepted: {
+            root.library.removeFolder(removeFolderDialog.pendingFolder);
+            root.sync();
+        }
+
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: qsTr("Stop watching “%1”? Its tracks leave the library; playlists keep dangling entries.").arg(removeFolderDialog.pendingFolder)
+            textFormat: Text.PlainText
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
+            color: Theme.foreground
+        }
+    }
+
     GlassDialog {
         id: profileDialog
 
@@ -553,8 +578,8 @@ Item {
                                             text: qsTr("Remove")
                                             Accessible.name: qsTr("Remove %1").arg(root.library.folderAt(folderRow.index))
                                             onClicked: {
-                                                root.library.removeFolder(root.library.folderAt(folderRow.index));
-                                                root.sync();
+                                                removeFolderDialog.pendingFolder = root.library.folderAt(folderRow.index);
+                                                removeFolderDialog.open();
                                             }
                                         }
                                     }
