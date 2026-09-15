@@ -68,10 +68,14 @@ Item {
         playlists.refresh();
     }
 
+    // Only "All" latches: the other chips navigate away immediately, so
+    // keeping them selected would lie about the Home content on return.
     function activateChip(key) {
-        root.chipKey = key;
-        if (key === "all")
+        if (key === "all") {
+            root.chipKey = key;
             return;
+        }
+        root.chipKey = "all";
         if (key === "folders") {
             root.browseRequested("folders");
             return;
