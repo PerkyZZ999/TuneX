@@ -334,14 +334,18 @@ Rectangle {
 
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.positionText
+                // While scrubbing, sync holds the last landed value, so the
+                // label previews the drag target instead (emphasized so the
+                // preview never reads as the landed position).
+                text: seekSlider.pressed ? root.formatTime(Math.round(seekSlider.value)) : root.positionText
                 textFormat: Text.PlainText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontCaption
+                font.weight: seekSlider.pressed ? Font.DemiBold : Font.Normal
                 font.features: {
                     "tnum": 1
                 }
-                color: Theme.muted
+                color: seekSlider.pressed ? Theme.foreground : Theme.muted
             }
 
             Text {

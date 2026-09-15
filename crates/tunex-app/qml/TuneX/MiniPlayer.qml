@@ -183,14 +183,16 @@ Rectangle {
 
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: root.positionText
+            // Previews the drag target while scrubbing (see QueuePanel).
+            text: seekSlider.pressed ? root.formatTime(Math.round(seekSlider.value)) : root.positionText
             textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontCaption
+            font.weight: seekSlider.pressed ? Font.DemiBold : Font.Normal
             font.features: {
                 "tnum": 1
             }
-            color: Theme.muted
+            color: seekSlider.pressed ? Theme.foreground : Theme.muted
         }
 
         Text {
