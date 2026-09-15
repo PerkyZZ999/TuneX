@@ -23,6 +23,10 @@ Item {
     property int cardIndex: -1
     // Set when the card is not a GridView delegate (home rails).
     property int explicitWidth: 0
+    // Search result grids cycle Tab themselves, so their cards leave the
+    // tab order (the grid stays fully operable through j/k + Return).
+    // Everywhere else the card remains a tab stop.
+    property bool tabFocusable: true
     // First letters of the first two words, uppercase.
     readonly property string monogram: Format.monogram(root.title)
     // No translation files ship in V1, so %n plurals would render literally
@@ -34,7 +38,7 @@ Item {
 
     width: root.explicitWidth > 0 ? root.explicitWidth : GridView.view.cellWidth
     height: root.explicitWidth > 0 ? root.explicitWidth + Theme.cardMetaHeight : GridView.view.cellHeight
-    activeFocusOnTab: true
+    activeFocusOnTab: root.tabFocusable
     Accessible.role: Accessible.Button
     Accessible.name: qsTr("%1, %2").arg(root.title).arg(root.artist)
     Accessible.onPressAction: root.activated(root.albumId)

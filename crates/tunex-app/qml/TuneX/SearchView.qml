@@ -666,6 +666,7 @@ Item {
                         year: model.year
                         trackCount: model.trackCount
                         cardIndex: index
+                        tabFocusable: false
                         onActivated: id => {
                             albumsView.currentIndex = cardIndex;
                             root.albumRequested(id);
@@ -750,6 +751,7 @@ Item {
                         artistName: model.name
                         albumCount: model.albumCount
                         trackCount: model.trackCount
+                        tabFocusable: false
                         onActivated: name => root.artistRequested(name)
                     }
 

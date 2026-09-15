@@ -23,12 +23,16 @@ Item {
     readonly property string albumsLine: Format.plural(root.albumCount, qsTr("1 album"), qsTr("%1 albums"))
     readonly property string songsLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
     readonly property string metaLine: Format.meta([albumsLine, songsLine])
+    // Search result grids cycle Tab themselves, so their cards leave the
+    // tab order (the grid stays fully operable through j/k + Return).
+    // Everywhere else the card remains a tab stop.
+    property bool tabFocusable: true
 
     signal activated(string name)
 
     width: GridView.view.cellWidth
     height: GridView.view.cellHeight
-    activeFocusOnTab: true
+    activeFocusOnTab: root.tabFocusable
     Accessible.role: Accessible.Button
     Accessible.name: qsTr("%1, %2").arg(root.artistName).arg(root.metaLine)
     Accessible.description: qsTr("Play this artist")
