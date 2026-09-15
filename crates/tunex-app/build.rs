@@ -44,6 +44,7 @@ fn main() {
                 "qml/TuneX/PrimaryButton.qml",
                 "qml/TuneX/Chip.qml",
                 "qml/TuneX/LibraryView.qml",
+                "qml/TuneX/DrillHeader.qml",
                 "qml/TuneX/AlbumDetailView.qml",
                 "qml/TuneX/ArtistDetailView.qml",
                 "qml/TuneX/TrackRow.qml",

@@ -633,106 +633,48 @@ Item {
         // Collapsed (zero height) when not drilling — positioners keep
         // invisible space. Hidden while the library is empty (a drill cannot
         // outlive its rows).
-        Row {
+        DrillHeader {
             id: drillRow
 
             visible: root.albumDrilled && root.tab === "songs" && !root.libraryEmpty
             width: parent.width
             height: visible ? implicitHeight : 0
             clip: true
-            spacing: Theme.spaceSm
-
-            PrimaryButton {
-                id: drillBack
-
-                primary: false
-                text: qsTr("Back to albums")
-                onClicked: root.leaveDrill()
+            backText: qsTr("Back to albums")
+            playText: qsTr("Play album")
+            playAccessibleName: qsTr("Play this album now")
+            queueText: qsTr("Queue album")
+            queueAccessibleName: qsTr("Add this album to Now Playing")
+            titleText: root.albumTitle
+            onBackRequested: root.leaveDrill()
+            onPlayRequested: {
+                root.queue.clearQueue();
+                root.queue.enqueueAlbum(root.albumId);
+                root.queue.playAt(0);
             }
-
-            PrimaryButton {
-                id: playAlbumButton
-
-                text: qsTr("Play album")
-                Accessible.name: qsTr("Play this album now")
-                onClicked: {
-                    root.queue.clearQueue();
-                    root.queue.enqueueAlbum(root.albumId);
-                    root.queue.playAt(0);
-                }
-            }
-
-            PrimaryButton {
-                id: queueAlbumButton
-
-                primary: false
-                text: qsTr("Queue album")
-                Accessible.name: qsTr("Add this album to Now Playing")
-                onClicked: root.queue.enqueueAlbum(root.albumId)
-            }
-
-            Text {
-                width: parent.width - drillBack.width - playAlbumButton.width - queueAlbumButton.width - Theme.spaceSm * 3
-                anchors.verticalCenter: parent.verticalCenter
-                elide: Text.ElideRight
-                text: root.albumTitle
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.DemiBold
-                color: Theme.foreground
-            }
+            onQueueRequested: root.queue.enqueueAlbum(root.albumId)
         }
 
-        Row {
+        DrillHeader {
             id: folderDrillRow
 
             visible: root.folderDrilled && root.tab === "folders" && !root.libraryEmpty
             width: parent.width
             height: visible ? implicitHeight : 0
             clip: true
-            spacing: Theme.spaceSm
-
-            PrimaryButton {
-                id: folderBack
-
-                primary: false
-                text: qsTr("Back to folders")
-                onClicked: root.leaveFolderDrill()
+            backText: qsTr("Back to folders")
+            playText: qsTr("Play folder")
+            playAccessibleName: qsTr("Play this folder now")
+            queueText: qsTr("Queue folder")
+            queueAccessibleName: qsTr("Queue this folder in Now Playing")
+            titleText: root.folderTitle
+            onBackRequested: root.leaveFolderDrill()
+            onPlayRequested: {
+                root.queue.clearQueue();
+                root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc);
+                root.queue.playAt(0);
             }
-
-            PrimaryButton {
-                id: playFolderButton
-
-                text: qsTr("Play folder")
-                Accessible.name: qsTr("Play this folder now")
-                onClicked: {
-                    root.queue.clearQueue();
-                    root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc);
-                    root.queue.playAt(0);
-                }
-            }
-
-            PrimaryButton {
-                id: queueFolderButton
-
-                primary: false
-                text: qsTr("Queue folder")
-                Accessible.name: qsTr("Queue this folder in Now Playing")
-                onClicked: root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc)
-            }
-
-            Text {
-                width: parent.width - folderBack.width - playFolderButton.width - queueFolderButton.width - Theme.spaceSm * 3
-                anchors.verticalCenter: parent.verticalCenter
-                elide: Text.ElideRight
-                text: root.folderTitle
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.DemiBold
-                color: Theme.foreground
-            }
+            onQueueRequested: root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc)
         }
     }
 

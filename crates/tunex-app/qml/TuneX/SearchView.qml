@@ -330,55 +330,26 @@ Item {
         }
 
         // Drill header: album title plus the way back (re-submits the query).
-        Row {
+        DrillHeader {
             id: drillRow
 
             visible: root.drilled && root.tab === "songs"
             width: parent.width
             height: visible ? implicitHeight : 0
             clip: true
-            spacing: Theme.spaceSm
-
-            PrimaryButton {
-                id: drillBack
-
-                primary: false
-                text: qsTr("Back to results")
-                onClicked: root.leaveDrill()
+            backText: qsTr("Back to results")
+            playText: qsTr("Play album")
+            playAccessibleName: qsTr("Play this album now")
+            queueText: qsTr("Queue album")
+            queueAccessibleName: qsTr("Add this album to Now Playing")
+            titleText: root.albumTitle
+            onBackRequested: root.leaveDrill()
+            onPlayRequested: {
+                root.queue.clearQueue();
+                root.queue.enqueueAlbum(root.albumId);
+                root.queue.playAt(0);
             }
-
-            PrimaryButton {
-                id: playAlbumButton
-
-                text: qsTr("Play album")
-                Accessible.name: qsTr("Play this album now")
-                onClicked: {
-                    root.queue.clearQueue();
-                    root.queue.enqueueAlbum(root.albumId);
-                    root.queue.playAt(0);
-                }
-            }
-
-            PrimaryButton {
-                id: queueAlbumButton
-
-                primary: false
-                text: qsTr("Queue album")
-                Accessible.name: qsTr("Add this album to Now Playing")
-                onClicked: root.queue.enqueueAlbum(root.albumId)
-            }
-
-            Text {
-                width: parent.width - drillBack.width - playAlbumButton.width - queueAlbumButton.width - Theme.spaceSm * 3
-                anchors.verticalCenter: parent.verticalCenter
-                elide: Text.ElideRight
-                text: root.albumTitle
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.DemiBold
-                color: Theme.foreground
-            }
+            onQueueRequested: root.queue.enqueueAlbum(root.albumId)
         }
 
         Item {
