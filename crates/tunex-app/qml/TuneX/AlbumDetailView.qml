@@ -59,15 +59,6 @@ Item {
         return trackSelection.clear();
     }
 
-    function openSongMenu(at) {
-        if (at < 0 || at >= tracksView.count)
-            return;
-        tracksView.currentIndex = at;
-        trackMenu.trackId = songs.trackIdAt(at);
-        trackMenu.trackIds = trackSelection.contains(at) ? trackSelection.mimeIds(songs) : "";
-        trackMenu.popup();
-    }
-
     anchors.fill: parent
 
     LibraryTrackModel {
@@ -248,7 +239,7 @@ Item {
                     return;
                 }
                 if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                    root.openSongMenu(tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0);
+                    trackMenu.openFor(tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0, tracksView, trackSelection, songs);
                     event.accepted = true;
                 }
             }
@@ -293,10 +284,7 @@ Item {
                     if (!dangling && songs.isPlayableAt(index))
                         root.queue.playTrackNow(trackId);
                 }
-                onMenuRequested: (trackId, rowIndex, dangling) => {
-                    tracksView.currentIndex = index;
-                    root.openSongMenu(index);
-                }
+                onMenuRequested: (trackId, rowIndex, dangling) => trackMenu.openFor(index, tracksView, trackSelection, songs)
                 onToggleSelectRequested: row => {
                     tracksView.currentIndex = row;
                     trackSelection.toggle(row);

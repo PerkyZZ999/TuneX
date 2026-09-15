@@ -540,14 +540,8 @@ Item {
                             return;
                         }
                         if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                            const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                            if (at < songsView.count) {
-                                songsView.currentIndex = at;
-                                trackMenu.trackId = songs.trackIdAt(at);
-                                trackMenu.trackIds = songsSelection.contains(at) ? songsSelection.mimeIds(songs) : "";
-                                trackMenu.popup();
-                                event.accepted = true;
-                            }
+                            trackMenu.openFor(songsView.currentIndex >= 0 ? songsView.currentIndex : 0, songsView, songsSelection, songs);
+                            event.accepted = true;
                         }
                     }
                     Keys.onUpPressed: event => {
@@ -592,12 +586,7 @@ Item {
                             if (!dangling && songs.isPlayableAt(index))
                                 root.queue.playTrackNow(trackId);
                         }
-                        onMenuRequested: trackId => {
-                            songsView.currentIndex = index;
-                            trackMenu.trackId = trackId;
-                            trackMenu.trackIds = songsSelection.contains(index) ? songsSelection.mimeIds(songs) : "";
-                            trackMenu.popup();
-                        }
+                        onMenuRequested: trackId => trackMenu.openFor(index, songsView, songsSelection, songs)
                         onToggleSelectRequested: row => {
                             songsView.currentIndex = row;
                             songsSelection.toggle(row);

@@ -20,6 +20,19 @@ GlassMenu {
 
     onAboutToShow: root.playlists.refresh()
 
+    // Open the menu for the cursor row of a track list: bounds-checks the
+    // view, seeds its cursor, and carries the selection's ids when the row
+    // is part of it. Every track list opens its row menu through here.
+    function openFor(at, view, selection, model) {
+        if (at < 0 || at >= view.count)
+            return;
+
+        view.currentIndex = at;
+        root.trackId = model.trackIdAt(at);
+        root.trackIds = selection.contains(at) ? selection.mimeIds(model) : "";
+        root.popup();
+    }
+
     TagEditDialog {
         id: tagDialog
 
