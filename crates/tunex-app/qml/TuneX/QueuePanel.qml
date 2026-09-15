@@ -478,13 +478,6 @@ Rectangle {
             }
         }
 
-        Item {
-            id: togglesRow
-
-            width: parent.width
-            height: 0
-        }
-
         Row {
             id: upNextHeader
 
@@ -534,7 +527,7 @@ Rectangle {
             id: content
 
             width: parent.width
-            height: parent.height - headerRow.height - nowPlayingHit.height - progressItem.height - volumeRow.height - transportRow.height - togglesRow.height - upNextHeader.height - errorText.height - selectionBar.height - Theme.spaceMd * 8
+            height: parent.height - headerRow.height - nowPlayingHit.height - progressItem.height - volumeRow.height - transportRow.height - upNextHeader.height - errorText.height - selectionBar.height - Theme.spaceMd * 8
 
             SelectionBar {
                 id: selectionBar
