@@ -111,23 +111,27 @@ Item {
         return "qrc:/qt/qml/TuneX/banner-tracks.png";
     }
 
+    // Sort args for the shown tab. The library-list kind string travels
+    // as root.tab itself everywhere below — every arm passes its own tab.
+    function sortArgsForTab() {
+        if (root.tab === "albums")
+            return [root.albumsSort, root.albumsSortDesc];
+        if (root.tab === "artists")
+            return [root.artistsSort, root.artistsSortDesc];
+        if (root.tab === "songs" || root.tab === "folders")
+            return [root.songsSort, root.songsSortDesc];
+        return ["", false];
+    }
+
     function playAll() {
         root.queue.clearQueue();
         let added = 0;
-        if (root.tab === "folders" && root.folderDrilled)
+        if (root.tab === "folders" && root.folderDrilled) {
             added = root.queue.enqueueFolder(root.folderPath, root.songsSort, root.songsSortDesc);
-        else if (root.tab === "songs")
-            added = root.queue.enqueueLibraryList("songs", "", root.songsSort, root.songsSortDesc);
-        else if (root.tab === "albums")
-            added = root.queue.enqueueLibraryList("albums", "", root.albumsSort, root.albumsSortDesc);
-        else if (root.tab === "artists")
-            added = root.queue.enqueueLibraryList("artists", "", root.artistsSort, root.artistsSortDesc);
-        else if (root.tab === "folders")
-            added = root.queue.enqueueLibraryList("folders", "", root.songsSort, root.songsSortDesc);
-        else if (root.tab === "genres")
-            added = root.queue.enqueueLibraryList("genres", "", "", false);
-        else if (root.tab === "composers")
-            added = root.queue.enqueueLibraryList("composers", "", "", false);
+        } else {
+            const args = root.sortArgsForTab();
+            added = root.queue.enqueueLibraryList(root.tab, "", args[0], args[1]);
+        }
 
         if (added > 0)
             root.queue.playAt(0);
