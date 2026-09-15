@@ -36,25 +36,13 @@ use tunex_player::{PlaybackController, list_audio_outputs, uri_to_path};
 /// enough not to rewrite `config.toml` on every poll tick.
 const SESSION_SAVE_INTERVAL: Duration = Duration::from_secs(2);
 
-/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
-/// permitted on `#[qenum]` items, so this is written by hand).
-impl std::fmt::Debug for qobject::QueueRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Variants are associated constants on the generated type; compare
-        // their discriminants rather than matching by value.
-        let name = match self.repr {
-            repr if repr == qobject::QueueRoles::Title.repr => "Title",
-            repr if repr == qobject::QueueRoles::Artist.repr => "Artist",
-            repr if repr == qobject::QueueRoles::Album.repr => "Album",
-            repr if repr == qobject::QueueRoles::DurationMs.repr => "DurationMs",
-            repr if repr == qobject::QueueRoles::IsCurrent.repr => "IsCurrent",
-            repr if repr == qobject::QueueRoles::TrackId.repr => "TrackId",
-            repr if repr == qobject::QueueRoles::Missing.repr => "Missing",
-            _ => "Unknown",
-        };
-        write!(f, "QueueRoles::{name}")
-    }
-}
+debug_roles!(
+    qobject::QueueRoles,
+    QueueRoles,
+    [
+        Title, Artist, Album, DurationMs, IsCurrent, TrackId, Missing
+    ]
+);
 
 /// Queue row: display strings plus duration, now-playing flag, row identity.
 type QueueRow = (QString, QString, QString, i32, bool, i32, bool);

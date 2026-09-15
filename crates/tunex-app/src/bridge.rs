@@ -6,6 +6,28 @@
 //! collide at link time. Per-model rows, loaders, and tests stay in their
 //! own files; only the `#[cxx_qt::bridge]` declarations are shared.
 
+/// Human-readable `Debug` for a generated roles enum (`#[derive]` is not
+/// permitted on `#[qenum]` items, so this is written by hand).
+///
+/// Visible to every bridge module below through textual scope (the macro
+/// is defined before the module declarations), so call sites need no
+/// import.
+macro_rules! debug_roles {
+    ($roles:ty, $name:ident, [$($variant:ident),* $(,)?]) => {
+        impl std::fmt::Debug for $roles {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                // Variants are associated constants on the generated type;
+                // compare their discriminants rather than matching by value.
+                let name = match self.repr {
+                    $(repr if repr == <$roles>::$variant.repr => stringify!($variant),)*
+                    _ => "Unknown",
+                };
+                write!(f, "{}::{name}", stringify!($name))
+            }
+        }
+    };
+}
+
 pub mod album_list_model;
 pub mod artist_list_model;
 pub mod facet_list_model;

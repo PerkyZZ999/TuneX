@@ -9,17 +9,7 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
-/// Human-readable `Debug` for the generated roles enum.
-impl std::fmt::Debug for qobject::FacetRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self.repr {
-            repr if repr == qobject::FacetRoles::Name.repr => "Name",
-            repr if repr == qobject::FacetRoles::TrackCount.repr => "TrackCount",
-            _ => "Unknown",
-        };
-        write!(f, "FacetRoles::{name}")
-    }
-}
+debug_roles!(qobject::FacetRoles, FacetRoles, [Name, TrackCount]);
 
 /// Which facet list is showing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

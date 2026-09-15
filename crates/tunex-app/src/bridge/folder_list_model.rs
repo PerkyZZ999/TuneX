@@ -9,19 +9,7 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
-/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
-/// permitted on `#[qenum]` items, so this is written by hand).
-impl std::fmt::Debug for qobject::FolderRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self.repr {
-            repr if repr == qobject::FolderRoles::Path.repr => "Path",
-            repr if repr == qobject::FolderRoles::Name.repr => "Name",
-            repr if repr == qobject::FolderRoles::TrackCount.repr => "TrackCount",
-            _ => "Unknown",
-        };
-        write!(f, "FolderRoles::{name}")
-    }
-}
+debug_roles!(qobject::FolderRoles, FolderRoles, [Path, Name, TrackCount]);
 
 /// Folder row store: path (drill key), display name, track count.
 #[derive(Debug, Default)]

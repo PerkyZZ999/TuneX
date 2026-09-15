@@ -19,21 +19,11 @@ use std::path::PathBuf;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
-/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
-/// permitted on `#[qenum]` items, so this is written by hand).
-impl std::fmt::Debug for qobject::PlaylistRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Variants are associated constants on the generated type; compare
-        // their discriminants rather than matching by value.
-        let name = match self.repr {
-            repr if repr == qobject::PlaylistRoles::PlaylistId.repr => "PlaylistId",
-            repr if repr == qobject::PlaylistRoles::Name.repr => "Name",
-            repr if repr == qobject::PlaylistRoles::TrackCount.repr => "TrackCount",
-            _ => "Unknown",
-        };
-        write!(f, "PlaylistRoles::{name}")
-    }
-}
+debug_roles!(
+    qobject::PlaylistRoles,
+    PlaylistRoles,
+    [PlaylistId, Name, TrackCount]
+);
 
 /// Playlist row: drill-down id plus name and entry count.
 type PlaylistRow = (i32, QString, i32);

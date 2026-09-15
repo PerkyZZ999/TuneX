@@ -16,20 +16,7 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
-/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
-/// permitted on `#[qenum]` items, so this is written by hand).
-impl std::fmt::Debug for qobject::TrackListRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Variants are associated constants on the generated type; compare
-        // their discriminants rather than matching by value.
-        let name = match self.repr {
-            repr if repr == qobject::TrackListRoles::Title.repr => "Title",
-            repr if repr == qobject::TrackListRoles::Artist.repr => "Artist",
-            _ => "Unknown",
-        };
-        write!(f, "TrackListRoles::{name}")
-    }
-}
+debug_roles!(qobject::TrackListRoles, TrackListRoles, [Title, Artist]);
 
 /// In-memory row store. Replaced by the library-backed store in S2/S3.
 ///

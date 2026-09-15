@@ -18,25 +18,19 @@ use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QStri
 
 use crate::search::SearchCore;
 
-/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
-/// permitted on `#[qenum]` items, so this is written by hand).
-impl std::fmt::Debug for qobject::LibraryTrackRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Variants are associated constants on the generated type; compare
-        // their discriminants rather than matching by value.
-        let name = match self.repr {
-            repr if repr == qobject::LibraryTrackRoles::Title.repr => "Title",
-            repr if repr == qobject::LibraryTrackRoles::Artist.repr => "Artist",
-            repr if repr == qobject::LibraryTrackRoles::Album.repr => "Album",
-            repr if repr == qobject::LibraryTrackRoles::TrackNumber.repr => "TrackNumber",
-            repr if repr == qobject::LibraryTrackRoles::DurationMs.repr => "DurationMs",
-            repr if repr == qobject::LibraryTrackRoles::Missing.repr => "Missing",
-            repr if repr == qobject::LibraryTrackRoles::TrackId.repr => "TrackId",
-            _ => "Unknown",
-        };
-        write!(f, "LibraryTrackRoles::{name}")
-    }
-}
+debug_roles!(
+    qobject::LibraryTrackRoles,
+    LibraryTrackRoles,
+    [
+        Title,
+        Artist,
+        Album,
+        TrackNumber,
+        DurationMs,
+        Missing,
+        TrackId
+    ]
+);
 
 /// Songs-tab cap: the view stays virtualized and bounded; S3 adds paging.
 pub const SONGS_CAP: u32 = 500;

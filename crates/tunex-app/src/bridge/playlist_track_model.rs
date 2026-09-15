@@ -15,25 +15,13 @@ use std::path::PathBuf;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 
-/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
-/// permitted on `#[qenum]` items, so this is written by hand).
-impl std::fmt::Debug for qobject::PlaylistTrackRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Variants are associated constants on the generated type; compare
-        // their discriminants rather than matching by value.
-        let name = match self.repr {
-            repr if repr == qobject::PlaylistTrackRoles::EntryId.repr => "EntryId",
-            repr if repr == qobject::PlaylistTrackRoles::TrackId.repr => "TrackId",
-            repr if repr == qobject::PlaylistTrackRoles::Title.repr => "Title",
-            repr if repr == qobject::PlaylistTrackRoles::Artist.repr => "Artist",
-            repr if repr == qobject::PlaylistTrackRoles::DurationMs.repr => "DurationMs",
-            repr if repr == qobject::PlaylistTrackRoles::Missing.repr => "Missing",
-            repr if repr == qobject::PlaylistTrackRoles::Dangling.repr => "Dangling",
-            _ => "Unknown",
-        };
-        write!(f, "PlaylistTrackRoles::{name}")
-    }
-}
+debug_roles!(
+    qobject::PlaylistTrackRoles,
+    PlaylistTrackRoles,
+    [
+        EntryId, TrackId, Title, Artist, DurationMs, Missing, Dangling
+    ]
+);
 
 /// Entry row: entry/track identity plus display data and state flags.
 type PlaylistTrackRow = (i32, i32, QString, QString, i32, bool, bool);
@@ -478,6 +466,18 @@ mod tests {
         assert_eq!(
             model.row_data(99, PlaylistTrackRoles::Title),
             QVariant::default()
+        );
+    }
+
+    #[test]
+    fn roles_debug_names_variants() {
+        assert_eq!(
+            format!("{:?}", PlaylistTrackRoles::TrackId),
+            "PlaylistTrackRoles::TrackId"
+        );
+        assert_eq!(
+            format!("{:?}", PlaylistTrackRoles { repr: i32::MAX }),
+            "PlaylistTrackRoles::Unknown"
         );
     }
 

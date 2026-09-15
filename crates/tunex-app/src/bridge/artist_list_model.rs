@@ -17,21 +17,11 @@ use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QStri
 
 use crate::search::SearchCore;
 
-/// Human-readable `Debug` for the generated roles enum (`#[derive]` is not
-/// permitted on `#[qenum]` items, so this is written by hand).
-impl std::fmt::Debug for qobject::ArtistRoles {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Variants are associated constants on the generated type; compare
-        // their discriminants rather than matching by value.
-        let name = match self.repr {
-            repr if repr == qobject::ArtistRoles::Name.repr => "Name",
-            repr if repr == qobject::ArtistRoles::AlbumCount.repr => "AlbumCount",
-            repr if repr == qobject::ArtistRoles::TrackCount.repr => "TrackCount",
-            _ => "Unknown",
-        };
-        write!(f, "ArtistRoles::{name}")
-    }
-}
+debug_roles!(
+    qobject::ArtistRoles,
+    ArtistRoles,
+    [Name, AlbumCount, TrackCount]
+);
 
 /// Artist row store: display name plus collection counts.
 #[derive(Debug, Default)]
