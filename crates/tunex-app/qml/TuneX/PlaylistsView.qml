@@ -699,6 +699,9 @@ Item {
                                 entries.insertTracks(ids, index);
                             root.errorLine = entries.errorText();
                             entrySelection.clear();
+                            // Leave the keyboard cursor where the rows landed.
+                            if (entriesView.count > 0)
+                                entriesView.currentIndex = Math.max(0, Math.min(index, entriesView.count - 1));
                         }
                     }
                 }

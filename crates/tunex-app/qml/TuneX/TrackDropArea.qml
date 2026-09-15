@@ -10,9 +10,12 @@ import TuneX
 // Positional mode (`targetView` set: Now Playing, playlist detail): the
 // hover computes the insertion index from the drag position and draws the
 // accent line where the rows will land, with a `#N of M` caption so the
-// feedback is never colour-only (DESIGN.md). `tracksDroppedAt` carries the
-// index plus the drag origin/rows, so an internal drag moves rows while an
-// external one inserts — never a silent duplicate append.
+// feedback is never colour-only (DESIGN.md). Near the top/bottom edges the
+// list auto-scrolls so long lists can receive positional drops too
+// (functional scrolling, not motion chrome — it stays on with
+// reduce-motion). `tracksDroppedAt` carries the index plus the drag
+// origin/rows, so an internal drag moves rows while an external one
+// inserts — never a silent duplicate append.
 DropArea {
     id: root
 
@@ -25,11 +28,19 @@ DropArea {
     property int dropCount: 0
     // Insertion-line position in this area's coordinates.
     property real lineY: 0
+    // Last drag position in area coordinates (drives the line + autoscroll).
+    property real dragX: 0
+    property real dragY: 0
+    // Edge zone + tick for auto-scroll while aiming.
+    readonly property int scrollZone: 48
+    readonly property int scrollTickMs: 32
     readonly property bool positional: root.targetView !== null
     readonly property string lineText: {
         if (!root.positional || root.dropIndex < 0)
             return "";
         const count = root.targetView.count;
+        if (count <= 0)
+            return qsTr("Drop here");
         let where = root.dropIndex >= count ? qsTr("at the end") : qsTr("#%1 of %2").arg(root.dropIndex + 1).arg(count);
         if (root.dropCount > 1)
             return qsTr("%n song(s)", "", root.dropCount) + " · " + where;
@@ -82,14 +93,24 @@ DropArea {
     function updateHover(drag) {
         if (!root.positional || drag === undefined || drag.x === undefined)
             return;
-        const view = root.targetView;
+        root.dragX = drag.x;
+        root.dragY = drag.y;
         root.dropCount = root.countIds(root.idsOf(drag));
+        root.updateIndex();
+    }
+
+    // Recompute the insertion line for the stored cursor position (hover
+    // moves and post-scroll refreshes share it).
+    function updateIndex() {
+        const view = root.targetView;
+        if (!view)
+            return;
         if (view.count <= 0) {
             root.dropIndex = 0;
             root.lineY = 0;
             return;
         }
-        const probe = root.mapToItem(view.contentItem, drag.x, drag.y);
+        const probe = root.mapToItem(view.contentItem, root.dragX, root.dragY);
         const idx = view.indexAt(probe.x, probe.y);
         if (idx < 0) {
             if (probe.y < 0) {
@@ -131,6 +152,33 @@ DropArea {
     function clearHover() {
         root.dropIndex = -1;
         root.dropCount = 0;
+    }
+
+    // Pixels per auto-scroll tick: faster the deeper into the edge zone.
+    function scrollStep(depth) {
+        return Math.round(8 + 20 * Math.min(1, depth / root.scrollZone));
+    }
+
+    function autoScroll() {
+        const view = root.targetView;
+        if (!view || view.count <= 0)
+            return;
+        let delta = 0;
+        if (root.dragY < root.scrollZone)
+            delta = -root.scrollStep(root.scrollZone - root.dragY);
+        else if (root.dragY > root.height - root.scrollZone)
+            delta = root.scrollStep(root.dragY - (root.height - root.scrollZone));
+        if (delta === 0)
+            return;
+        view.contentY += delta;
+        root.updateIndex();
+    }
+
+    Timer {
+        interval: root.scrollTickMs
+        repeat: true
+        running: root.positional && root.containsDrag
+        onTriggered: root.autoScroll()
     }
 
     Rectangle {
