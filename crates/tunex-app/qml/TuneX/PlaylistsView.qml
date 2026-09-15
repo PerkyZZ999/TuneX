@@ -333,11 +333,16 @@ Item {
                         required property string name
                         required property int trackCount
                         required property int playlistId
+                        // Smart lists behave differently (rule-built, refuse
+                        // drops), so the row names the kind in words, never
+                        // by colour alone.
+                        readonly property bool smart: root.playlists.isSmart(playlistId)
+                        readonly property string countLine: trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(trackCount)
 
                         width: playlistsView.width
                         height: Theme.trackRowHeight
                         Accessible.role: Accessible.ListItem
-                        Accessible.name: sidebarRow.name
+                        Accessible.name: sidebarRow.smart ? sidebarRow.name + ", " + qsTr("smart playlist") : sidebarRow.name
 
                         // Hover surface, 120ms colour-only like the track rows;
                         // the selected row keeps the view's own highlight.
@@ -390,7 +395,7 @@ Item {
                             Text {
                                 width: parent.width
                                 elide: Text.ElideRight
-                                text: sidebarRow.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(sidebarRow.trackCount)
+                                text: sidebarRow.smart ? qsTr("%1 · Smart").arg(sidebarRow.countLine) : sidebarRow.countLine
                                 textFormat: Text.PlainText
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontCaption
