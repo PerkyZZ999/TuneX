@@ -17,6 +17,10 @@ Window {
     property bool playerActive: false
     property bool nowPlayingOpen: false
     property bool sessionReady: false
+    // Explicit quit in flight (tray card/menu). While set, window closes
+    // are accepted: vetoing the teardown close the way hide-on-close does
+    // stalls shutdown and strands a windowless process.
+    property bool quitting: false
     readonly property bool canGoBack: historyAt > 0 || (section === "library" && !libraryView.showingBrowse) || (section === "search" && searchView.drilled)
     readonly property bool canGoForward: historyAt < history.length - 1
     readonly property bool wideShell: root.width >= Theme.shellWide
@@ -224,11 +228,12 @@ Window {
     onYChanged: geometrySave.restart()
     onClosing: close => {
         root.persistGeometry();
-        if (tray.hideOnClose()) {
+        if (!root.quitting && tray.hideOnClose()) {
             close.accepted = false;
             root.visible = false;
             return;
         }
+        root.quitting = true;
         Qt.quit();
     }
 
@@ -248,11 +253,12 @@ Window {
         }
     }
 
-    // Space toggles playback except when a text field has focus (R-014).
+    // Space toggles playback except when a text field has focus (R-014)
+    // or a tray surface holds it (its controls own Space there).
     Shortcut {
         sequence: "Space"
         context: Qt.ApplicationShortcut
-        enabled: !root.editingText
+        enabled: !root.editingText && !trayPopup.active && !trayMenu.active
         onActivated: queueModel.playPause()
     }
 
@@ -975,7 +981,10 @@ Window {
             root.raise();
             root.requestActivate();
         }
-        onQuitRequested: Qt.quit()
+        onQuitRequested: {
+            root.quitting = true;
+            Qt.quit();
+        }
     }
 
     TrayMenu {
@@ -986,7 +995,10 @@ Window {
             root.raise();
             root.requestActivate();
         }
-        onQuitRequested: Qt.quit()
+        onQuitRequested: {
+            root.quitting = true;
+            Qt.quit();
+        }
     }
 
     Connections {
