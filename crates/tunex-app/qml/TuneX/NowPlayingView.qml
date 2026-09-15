@@ -38,32 +38,14 @@ Popup {
     property int visualizerMode: 0
     property string spectrumCsv: ""
     property string waveformCsv: ""
-    readonly property string monogram: {
-        const words = root.shownTitle.split(/\s+/).filter(function (word) {
-            return word.length > 0;
-        });
-        const letters = words.slice(0, 2).map(function (word) {
-            return word[0].toUpperCase();
-        });
-        return letters.join("");
-    }
-    readonly property string positionText: root.formatTime(root.positionMs)
-    readonly property string durationText: root.durationMs > 0 ? root.formatTime(root.durationMs) : "—"
+    readonly property string monogram: Format.monogram(root.shownTitle)
+    readonly property string positionText: Format.duration(root.positionMs)
+    readonly property string durationText: root.durationMs > 0 ? Format.duration(root.durationMs) : "—"
 
     signal closeRequested
     signal queueToggleRequested
 
-    // h:mm:ss past the hour (long mixes, audiobooks); m:ss below it.
-    // Numbers need no translation.
-    function formatTime(ms: int): string {
-        const total = Math.max(0, Math.floor(ms / 1000));
-        const hours = Math.floor(total / 3600);
-        const minutes = Math.floor(total / 60) % 60;
-        const seconds = String(total % 60).padStart(2, "0");
-        if (hours > 0)
-            return hours + ":" + String(minutes).padStart(2, "0") + ":" + seconds;
-        return minutes + ":" + seconds;
-    }
+    // Durations shape through the Format singleton.
 
     function repeatText(mode: int): string {
         if (mode === 1)
@@ -472,7 +454,7 @@ Popup {
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
                             // Previews the drag target while scrubbing (see QueuePanel).
-                            text: seekSlider.pressed ? root.formatTime(Math.round(seekSlider.value)) : root.positionText
+                            text: seekSlider.pressed ? Format.duration(Math.round(seekSlider.value)) : root.positionText
                             textFormat: Text.PlainText
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontCaption

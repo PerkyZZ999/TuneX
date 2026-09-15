@@ -35,8 +35,8 @@ Item {
     readonly property int titleSize: root.compact ? Theme.fontBodySm : Theme.fontBody
     readonly property int artistSize: root.compact ? Theme.fontCaption : Theme.fontBodySm
     property string dragTrackIds: root.trackId >= 0 ? String(root.trackId) : ""
-    // m:ss, em dash when unknown. Numbers need no translation.
-    readonly property string durationText: root.durationMs > 0 ? Math.floor(root.durationMs / 60000) + ":" + String(Math.floor(root.durationMs / 1000) % 60).padStart(2, "0") : "—"
+    // m:ss, em dash when unknown (shaping lives in Format).
+    readonly property string durationText: root.durationMs > 0 ? Format.duration(root.durationMs) : "—"
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
 
     signal playRequested(int trackId, int rowIndex, bool dangling)

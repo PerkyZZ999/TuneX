@@ -81,6 +81,7 @@ fn main() {
             ])
             .qml_file(QmlFile::from("qml/TuneX/Theme.qml").singleton(true))
             .qml_file(QmlFile::from("qml/TuneX/Appearance.qml").singleton(true))
+            .qml_file(QmlFile::from("qml/TuneX/Format.qml").singleton(true))
             .qml_file(QmlFile::from("qml/TuneX/GlassBackdrop.qml")),
     )
     .files(["src/bridge/models.rs"])

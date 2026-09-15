@@ -13,17 +13,9 @@ Item {
     property int albumCount: 0
     property int trackCount: 0
     readonly property string shownName: root.artistName !== "" ? root.artistName : qsTr("Unknown Artist")
-    readonly property string monogram: {
-        const words = root.shownName.split(/\s+/).filter(function (word) {
-            return word.length > 0;
-        });
-        const letters = words.slice(0, 2).map(function (word) {
-            return word[0].toUpperCase();
-        });
-        return letters.join("");
-    }
-    readonly property string albumsLine: root.albumCount === 1 ? qsTr("1 album") : qsTr("%1 albums").arg(root.albumCount)
-    readonly property string songsLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
+    readonly property string monogram: Format.monogram(root.shownName)
+    readonly property string albumsLine: Format.plural(root.albumCount, qsTr("1 album"), qsTr("%1 albums"))
+    readonly property string songsLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
     readonly property int gridCell: Math.max(Theme.gridMin, Math.floor((width - Theme.spaceLg * 2) / Math.max(1, Math.floor((width - Theme.spaceLg * 2) / Theme.gridTarget))))
 
     signal backRequested

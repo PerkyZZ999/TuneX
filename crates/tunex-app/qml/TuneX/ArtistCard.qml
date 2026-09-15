@@ -17,19 +17,11 @@ Item {
     property string artistName: ""
     property int albumCount: 0
     property int trackCount: 0
-    readonly property string monogram: {
-        const words = root.artistName.split(/\s+/).filter(function (word) {
-            return word.length > 0;
-        });
-        const letters = words.slice(0, 2).map(function (word) {
-            return word[0].toUpperCase();
-        });
-        return letters.join("");
-    }
+    readonly property string monogram: Format.monogram(root.artistName)
     // No translation files ship in V1, so %n plurals would render literally;
     // translators get explicit singular/plural pairs instead.
-    readonly property string albumsLine: root.albumCount === 1 ? qsTr("1 album") : qsTr("%1 albums").arg(root.albumCount)
-    readonly property string songsLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
+    readonly property string albumsLine: Format.plural(root.albumCount, qsTr("1 album"), qsTr("%1 albums"))
+    readonly property string songsLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
     readonly property string metaLine: albumsLine + " • " + songsLine
 
     signal activated(string name)

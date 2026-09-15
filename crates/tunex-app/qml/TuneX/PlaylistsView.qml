@@ -371,7 +371,7 @@ Item {
                         // drops), so the row names the kind in words, never
                         // by colour alone.
                         readonly property bool smart: root.playlists.isSmart(playlistId)
-                        readonly property string countLine: trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(trackCount)
+                        readonly property string countLine: Format.plural(trackCount, qsTr("1 song"), qsTr("%1 songs"))
 
                         width: playlistsView.width
                         height: Theme.trackRowHeight

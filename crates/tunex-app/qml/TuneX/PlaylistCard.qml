@@ -14,7 +14,7 @@ Item {
     // tall artwork-over-text card.
     property bool horizontal: false
     property int horizontalHeight: Theme.miniPlayerHeight
-    readonly property string countLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
+    readonly property string countLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
 
     signal activated(int id, string name)
 

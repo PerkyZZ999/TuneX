@@ -24,18 +24,10 @@ Item {
     // Set when the card is not a GridView delegate (home rails).
     property int explicitWidth: 0
     // First letters of the first two words, uppercase.
-    readonly property string monogram: {
-        const words = root.title.split(/\s+/).filter(function (word) {
-            return word.length > 0;
-        });
-        const letters = words.slice(0, 2).map(function (word) {
-            return word[0].toUpperCase();
-        });
-        return letters.join("");
-    }
+    readonly property string monogram: Format.monogram(root.title)
     // No translation files ship in V1, so %n plurals would render literally
     // ("40 song(s)"); translators get an explicit singular/plural pair.
-    readonly property string countLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
+    readonly property string countLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
     readonly property string metaLine: root.artist + (root.year > 0 ? " • " + root.year : "") + " • " + countLine
 
     signal activated(int id)

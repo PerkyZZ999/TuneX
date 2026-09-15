@@ -19,17 +19,9 @@ Item {
     property url artUrl
     readonly property string shownTitle: root.titleText !== "" ? root.titleText : qsTr("Unknown Album")
     readonly property string shownArtist: root.artistText !== "" ? root.artistText : qsTr("Unknown Artist")
-    readonly property string monogram: {
-        const words = root.shownTitle.split(/\s+/).filter(function (word) {
-            return word.length > 0;
-        });
-        const letters = words.slice(0, 2).map(function (word) {
-            return word[0].toUpperCase();
-        });
-        return letters.join("");
-    }
-    readonly property string countLine: root.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(root.trackCount)
-    readonly property string durationLine: root.durationMs > 0 ? root.formatTime(root.durationMs) : ""
+    readonly property string monogram: Format.monogram(root.shownTitle)
+    readonly property string countLine: Format.plural(root.trackCount, qsTr("1 song"), qsTr("%1 songs"))
+    readonly property string durationLine: root.durationMs > 0 ? Format.duration(root.durationMs) : ""
     readonly property string metaLine: {
         const parts = [root.shownArtist];
         if (root.year > 0)
@@ -44,17 +36,7 @@ Item {
     signal albumRequested(int albumId)
     signal artistRequested(string name)
 
-    // h:mm:ss past the hour (long mixes, audiobooks); m:ss below it.
-    // Numbers need no translation.
-    function formatTime(ms) {
-        const total = Math.max(0, Math.floor(ms / 1000));
-        const hours = Math.floor(total / 3600);
-        const minutes = Math.floor(total / 60) % 60;
-        const seconds = String(total % 60).padStart(2, "0");
-        if (hours > 0)
-            return hours + ":" + String(minutes).padStart(2, "0") + ":" + seconds;
-        return minutes + ":" + seconds;
-    }
+    // Durations shape through the Format singleton.
 
     function playAlbum() {
         root.queue.clearQueue();

@@ -1104,7 +1104,7 @@ Item {
                 // Plain (not required) properties: `required` construction-
                 // time initialization races the cxx-qt delegate context
                 // and locks role bindings to their defaults (W-018).
-                readonly property string countLine: model.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(model.trackCount)
+                readonly property string countLine: Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs"))
 
                 width: ListView.view.width
                 height: Theme.trackRowHeight
@@ -1223,7 +1223,7 @@ Item {
             delegate: Item {
                 id: facetRow
 
-                readonly property string countLine: model.trackCount === 1 ? qsTr("1 song") : qsTr("%1 songs").arg(model.trackCount)
+                readonly property string countLine: Format.plural(model.trackCount, qsTr("1 song"), qsTr("%1 songs"))
 
                 width: ListView.view.width
                 height: Theme.trackRowHeight
