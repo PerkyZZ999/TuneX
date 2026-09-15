@@ -82,10 +82,8 @@ impl ArtistListModelRust {
     /// Drain one settled result set into row payloads (`None` while the
     /// worker runs or idles — the caller refreshes views on `Some`).
     fn poll_search_rows(&mut self) -> Option<Vec<(QString, i32, i32)>> {
-        self.search.poll();
         self.search
-            .take_results()
-            .map(|found| found.artists.iter().map(display_artist).collect())
+            .poll_mapped(|found| found.artists.iter().map(display_artist).collect())
     }
 
     /// Whether a submitted query is still waiting on the worker.

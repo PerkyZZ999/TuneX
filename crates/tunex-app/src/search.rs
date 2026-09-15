@@ -149,6 +149,14 @@ impl SearchCore {
         self.delivered.take()
     }
 
+    /// Poll the worker, then map one settled result set (`None` while the
+    /// worker runs or idles). Poll-then-take is one ordering behind this
+    /// seam so no caller can take without polling first.
+    pub fn poll_mapped<T>(&mut self, map: impl FnOnce(SearchResults) -> T) -> Option<T> {
+        self.poll();
+        self.take_results().map(map)
+    }
+
     /// Whether a submitted query is still waiting on the worker.
     #[must_use]
     pub fn is_searching(&self) -> bool {

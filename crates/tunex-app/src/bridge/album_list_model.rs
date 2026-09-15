@@ -165,10 +165,8 @@ impl AlbumListModelRust {
     /// Drain one settled result set into row payloads (`None` while the
     /// worker runs or idles — the caller refreshes views on `Some`).
     fn poll_search_rows(&mut self) -> Option<AlbumSearchRows> {
-        self.search.poll();
         self.search
-            .take_results()
-            .map(|found| found.albums.iter().map(display_album).collect())
+            .poll_mapped(|found| found.albums.iter().map(display_album).collect())
     }
 
     /// Whether a submitted query is still waiting on the worker.

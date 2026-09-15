@@ -115,10 +115,8 @@ impl LibraryTrackModelRust {
     /// Drain one settled result set into row payloads (`None` while the
     /// worker runs or idles — the caller refreshes views on `Some`).
     fn poll_search_rows(&mut self) -> Option<TrackSearchRows> {
-        self.search.poll();
         self.search
-            .take_results()
-            .map(|found| found.tracks.iter().map(display_row).collect())
+            .poll_mapped(|found| found.tracks.iter().map(display_row).collect())
     }
 
     /// Whether a submitted query is still waiting on the worker.
