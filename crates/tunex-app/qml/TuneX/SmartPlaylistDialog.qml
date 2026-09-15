@@ -44,6 +44,14 @@ GlassDialog {
     acceptEnabled: nameField.text.trim() !== "" && (!root.valueNeeded() || valueField.text.trim() !== "")
     onAccepted: root.ruleAccepted(nameField.text, root.kind, valueField.text, root.excludeMissing)
 
+    // Days is digits: letters would store a rule that matches nothing.
+    IntValidator {
+        id: daysValidator
+
+        bottom: 1
+        top: 36500
+    }
+
     Column {
         width: parent.width
         spacing: Theme.spaceMd
@@ -120,6 +128,8 @@ GlassDialog {
             implicitHeight: visible ? Theme.targetMin : 0
             placeholderText: root.kind === "added_days" ? qsTr("Days") : root.kindLabel(root.kind)
             maximumLength: 120
+            validator: root.kind === "added_days" ? daysValidator : null
+            inputMethodHints: root.kind === "added_days" ? Qt.ImhDigitsOnly : Qt.ImhNone
             color: Theme.foreground
             placeholderTextColor: Theme.muted
             selectionColor: Theme.primary

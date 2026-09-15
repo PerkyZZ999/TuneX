@@ -87,6 +87,13 @@ GlassDialog {
 
                 width: (parent.width - Theme.spaceSm * 2) / 3
                 label: qsTr("Track")
+                // Digits only: letters would parse to empty and drop the
+                // edit silently.
+                validator: IntValidator {
+                    bottom: 1
+                    top: 9999
+                }
+                inputMethodHints: Qt.ImhDigitsOnly
             }
 
             TagField {
@@ -94,6 +101,11 @@ GlassDialog {
 
                 width: (parent.width - Theme.spaceSm * 2) / 3
                 label: qsTr("Disc")
+                validator: IntValidator {
+                    bottom: 1
+                    top: 9999
+                }
+                inputMethodHints: Qt.ImhDigitsOnly
             }
 
             TagField {
@@ -101,6 +113,11 @@ GlassDialog {
 
                 width: (parent.width - Theme.spaceSm * 2) / 3
                 label: qsTr("Year")
+                validator: IntValidator {
+                    bottom: 0
+                    top: 9999
+                }
+                inputMethodHints: Qt.ImhDigitsOnly
             }
         }
 
