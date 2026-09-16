@@ -31,6 +31,9 @@ pub mod playback;
 /// Debounced search orchestration (keystrokes in, grouped results out).
 pub mod search;
 
+/// Detached single-thread runtimes for presence threads.
+pub mod runtime;
+
 /// `StatusNotifierItem` tray presence (Plasma/Wayland).
 pub mod tray;
 

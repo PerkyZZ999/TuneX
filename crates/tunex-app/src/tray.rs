@@ -198,14 +198,11 @@ fn lock_snapshot(slot: &Mutex<TraySnapshot>) -> std::sync::MutexGuard<'_, TraySn
 }
 
 fn run_server_thread(hub: Arc<TrayHub>) {
-    let runtime = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
+    let runtime = match crate::runtime::current_thread_runtime() {
         Ok(runtime) => runtime,
         Err(err) => {
             tracing::debug!(
-                name: "app.tray.runtime",
+                name = "app.tray.runtime",
                 error = %err,
                 "tray runtime unavailable"
             );

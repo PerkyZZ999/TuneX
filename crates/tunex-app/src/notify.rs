@@ -92,13 +92,11 @@ pub fn post(summary: &str, body: &str) {
     if std::thread::Builder::new()
         .name("tunex-notify".to_owned())
         .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build();
+            let runtime = crate::runtime::current_thread_runtime();
             match runtime {
                 Ok(runtime) => runtime.block_on(send_notify(&summary, &body)),
                 Err(err) => tracing::debug!(
-                    name: "app.notify.runtime",
+                    name = "app.notify.runtime",
                     error = %err,
                     "notification runtime unavailable"
                 ),

@@ -685,14 +685,11 @@ pub fn spawn() {
 
 /// Body of the detached MPRIS thread: single-threaded runtime plus serve.
 fn run_server_thread(hub: MprisHub) {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build();
-    let runtime = match runtime {
+    let runtime = match crate::runtime::current_thread_runtime() {
         Ok(runtime) => runtime,
         Err(err) => {
             tracing::error!(
-                name: "app.mpris.runtime",
+                name = "app.mpris.runtime",
                 error = %err,
                 "MPRIS runtime failed to start"
             );
