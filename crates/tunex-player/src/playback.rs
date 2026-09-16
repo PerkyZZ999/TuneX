@@ -23,9 +23,9 @@ use std::{
 use tokio::sync::mpsc;
 use tunex_core::{Error, PlaybackState, PlayerEvent, RepeatMode, ReplayGainMode, Result};
 
+use super::handoff;
 use super::{
-    Advance, NextUriProvider, PlayerEngine, Queue, QueueItem, Rewind, output::sink_for_device,
-    read_replaygain_uri,
+    Advance, PlayerEngine, Queue, QueueItem, Rewind, output::sink_for_device, read_replaygain_uri,
 };
 
 /// Give playbin time to leave STOPPED before treating restore as failed.
@@ -47,7 +47,7 @@ enum Fade {
 ///
 /// Poison means a holder panicked mid-update; the entries are intact but the
 /// cursor may be stale, and wedging playback over it would be worse.
-fn lock_queue(mutex: &Mutex<Queue>) -> std::sync::MutexGuard<'_, Queue> {
+pub(crate) fn lock_queue(mutex: &Mutex<Queue>) -> std::sync::MutexGuard<'_, Queue> {
     mutex
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -58,7 +58,7 @@ fn lock_queue(mutex: &Mutex<Queue>) -> std::sync::MutexGuard<'_, Queue> {
 /// ~10 s in playbin timeouts, which must never stall the UI thread.
 /// Non-file URIs and undecodable paths return false (attempt the load;
 /// failures surface as error events either way).
-fn local_path_missing(uri: &str) -> bool {
+pub(crate) fn local_path_missing(uri: &str) -> bool {
     let Ok((path, _hostname)) = gstreamer::glib::filename_from_uri(uri) else {
         return false;
     };
@@ -116,7 +116,7 @@ impl PlaybackController {
         let (events_tx, events_rx) = mpsc::channel(PlayerEngine::event_buffer());
         let engine = PlayerEngine::new(events_tx)?;
         let queue = Arc::new(Mutex::new(Queue::new()));
-        engine.set_next_provider(Some(Self::provider(Arc::clone(&queue))));
+        engine.set_next_provider(Some(handoff::provider(Arc::clone(&queue))));
         Ok(Self {
             engine,
             queue,
@@ -130,41 +130,6 @@ impl PlaybackController {
             fade_index: None,
             rg_uri: None,
         })
-    }
-
-    /// Gapless lookahead: peek-only. The cursor commits when the engine
-    /// confirms the swap (see `drain_swap`), never speculatively here — a
-    /// manual skip or a failed preload between peek and swap must not
-    /// double-account the cursor or poison history with unplayed tracks.
-    /// Nothing is consumed at the true end (peek is `None`). A peeked file
-    /// that already vanished is also declined: handing it over errors the
-    /// pipeline mid-handoff, while the end-of-track advance skips missing
-    /// tracks cleanly with an error event.
-    fn provider(queue: Arc<Mutex<Queue>>) -> NextUriProvider {
-        Arc::new(move || {
-            let guard = lock_queue(&queue);
-            let uri = guard.peek_next_uri()?;
-            if local_path_missing(&uri) {
-                return None;
-            }
-            Some(uri)
-        })
-    }
-
-    /// Commit a confirmed gapless swap to the queue cursor. The swap is only
-    /// honored when it matches the current peek (same deterministic pick the
-    /// provider previewed): a teardown that raced the drain leaves a stale
-    /// slot behind, and committing that would move the cursor under the
-    /// replacement track. Committing through `next()` pushes history and
-    /// consumes the shuffle pick exactly once.
-    fn drain_swap(&mut self) {
-        let Some(swapped) = self.engine.take_swapped_uri() else {
-            return;
-        };
-        let mut queue = lock_queue(&self.queue);
-        if queue.peek_next_uri().as_deref() == Some(swapped.as_str()) {
-            queue.next();
-        }
     }
 
     /// Override the audio sink (test seam: point at `fakesink` to run the
@@ -192,7 +157,7 @@ impl PlaybackController {
     /// Returns [`Error::Player`] when the item is missing, cannot load, or
     /// the pipeline refuses the transition.
     pub fn play_now(&mut self, item: QueueItem) -> Result<()> {
-        self.drain_swap();
+        handoff::drain_swap(&self.engine, &self.queue);
         if local_path_missing(&item.uri) {
             return Err(Error::missing_track(item.title));
         }
@@ -282,7 +247,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the entry is missing or cannot load.
     pub fn play_at(&mut self, index: usize) -> Result<()> {
-        self.drain_swap();
+        handoff::drain_swap(&self.engine, &self.queue);
         let Some(item) = lock_queue(&self.queue).get(index).cloned() else {
             return Ok(());
         };
@@ -410,7 +375,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the pipeline refuses the transition.
     pub fn stop(&mut self) -> Result<()> {
-        self.drain_swap();
+        handoff::drain_swap(&self.engine, &self.queue);
         self.engine.stop()
     }
 
@@ -421,7 +386,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the pipeline refuses the transition.
     pub fn next_track(&mut self) -> Result<()> {
-        self.drain_swap();
+        handoff::drain_swap(&self.engine, &self.queue);
         self.advance(false)
     }
 
@@ -434,7 +399,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the seek or load fails.
     pub fn previous_track(&mut self, position: Duration) -> Result<()> {
-        self.drain_swap();
+        handoff::drain_swap(&self.engine, &self.queue);
         let mut position = position;
         loop {
             // Bind the outcome first: the queue guard must drop before the
@@ -615,7 +580,7 @@ impl PlaybackController {
     pub fn poll(&mut self) -> Vec<PlayerEvent> {
         // Commit confirmed gapless swaps before acting on track ends: the
         // cursor must already sit on the playing track when EOS advances.
-        self.drain_swap();
+        handoff::drain_swap(&self.engine, &self.queue);
         let mut out = std::mem::take(&mut *lock_events(&self.pending));
         // Drain under the lock, then release before advancing: advance takes
         // `&mut self`, which cannot coexist with the held guard.

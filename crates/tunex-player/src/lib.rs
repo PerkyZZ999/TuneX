@@ -7,13 +7,15 @@
 
 pub mod audio_bin;
 pub mod engine;
+pub mod handoff;
 pub mod output;
 pub mod playback;
 pub mod queue;
 pub mod replaygain;
 pub mod uri;
 
-pub use engine::{NextUriProvider, PlayerEngine};
+pub use engine::PlayerEngine;
+pub use handoff::NextUriProvider;
 pub use output::{AudioOutput, list_audio_outputs};
 pub use playback::PlaybackController;
 pub use queue::{Advance, Queue, QueueItem, Rewind};

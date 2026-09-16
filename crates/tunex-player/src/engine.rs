@@ -40,58 +40,7 @@ const HANDOFF_SETTLE: Duration = Duration::from_millis(500);
 
 /// Lookahead for gapless preload: returns the URI to preload, if any.
 ///
-/// Invoked on the streaming thread when `about-to-finish` fires, so
-/// implementations must be fast and non-blocking (a queue peek, never I/O).
-/// [`Queue::peek_next_uri`](super::Queue::peek_next_uri) is the canonical one.
-pub type NextUriProvider = std::sync::Arc<dyn Fn() -> Option<String> + Send + Sync>;
-
-/// Where the gapless handoff stands, and whether a teardown is holding it.
-///
-/// The two questions are one state: a teardown must know whether a swap is
-/// still in flight (it has to wait for it), and the preload hook must know
-/// whether a teardown is running (it must hand over nothing). See
-/// [`PlayerEngine::begin_teardown`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Handoff {
-    /// Nothing handed over; the next `about-to-finish` may hand a URI.
-    Idle,
-    /// A URI was handed over and `uridecodebin3` has not swapped to it yet.
-    InFlight,
-    /// A teardown is running: no handoffs until it finishes.
-    Blocked,
-    /// A teardown is waiting out the swap it found in flight.
-    BlockedInFlight,
-}
-
-impl Handoff {
-    /// Whether a handed-over URI is still waiting to be swapped in.
-    const fn in_flight(self) -> bool {
-        matches!(self, Self::InFlight | Self::BlockedInFlight)
-    }
-
-    /// Whether a teardown currently forbids new handoffs.
-    const fn blocked(self) -> bool {
-        matches!(self, Self::Blocked | Self::BlockedInFlight)
-    }
-
-    /// The state a teardown moves into, remembering a swap already in flight.
-    const fn blocking(self) -> Self {
-        if self.in_flight() {
-            Self::BlockedInFlight
-        } else {
-            Self::Blocked
-        }
-    }
-
-    /// The state after the pipeline reports the swap finished.
-    const fn swapped(self) -> Self {
-        match self {
-            Self::InFlight => Self::Idle,
-            Self::BlockedInFlight => Self::Blocked,
-            other => other,
-        }
-    }
-}
+use crate::handoff::{Handoff, NextUriProvider};
 
 /// Mutable engine state shared with the bus thread.
 #[expect(
