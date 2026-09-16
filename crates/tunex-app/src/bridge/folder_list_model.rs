@@ -78,15 +78,8 @@ fn display_folder(row: &tunex_library::FolderRow) -> (QString, QString, i32) {
 
 /// Load folder rows from the index at `path` (empty when absent/unreadable).
 fn load_folders(path: &std::path::Path) -> Vec<(QString, QString, i32)> {
-    if !path.is_file() {
+    let Some(db) = super::browse_model::open_browse_index(path, "folders") else {
         return Vec::new();
-    }
-    let db = match tunex_library::open_file(path) {
-        Ok(db) => db,
-        Err(err) => {
-            tracing::warn!(name = "browse.folders_failed", error = %err, "index unreadable");
-            return Vec::new();
-        }
     };
     match tunex_library::list_track_folders(&db) {
         Ok(rows) => rows.iter().map(display_folder).collect(),

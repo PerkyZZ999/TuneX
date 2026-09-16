@@ -113,15 +113,8 @@ fn load_artists(
     sort: tunex_library::ArtistSort,
     dir: tunex_library::SortDir,
 ) -> Vec<(QString, i32, i32)> {
-    if !path.is_file() {
+    let Some(db) = super::browse_model::open_browse_index(path, "artists") else {
         return Vec::new();
-    }
-    let db = match tunex_library::open_file(path) {
-        Ok(db) => db,
-        Err(err) => {
-            tracing::warn!(name = "browse.artists_failed", error = %err, "index unreadable");
-            return Vec::new();
-        }
     };
     match tunex_library::list_artists(&db, sort, dir) {
         Ok(rows) => rows.iter().map(display_artist).collect(),

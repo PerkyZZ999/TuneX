@@ -211,15 +211,8 @@ fn load_albums(
     sort: tunex_library::AlbumSort,
     dir: tunex_library::SortDir,
 ) -> Vec<AlbumRow> {
-    if !path.is_file() {
+    let Some(db) = super::browse_model::open_browse_index(path, "albums") else {
         return Vec::new();
-    }
-    let db = match tunex_library::open_file(path) {
-        Ok(db) => db,
-        Err(err) => {
-            tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
-            return Vec::new();
-        }
     };
     match tunex_library::list_albums(&db, sort, dir) {
         Ok(rows) => rows.iter().map(display_album).collect(),
@@ -235,15 +228,8 @@ fn load_albums_for_artist(
     artist: &str,
     exclude_id: Option<i64>,
 ) -> Vec<AlbumRow> {
-    if !path.is_file() {
+    let Some(db) = super::browse_model::open_browse_index(path, "albums") else {
         return Vec::new();
-    }
-    let db = match tunex_library::open_file(path) {
-        Ok(db) => db,
-        Err(err) => {
-            tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
-            return Vec::new();
-        }
     };
     match tunex_library::list_albums_for_artist(&db, artist, exclude_id) {
         Ok(rows) => rows.iter().map(display_album).collect(),
@@ -255,15 +241,8 @@ fn load_albums_for_artist(
 }
 
 fn load_recently_played(path: &std::path::Path, limit: i64) -> Vec<AlbumRow> {
-    if !path.is_file() {
+    let Some(db) = super::browse_model::open_browse_index(path, "albums") else {
         return Vec::new();
-    }
-    let db = match tunex_library::open_file(path) {
-        Ok(db) => db,
-        Err(err) => {
-            tracing::warn!(name = "browse.albums_failed", error = %err, "index unreadable");
-            return Vec::new();
-        }
     };
     match tunex_library::list_recently_played_albums(&db, limit) {
         Ok(rows) => rows.iter().map(display_album).collect(),

@@ -177,15 +177,8 @@ fn load_tracks(
     sort: tunex_library::TrackSort,
     dir: tunex_library::SortDir,
 ) -> Vec<(i32, QString, QString, QString, i32, i32, bool)> {
-    if !path.is_file() {
+    let Some(db) = super::browse_model::open_browse_index(path, "tracks") else {
         return Vec::new();
-    }
-    let db = match tunex_library::open_file(path) {
-        Ok(db) => db,
-        Err(err) => {
-            tracing::warn!(name = "browse.tracks_failed", error = %err, "index unreadable");
-            return Vec::new();
-        }
     };
     let rows = match browse {
         TrackBrowse::Album(album_id) => tunex_library::list_tracks_in_album(&db, *album_id),

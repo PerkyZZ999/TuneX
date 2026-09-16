@@ -30,6 +30,7 @@ macro_rules! debug_roles {
 
 pub mod album_list_model;
 pub mod artist_list_model;
+pub mod browse_model;
 pub mod facet_list_model;
 pub mod folder_list_model;
 pub mod library_manager;

@@ -69,15 +69,8 @@ fn display_facet(row: &tunex_library::FacetRow) -> (QString, i32) {
 }
 
 fn load_facets(path: &std::path::Path, kind: FacetKind) -> Vec<(QString, i32)> {
-    if !path.is_file() {
+    let Some(db) = super::browse_model::open_browse_index(path, "facets") else {
         return Vec::new();
-    }
-    let db = match tunex_library::open_file(path) {
-        Ok(db) => db,
-        Err(err) => {
-            tracing::warn!(name = "browse.facets_failed", error = %err, "index unreadable");
-            return Vec::new();
-        }
     };
     let rows = match kind {
         FacetKind::Genres => tunex_library::list_genres(&db),
