@@ -2,13 +2,16 @@ import QtQuick
 
 // View-local multi-select (S14 W-073). Rows are indices, not SQL ids, so
 // duplicate playlist/queue entries stay independent. Every mutation
-// reassigns `rows`, so host bindings stay subscribed by reading it —
-// no version counter needed.
+// reassigns `rows` and bumps `stamp`: hosts read `stamp` inside bindings
+// over function results (`contains()`, `sorted()`), which QML does not
+// otherwise track as binding dependencies.
 QtObject {
     id: root
 
     property int anchor: -1
     property list<int> rows
+    // Version counter, bumped by every mutation below.
+    property int stamp: 0
 
     readonly property int count: root.rows.length
 
@@ -26,6 +29,7 @@ QtObject {
             return false;
         root.rows = [];
         root.anchor = -1;
+        root.stamp++;
         return true;
     }
 
@@ -43,6 +47,7 @@ QtObject {
             next.push(row);
         root.rows = next;
         root.anchor = row;
+        root.stamp++;
     }
 
     function setRange(to) {
@@ -53,6 +58,7 @@ QtObject {
         for (let i = lo; i <= hi; i++)
             next.push(i);
         root.rows = next;
+        root.stamp++;
     }
 
     function selectAll(count) {
@@ -62,6 +68,7 @@ QtObject {
         root.rows = next;
         if (count > 0)
             root.anchor = 0;
+        root.stamp++;
     }
 
     function sorted() {
