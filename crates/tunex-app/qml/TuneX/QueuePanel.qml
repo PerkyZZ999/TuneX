@@ -689,7 +689,7 @@ Rectangle {
                     reorderable: true
                     selected: queueSelection.contains(index)
                     dragTrackIds: selected && root.mimeIds !== "" ? root.mimeIds : (model.trackId >= 0 ? String(model.trackId) : "")
-                    dragOrigin: "queue"
+                    dragOrigin: DragPayload.originQueue
                     dragRows: selected ? root.rowsCsv : String(index)
                     onPlayRequested: (trackId, rowIndex) => {
                         queueSelection.clear();
@@ -728,7 +728,7 @@ Rectangle {
                 targetView: queueList
                 showHint: false
                 onTracksDroppedAt: (ids, index, origin, rows) => {
-                    if (origin === "queue" && rows !== "")
+                    if (DragPayload.isQueueMove(origin, rows))
                         root.queue.moveItems(rows, index);
                     else
                         root.queue.enqueueTrackIdsAt(ids, index);

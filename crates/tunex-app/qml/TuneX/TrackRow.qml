@@ -37,10 +37,11 @@ Item {
     readonly property int titleSize: root.compact ? Theme.fontBodySm : Theme.fontBody
     readonly property int artistSize: root.compact ? Theme.fontCaption : Theme.fontBodySm
     property string dragTrackIds: root.trackId >= 0 ? String(root.trackId) : ""
-    // Drag origin for drop routing: "" means an external copy (library /
-    // search); "queue" and "playlist:<id>" mark an internal move, with the
-    // source display rows in `dragRows` so the target moves rows, never ids
-    // (queue and playlist rows can repeat the same track).
+    // Drag origin for drop routing (origins in DragPayload): "" means an
+    // external copy (library / search); queue and playlist origins mark an
+    // internal move, with the source display rows in `dragRows` so the
+    // target moves rows, never ids (queue and playlist rows can repeat the
+    // same track).
     property string dragOrigin: ""
     property string dragRows: ""
     // m:ss, em dash when unknown (shaping lives in Format).
@@ -60,13 +61,8 @@ Item {
     }
     readonly property bool dragging: rowArea.drag.active
 
-    Drag.keys: ["application/x-tunex-trackids", "application/x-tunex-origin", "application/x-tunex-rows"]
-    Drag.mimeData: {
-        "text/plain": root.dragTrackIds,
-        "application/x-tunex-trackids": root.dragTrackIds,
-        "application/x-tunex-origin": root.dragOrigin,
-        "application/x-tunex-rows": root.dragRows
-    }
+    Drag.keys: [DragPayload.mimeIds, DragPayload.mimeOrigin, DragPayload.mimeRows]
+    Drag.mimeData: DragPayload.mimeMap(root.dragTrackIds, root.dragOrigin, root.dragRows)
     Drag.dragType: Drag.Automatic
     Drag.active: rowArea.drag.active
     Drag.hotSpot.x: Theme.spaceMd

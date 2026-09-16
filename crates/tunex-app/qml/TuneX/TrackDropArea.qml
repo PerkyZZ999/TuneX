@@ -1,7 +1,7 @@
 import QtQuick
 import TuneX
 
-// Drop target for TrackRow mime (`application/x-tunex-trackids`).
+// Drop target for TrackRow drags (mime contract in DragPayload).
 // Two modes, one rule: drops land where the feedback showed.
 //
 // Plain mode (no `targetView`, e.g. a playlist sidebar row): whole-area
@@ -50,7 +50,7 @@ DropArea {
     signal tracksDropped(string ids)
     signal tracksDroppedAt(string ids, int index, string origin, string rows)
 
-    keys: ["application/x-tunex-trackids", "application/x-tunex-origin", "application/x-tunex-rows", "text/plain"]
+    keys: [DragPayload.mimeIds, DragPayload.mimeOrigin, DragPayload.mimeRows, "text/plain"]
     Accessible.ignored: true
 
     onEntered: drag => root.updateHover(drag)
@@ -58,12 +58,12 @@ DropArea {
     onExited: root.clearHover()
     onDropped: drop => {
         root.updateHover(drop);
-        const ids = root.idsOf(drop);
+        const ids = DragPayload.idsOf(drop);
         if (ids.length > 0) {
             if (root.positional) {
-                const origin = drop.getDataAsString("application/x-tunex-origin");
-                const rows = drop.getDataAsString("application/x-tunex-rows");
-                root.tracksDroppedAt(ids, Math.max(0, root.dropIndex), origin || "", rows || "");
+                const origin = DragPayload.originOf(drop);
+                const rows = DragPayload.rowsOf(drop);
+                root.tracksDroppedAt(ids, Math.max(0, root.dropIndex), origin, rows);
             } else {
                 root.tracksDropped(ids);
             }
@@ -72,30 +72,12 @@ DropArea {
         root.clearHover();
     }
 
-    function idsOf(drag) {
-        let ids = "";
-        try {
-            ids = drag.getDataAsString("application/x-tunex-trackids");
-        } catch (err) {}
-        if (!ids)
-            ids = drag.text || "";
-        return ids;
-    }
-
-    function countIds(ids) {
-        if (!ids)
-            return 0;
-        return ids.split(",").filter(function (part) {
-            return part.trim().length > 0;
-        }).length;
-    }
-
     function updateHover(drag) {
         if (!root.positional || drag === undefined || drag.x === undefined)
             return;
         root.dragX = drag.x;
         root.dragY = drag.y;
-        root.dropCount = root.countIds(root.idsOf(drag));
+        root.dropCount = DragPayload.countIds(DragPayload.idsOf(drag));
         root.updateIndex();
     }
 

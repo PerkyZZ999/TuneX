@@ -700,7 +700,7 @@ Item {
                                 return entrySelection.contains(index);
                             }
                             dragTrackIds: selected && root.dragEntryIds !== "" ? root.dragEntryIds : String(model.trackId)
-                            dragOrigin: "playlist:" + root.playlistId
+                            dragOrigin: DragPayload.playlistOrigin(root.playlistId)
                             dragRows: selected ? root.dragEntryRows : String(index)
                             onPlayRequested: (trackId, rowIndex, dangling) => {
                                 entrySelection.clear();
@@ -743,7 +743,7 @@ Item {
                         onTracksDroppedAt: (ids, index, origin, rows) => {
                             if (root.playlistId < 0 || root.playlistIsSmart)
                                 return;
-                            if (origin === "playlist:" + root.playlistId && rows !== "")
+                            if (DragPayload.isSamePlaylistMove(origin, rows, root.playlistId))
                                 entries.moveItems(rows, index);
                             else
                                 entries.insertTracks(ids, index);
