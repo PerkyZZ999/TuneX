@@ -38,7 +38,12 @@ pub mod library_track_model;
 pub mod models;
 pub mod playlist_list_model;
 pub mod playlist_track_model;
+pub mod queue_library;
+pub mod queue_lyrics;
 pub mod queue_model;
+pub mod queue_mpris;
+pub mod queue_session;
+pub mod queue_transport;
 pub mod track_list_model;
 pub mod tray_controller;
 

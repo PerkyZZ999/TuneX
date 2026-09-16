@@ -23,22 +23,13 @@ use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QStri
 use tokio::sync::mpsc;
 
 use crate::art::ArtCore;
-use crate::mpris::{
-    MprisCommand, MprisSnapshot, MprisTrack, TRACK_PATH_PREFIX, publish as publish_mpris,
-    take_inbox, unmap_loop,
-};
-use crate::playback::queue_item_from_row;
+use crate::mpris::MprisCommand;
 use crate::worker::Worker;
 use tunex_core::{ReplayGainMode, VisualizerMode, matching_preset, preset_bands};
 use tunex_player::{PlaybackController, list_audio_outputs, uri_to_path};
 
 /// Lyrics resolver worker: uri plus path in, settled uri plus lyrics out.
-type LyricsWorker = Worker<(String, PathBuf), (String, tunex_library::Lyrics)>;
-
-/// How often the same-track position is flushed to disk.
-/// Frequent enough that a crash loses at most a couple of seconds; rare
-/// enough not to rewrite `config.toml` on every poll tick.
-const SESSION_SAVE_INTERVAL: Duration = Duration::from_secs(2);
+pub(crate) type LyricsWorker = Worker<(String, PathBuf), (String, tunex_library::Lyrics)>;
 
 debug_roles!(
     qobject::QueueRoles,
@@ -103,36 +94,36 @@ fn single_extra(shorter: &[QueueRow], longer: &[QueueRow]) -> Option<usize> {
 /// Up Next row store plus the playback controller.
 #[derive(Debug)]
 pub struct QueueModelRust {
-    rows: Vec<QueueRow>,
+    pub(crate) rows: Vec<QueueRow>,
     /// Lazy cover lookups for the playing track (S6 W-040): the mini-player,
     /// Now Playing and MPRIS all read the answer.
-    art: ArtCore,
+    pub(crate) art: ArtCore,
     /// The rows the view has been told about, so a change can be announced
     /// as what it is (see [`row_change`]).
     published: Vec<QueueRow>,
-    controller: Option<PlaybackController>,
-    index_path: PathBuf,
-    config_path: PathBuf,
-    last_len: usize,
-    last_cursor: Option<usize>,
-    last_error: Option<String>,
-    saved_uri: String,
-    saved_position_ms: i32,
-    saved_at: Option<Instant>,
+    pub(crate) controller: Option<PlaybackController>,
+    pub(crate) index_path: PathBuf,
+    pub(crate) config_path: PathBuf,
+    pub(crate) last_len: usize,
+    pub(crate) last_cursor: Option<usize>,
+    pub(crate) last_error: Option<String>,
+    pub(crate) saved_uri: String,
+    pub(crate) saved_position_ms: i32,
+    pub(crate) saved_at: Option<Instant>,
     /// Inbound MPRIS commands, taken once from the process hub (S5 W-032).
-    mpris_rx: Option<mpsc::Receiver<MprisCommand>>,
+    pub(crate) mpris_rx: Option<mpsc::Receiver<MprisCommand>>,
     /// URI of the last toasted track (S5 W-034). Restores seed it silently;
     /// only later advances pop a notification.
-    last_notified_uri: Option<String>,
-    outputs: Arc<Mutex<Vec<(String, String)>>>,
-    lyrics_uri: String,
-    lyrics_plain: String,
-    lyrics_lines: Vec<(i32, String)>,
+    pub(crate) last_notified_uri: Option<String>,
+    pub(crate) outputs: Arc<Mutex<Vec<(String, String)>>>,
+    pub(crate) lyrics_uri: String,
+    pub(crate) lyrics_plain: String,
+    pub(crate) lyrics_lines: Vec<(i32, String)>,
     /// Background lyrics resolver (shared [`Worker`] shape): request,
     /// drain, respawn on death. `None` until the first lyrics lookup.
-    lyrics_worker: Option<LyricsWorker>,
+    pub(crate) lyrics_worker: Option<LyricsWorker>,
     /// True while the `TuneX` window is focused (QML `Window.active`).
-    window_active: bool,
+    pub(crate) window_active: bool,
 }
 
 impl Default for QueueModelRust {
@@ -163,12 +154,6 @@ impl Default for QueueModelRust {
 }
 
 /// Start the lyrics resolver thread (shared [`Worker`] shape; see `worker`).
-fn spawn_lyrics_worker() -> Option<LyricsWorker> {
-    crate::worker::Worker::spawn("tunex-lyrics", |(uri, path): (String, PathBuf)| {
-        let lyrics = tunex_library::load_lyrics(&path);
-        (uri, lyrics)
-    })
-}
 impl QueueModelRust {
     /// Drop all rows.
     fn drop_rows(&mut self) {
@@ -224,49 +209,8 @@ impl QueueModelRust {
         QVariant::default()
     }
 
-    /// Construct the controller on first use. `GStreamer` failures degrade to
-    /// surfaced text (rows stay empty, transport reports the failure).
-    fn ensure_controller(&mut self) -> bool {
-        if self.controller.is_none() {
-            match PlaybackController::new() {
-                Ok(mut controller) => {
-                    let config = tunex_core::load_from(&self.config_path).unwrap_or_default();
-                    controller.set_volume(config.volume);
-                    controller.set_muted(config.playback.muted);
-                    controller.set_shuffle(config.playback.shuffle);
-                    controller.set_repeat(config.playback.repeat_mode);
-                    controller.set_replaygain_mode(config.playback.replaygain);
-                    controller.set_crossfade(Duration::from_secs(u64::from(
-                        config.playback.crossfade_secs,
-                    )));
-                    if !config.playback.output_device.is_empty()
-                        && let Err(err) =
-                            controller.set_output_device(&config.playback.output_device)
-                    {
-                        tracing::warn!(
-                            name = "queue.output_restore_failed",
-                            error = %err,
-                            "stored output device unavailable; using system default"
-                        );
-                    }
-                    self.controller = Some(controller);
-                    if let Some(live) = &mut self.controller {
-                        live.set_equalizer(config.playback.eq_enabled, config.playback.eq_bands);
-                    }
-                    self.restore_session(&config);
-                }
-                Err(err) => {
-                    tracing::warn!(name = "queue.engine_failed", error = %err, "audio unavailable");
-                    self.last_error = Some(err.to_string());
-                    return false;
-                }
-            }
-        }
-        true
-    }
-
     /// Rebuild display rows from the controller snapshot.
-    fn sync_rows(&mut self) {
+    pub(crate) fn sync_rows(&mut self) {
         let Some(controller) = &self.controller else {
             return;
         };
@@ -333,64 +277,6 @@ impl QueueModelRust {
         !unchanged || art_landed
     }
 
-    /// Load sidecar or embedded lyrics when the current URI changes.
-    /// File I/O and parsing run on the resolver thread (a track change must
-    /// never stall the poll); answers carry their URI so a resolution that
-    /// lands after another track change is dropped, and a definite
-    /// no-lyrics answer is cached exactly like cover art.
-    fn maybe_load_lyrics(&mut self) {
-        let settled = self
-            .lyrics_worker
-            .as_mut()
-            .map(|worker| worker.drain())
-            .unwrap_or_default();
-        for (uri, lyrics) in settled {
-            if uri == self.lyrics_uri {
-                self.lyrics_plain = lyrics.plain;
-                self.lyrics_lines = lyrics
-                    .lines
-                    .into_iter()
-                    .map(|line| {
-                        (
-                            line.time_ms
-                                .and_then(|ms| i32::try_from(ms).ok())
-                                .unwrap_or(-1),
-                            line.text,
-                        )
-                    })
-                    .collect();
-            }
-        }
-        let uri = self
-            .controller
-            .as_ref()
-            .and_then(PlaybackController::current_item)
-            .map(|item| item.uri.clone())
-            .unwrap_or_default();
-        if uri == self.lyrics_uri {
-            return;
-        }
-        self.lyrics_uri.clone_from(&uri);
-        self.lyrics_plain.clear();
-        self.lyrics_lines.clear();
-        let Some(path) = uri_to_path(&uri) else {
-            return;
-        };
-        if self.lyrics_worker.is_none() {
-            self.lyrics_worker = spawn_lyrics_worker();
-        }
-        let alive = self
-            .lyrics_worker
-            .as_ref()
-            .is_some_and(|worker| worker.request((uri, path)));
-        if !alive {
-            // Resolver died or refused to spawn; drop it so the next poll
-            // starts fresh instead of going silent.
-            self.lyrics_worker = None;
-            self.lyrics_uri.clear();
-        }
-    }
-
     /// Toast on track advances and nothing else. Restores seed
     /// `last_notified_uri` silently, so a startup resume never pops a toast;
     /// stops and repeats keep quiet by [`crate::notify::should_notify`].
@@ -436,340 +322,6 @@ impl QueueModelRust {
         }
     }
 
-    /// Restore the SQLite queue when present, otherwise the last-track path.
-    fn restore_session(&mut self, config: &tunex_core::TunexConfig) {
-        if self.restore_saved_queue() {
-            return;
-        }
-        self.restore_last_track(config);
-    }
-
-    /// Restore the ordered queue from the index (paused, never auto-play).
-    fn restore_saved_queue(&mut self) -> bool {
-        if !self.index_path.is_file() {
-            return false;
-        }
-        let Ok(db) = tunex_library::open_file(&self.index_path) else {
-            return false;
-        };
-        let Ok(saved) = tunex_library::load_playback_queue(&db) else {
-            return false;
-        };
-        if saved.items.is_empty() {
-            return false;
-        }
-        let items: Vec<tunex_player::QueueItem> =
-            saved.items.into_iter().map(saved_to_item).collect();
-        let position = Duration::from_millis(saved.position_ms);
-        let Some(controller) = self.controller.as_mut() else {
-            return false;
-        };
-        if let Err(err) = controller.restore_queue(items, saved.cursor, position) {
-            tracing::debug!(
-                name = "queue.restore_skipped",
-                error = %err,
-                "saved queue not restored"
-            );
-            return false;
-        }
-        self.last_notified_uri = self
-            .controller
-            .as_ref()
-            .and_then(PlaybackController::current_item)
-            .map(|item| item.uri);
-        if let Some(item) = self
-            .controller
-            .as_ref()
-            .and_then(PlaybackController::current_item)
-        {
-            item.uri.clone_into(&mut self.saved_uri);
-        }
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "UI position is i32 milliseconds"
-        )]
-        let saved_ms = saved.position_ms.min(i32::MAX as u64) as i32;
-        self.saved_position_ms = saved_ms;
-        self.saved_at = Some(Instant::now());
-        true
-    }
-
-    /// Best-effort last-track restore: load paused at the saved position when
-    /// the file still exists. Missing files are skipped, never an error toast.
-    fn restore_last_track(&mut self, config: &tunex_core::TunexConfig) {
-        let Some(uri) = config
-            .playback
-            .last_uri
-            .as_deref()
-            .filter(|uri| !uri.is_empty())
-        else {
-            return;
-        };
-        let item = self.item_for_uri(uri);
-        let position = Duration::from_millis(config.playback.last_position_ms);
-        let Some(controller) = self.controller.as_mut() else {
-            return;
-        };
-        if let Err(err) = controller.restore_paused(item, position) {
-            tracing::debug!(
-                name = "queue.restore_skipped",
-                error = %err,
-                "last track not restored"
-            );
-            return;
-        }
-        // Deliberately no `sync_rows` here: leaving the restored entry for
-        // the caller's own change check is what makes that poll report a
-        // change, and a change is what emits the model reset Up Next needs.
-        uri.clone_into(&mut self.saved_uri);
-        // Seed the toast cursor silently: resuming is not a track change.
-        self.last_notified_uri = self
-            .controller
-            .as_ref()
-            .and_then(PlaybackController::current_item)
-            .map(|item| item.uri);
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "UI position is i32 milliseconds"
-        )]
-        let saved = config.playback.last_position_ms.min(i32::MAX as u64) as i32;
-        self.saved_position_ms = saved;
-        self.saved_at = Some(Instant::now());
-    }
-
-    /// Hydrate a restored URI from the index when possible (filename fallback).
-    fn item_for_uri(&self, uri: &str) -> tunex_player::QueueItem {
-        if let Some(path) = uri_to_path(uri) {
-            if let Ok(db) = tunex_library::open_file(&self.index_path) {
-                if let Ok(Some(row)) = tunex_library::track_by_path(&db, &path.to_string_lossy()) {
-                    if let Some(item) = queue_item_from_row(&row) {
-                        return item;
-                    }
-                }
-            }
-            let (title, artist) =
-                tunex_library::display_title_artist(&path.to_string_lossy(), None, None);
-            let mut item = tunex_player::QueueItem::new(uri, &title);
-            if artist != tunex_library::UNKNOWN_ARTIST {
-                item = item.with_artist(&artist);
-            }
-            return item;
-        }
-        tunex_player::QueueItem::new(uri, tunex_library::UNKNOWN_TITLE)
-    }
-
-    /// Start or resume playback; refreshes rows on success.
-    fn do_play(&mut self) {
-        if !self.ensure_controller() {
-            return;
-        }
-        let outcome = self.controller.as_mut().map(PlaybackController::play);
-        match outcome {
-            Some(Ok(())) | None => {
-                self.last_error = None;
-                self.sync_rows();
-                self.maybe_persist_session(true);
-            }
-            Some(Err(err)) => self.last_error = Some(err.to_string()),
-        }
-    }
-
-    /// Pause, holding position.
-    fn do_pause(&mut self) {
-        if !self.ensure_controller() {
-            return;
-        }
-        if let Some(controller) = &mut self.controller {
-            if let Err(err) = controller.pause() {
-                self.last_error = Some(err.to_string());
-            }
-        }
-        self.maybe_persist_session(true);
-    }
-
-    /// Toggle play/pause from the panel transport.
-    fn do_play_pause(&mut self) {
-        let playing = self
-            .controller
-            .as_ref()
-            .is_some_and(|controller| controller.state() == tunex_core::PlaybackState::Playing);
-        if playing {
-            self.do_pause();
-        } else {
-            self.do_play();
-        }
-    }
-
-    /// Step to the next track (stopping at a bare end); refreshes rows.
-    fn do_next(&mut self) {
-        if !self.ensure_controller() {
-            return;
-        }
-        let outcome = self.controller.as_mut().map(PlaybackController::next_track);
-        match outcome {
-            Some(Ok(())) | None => {
-                self.last_error = None;
-                self.sync_rows();
-                self.maybe_persist_session(true);
-            }
-            Some(Err(err)) => self.last_error = Some(err.to_string()),
-        }
-    }
-
-    /// Step back, honoring the restart threshold; refreshes rows.
-    fn do_previous(&mut self, position_ms: i32) {
-        let position =
-            u64::try_from(position_ms.max(0)).map_or(Duration::ZERO, Duration::from_millis);
-        if !self.ensure_controller() {
-            return;
-        }
-        let outcome = self
-            .controller
-            .as_mut()
-            .map(|controller| controller.previous_track(position));
-        match outcome {
-            Some(Ok(())) | None => {
-                self.last_error = None;
-                self.sync_rows();
-                self.maybe_persist_session(true);
-            }
-            Some(Err(err)) => self.last_error = Some(err.to_string()),
-        }
-    }
-
-    /// Play the entry at `index` now; refreshes rows. Out-of-range indices
-    /// are ignored; unloadable entries surface text.
-    fn do_play_at(&mut self, index: i32) {
-        if !self.ensure_controller() {
-            return;
-        }
-        let Ok(at) = usize::try_from(index) else {
-            return;
-        };
-        let outcome = self
-            .controller
-            .as_mut()
-            .map(|controller| controller.play_at(at));
-        match outcome {
-            Some(Ok(())) => {
-                self.last_error = None;
-                self.sync_rows();
-                self.maybe_persist_session(true);
-            }
-            Some(Err(err)) => self.last_error = Some(err.to_string()),
-            None => {}
-        }
-    }
-
-    /// Remove the entry at `index` and refresh rows (ignored out of range).
-    fn do_remove(&mut self, index: i32) {
-        if !self.ensure_controller() {
-            return;
-        }
-        if let Ok(at) = usize::try_from(index) {
-            if let Some(controller) = &mut self.controller {
-                controller.remove_at(at);
-            }
-        }
-        self.sync_rows();
-    }
-
-    /// Move an entry and refresh rows (ignored out of range).
-    fn do_move(&mut self, from: i32, to: i32) {
-        if !self.ensure_controller() {
-            return;
-        }
-        if let (Ok(from), Ok(to)) = (usize::try_from(from), usize::try_from(to)) {
-            if let Some(controller) = &mut self.controller {
-                controller.move_item(from, to);
-            }
-        }
-        self.sync_rows();
-    }
-
-    /// Move an entry to play next (ignored out of range).
-    fn do_play_next_at(&mut self, index: i32) {
-        if !self.ensure_controller() {
-            return;
-        }
-        if let Ok(at) = usize::try_from(index) {
-            if let Some(controller) = &mut self.controller {
-                controller.play_next_at(at);
-            }
-        }
-        self.sync_rows();
-    }
-
-    /// Move an entry to the end (ignored out of range).
-    fn do_move_to_end(&mut self, index: i32) {
-        if !self.ensure_controller() {
-            return;
-        }
-        if let Ok(at) = usize::try_from(index) {
-            let last = self
-                .controller
-                .as_ref()
-                .map_or(0, PlaybackController::queue_len);
-            if last == 0 {
-                return;
-            }
-            if let Some(controller) = &mut self.controller {
-                controller.move_item(at, last.saturating_sub(1));
-            }
-        }
-        self.sync_rows();
-    }
-
-    /// Empty the queue (the loaded track keeps playing) and refresh rows.
-    fn do_clear_queue(&mut self) {
-        if !self.ensure_controller() {
-            return;
-        }
-        if let Some(controller) = &mut self.controller {
-            controller.clear_queue();
-        }
-        self.sync_rows();
-    }
-
-    /// Toggle shuffle; returns the new state.
-    fn do_toggle_shuffle(&mut self) -> bool {
-        if !self.ensure_controller() {
-            return false;
-        }
-        let Some(controller) = self.controller.as_mut() else {
-            return false;
-        };
-        controller.set_shuffle(!controller.is_shuffle());
-        let shuffle = controller.is_shuffle();
-        self.write_audio_config();
-        shuffle
-    }
-
-    /// Whether shuffle is on.
-    fn is_shuffle(&self) -> bool {
-        self.controller
-            .as_ref()
-            .is_some_and(PlaybackController::is_shuffle)
-    }
-
-    /// Cycle repeat off → all → one; returns the new mode (0/1/2).
-    fn do_cycle_repeat(&mut self) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let mode = self.controller.as_mut().map_or(0, |controller| {
-            let next = match controller.repeat_mode() {
-                tunex_core::RepeatMode::Off => tunex_core::RepeatMode::All,
-                tunex_core::RepeatMode::All => tunex_core::RepeatMode::One,
-                tunex_core::RepeatMode::One => tunex_core::RepeatMode::Off,
-            };
-            controller.set_repeat(next);
-            repeat_to_int(next)
-        });
-        self.write_audio_config();
-        mode
-    }
-
     /// Repeat mode as 0 (off), 1 (all), 2 (one).
     fn repeat_mode(&self) -> i32 {
         self.controller
@@ -785,7 +337,7 @@ impl QueueModelRust {
     }
 
     /// Current pipeline position in milliseconds (0 when unknown).
-    fn position_ms(&self) -> i32 {
+    pub(crate) fn position_ms(&self) -> i32 {
         self.controller
             .as_ref()
             .and_then(PlaybackController::position)
@@ -826,45 +378,6 @@ impl QueueModelRust {
             .unwrap_or_default()
     }
 
-    /// Unsynced or joined LRC text.
-    fn lyrics_plain(&self) -> QString {
-        QString::from(self.lyrics_plain.as_str())
-    }
-
-    fn lyrics_line_count(&self) -> i32 {
-        i32::try_from(self.lyrics_lines.len()).unwrap_or(i32::MAX)
-    }
-
-    fn lyrics_line_at(&self, row: i32) -> QString {
-        usize::try_from(row)
-            .ok()
-            .and_then(|index| self.lyrics_lines.get(index))
-            .map(|line| QString::from(line.1.as_str()))
-            .unwrap_or_default()
-    }
-
-    fn lyrics_time_at(&self, row: i32) -> i32 {
-        usize::try_from(row)
-            .ok()
-            .and_then(|index| self.lyrics_lines.get(index))
-            .map_or(-1, |line| line.0)
-    }
-
-    fn lyrics_active_index(&self, position_ms: i32) -> i32 {
-        let position = u64::try_from(position_ms.max(0)).unwrap_or(0);
-        let mut active = -1;
-        for (index, (time, _)) in self.lyrics_lines.iter().enumerate() {
-            if *time >= 0 && u64::try_from(*time).unwrap_or(0) <= position {
-                active = i32::try_from(index).unwrap_or(i32::MAX);
-            }
-        }
-        active
-    }
-
-    fn lyrics_synced(&self) -> bool {
-        self.lyrics_lines.iter().any(|(time, _)| *time >= 0)
-    }
-
     fn reload_index_path(&mut self) {
         self.persist_queue();
         self.index_path = tunex_core::library_db_path();
@@ -883,7 +396,7 @@ impl QueueModelRust {
     ///
     /// The 512px thumbnail is the biggest the cache keeps, and Now Playing
     /// draws artwork at 320px or more.
-    fn current_art_path(&self) -> Option<&std::path::Path> {
+    pub(crate) fn current_art_path(&self) -> Option<&std::path::Path> {
         let track_id = self.current_item()?.track_id?;
         Some(self.art.art(track_id)?.thumb512.as_path())
     }
@@ -930,7 +443,7 @@ impl QueueModelRust {
     }
 
     /// Set output volume (clamped 0–100) and persist it to config.
-    fn set_volume_pct(&mut self, pct: i32) {
+    pub(crate) fn set_volume_pct(&mut self, pct: i32) {
         if !self.ensure_controller() {
             return;
         }
@@ -962,7 +475,7 @@ impl QueueModelRust {
 
     /// Seek to an absolute position. Negative values clamp to zero; failures
     /// surface as `errorText` (nothing loaded, out of range, refused).
-    fn seek_ms(&mut self, position_ms: i32) {
+    pub(crate) fn seek_ms(&mut self, position_ms: i32) {
         if !self.ensure_controller() {
             return;
         }
@@ -976,165 +489,6 @@ impl QueueModelRust {
         }
         // Scrub fires this every pixel; coalesce with the 2 s session window.
         self.maybe_persist_session(false);
-    }
-
-    /// Snapshot engine truth for the MPRIS thread. Honest when idle
-    /// (stopped, no track, capabilities denied — never fabricated).
-    fn mpris_snapshot(&self) -> MprisSnapshot {
-        let Some(controller) = &self.controller else {
-            return MprisSnapshot::default();
-        };
-        let cursor = controller.current_index();
-        let len = controller.queue_len();
-        let position_us = controller.position().map_or(0, duration_to_us);
-        let length_us = controller.duration().map(duration_to_us);
-        // Clients read the cover from the same cache the UI draws.
-        let art_url = self
-            .current_art_path()
-            .map(|path| format!("file://{}", path.display()));
-        let track = controller.current_item().map(|item| {
-            let suffix = item.track_id.map_or_else(
-                || format!("q{}", cursor.unwrap_or(0)),
-                |id| format!("db{id}"),
-            );
-            MprisTrack {
-                id_path: format!("{TRACK_PATH_PREFIX}{suffix}"),
-                uri: item.uri,
-                title: item.title,
-                artist: item.artist,
-                album: item.album,
-                length_us,
-                art_url,
-            }
-        });
-        let state = controller.state();
-        MprisSnapshot {
-            status: state,
-            position_us,
-            volume: controller.volume(),
-            shuffle: controller.is_shuffle(),
-            repeat: controller.repeat_mode(),
-            track,
-            capabilities: crate::mpris::MprisCapabilities {
-                next: len > 0
-                    && (controller.repeat_mode() == tunex_core::RepeatMode::All
-                        || cursor.is_some_and(|at| at + 1 < len)),
-                previous: cursor.is_some(),
-                play: true,
-                pause: matches!(
-                    state,
-                    tunex_core::PlaybackState::Playing | tunex_core::PlaybackState::Paused
-                ),
-                seek: length_us.is_some_and(|length| length > 0),
-            },
-        }
-    }
-
-    /// Execute one inbound MPRIS command. Every arm reuses the panel paths
-    /// (`do_*`), so bus clients and the UI can never diverge.
-    fn apply_mpris_command(&mut self, command: &MprisCommand) {
-        if self.apply_transport_command(command) {
-            return;
-        }
-        match command {
-            MprisCommand::Seek { offset_us } => {
-                let base_us = self
-                    .controller
-                    .as_ref()
-                    .and_then(PlaybackController::position)
-                    .map_or(0, duration_to_us);
-                self.seek_ms(us_to_ms_saturating(base_us.saturating_add(*offset_us)));
-            }
-            MprisCommand::SetPosition { position_us, .. } => {
-                self.seek_ms(us_to_ms_saturating(*position_us));
-            }
-            MprisCommand::SetVolume(volume) => {
-                #[expect(clippy::cast_possible_truncation, reason = "volume percent is 0..=100")]
-                let pct = (volume.clamp(0.0, 1.0) * 100.0).round() as i32;
-                self.set_volume_pct(pct);
-            }
-            MprisCommand::SetShuffle(shuffle) => {
-                if !self.ensure_controller() {
-                    return;
-                }
-                if let Some(controller) = &mut self.controller {
-                    controller.set_shuffle(*shuffle);
-                }
-                self.write_audio_config();
-            }
-            MprisCommand::SetLoop(loop_status) => {
-                if !self.ensure_controller() {
-                    return;
-                }
-                if let Some(controller) = &mut self.controller {
-                    controller.set_repeat(unmap_loop(*loop_status));
-                }
-                self.write_audio_config();
-            }
-            // Transport variants never reach here (handled above).
-            MprisCommand::Play
-            | MprisCommand::Pause
-            | MprisCommand::PlayPause
-            | MprisCommand::Stop
-            | MprisCommand::Next
-            | MprisCommand::Previous => {}
-        }
-    }
-
-    /// Transport half of [`Self::apply_mpris_command`]; true when handled.
-    fn apply_transport_command(&mut self, command: &MprisCommand) -> bool {
-        match command {
-            MprisCommand::Play => self.do_play(),
-            MprisCommand::Pause => self.do_pause(),
-            MprisCommand::PlayPause => self.do_play_pause(),
-            MprisCommand::Stop => {
-                if !self.ensure_controller() {
-                    return true;
-                }
-                if let Some(controller) = &mut self.controller {
-                    if let Err(err) = controller.stop() {
-                        self.last_error = Some(err.to_string());
-                    }
-                }
-                self.maybe_persist_session(true);
-            }
-            MprisCommand::Next => self.do_next(),
-            MprisCommand::Previous => {
-                let position = self
-                    .controller
-                    .as_ref()
-                    .and_then(PlaybackController::position)
-                    .unwrap_or(Duration::ZERO);
-                let millis = i32::try_from(position.as_millis()).unwrap_or(i32::MAX);
-                self.do_previous(millis);
-            }
-            _ => return false,
-        }
-        true
-    }
-
-    /// Drain inbound MPRIS commands onto the controller, then publish engine
-    /// truth for the D-Bus thread. The first call takes the process inbox;
-    /// without `spawn` (tests, early startup) only the snapshot builds.
-    fn sync_mpris(&mut self) {
-        if self.mpris_rx.is_none() {
-            self.mpris_rx = take_inbox();
-        }
-        let commands: Vec<MprisCommand> = self
-            .mpris_rx
-            .as_mut()
-            .map(|rx| {
-                let mut commands = Vec::new();
-                while let Ok(command) = rx.try_recv() {
-                    commands.push(command);
-                }
-                commands
-            })
-            .unwrap_or_default();
-        for command in &commands {
-            self.apply_mpris_command(command);
-        }
-        publish_mpris(self.mpris_snapshot());
     }
 
     /// Whether glass should fall back to opaque surfaces.
@@ -1531,7 +885,7 @@ impl QueueModelRust {
     }
 
     /// Write volume, mute, shuffle/repeat, and last-track into settings.
-    fn write_audio_config(&self) {
+    pub(crate) fn write_audio_config(&self) {
         let Some(controller) = &self.controller else {
             return;
         };
@@ -1554,580 +908,6 @@ impl QueueModelRust {
                 error = %err,
                 "playback session not saved"
             );
-        }
-    }
-
-    /// Persist last-track + position. `force` writes immediately (pause/seek);
-    /// otherwise position ticks are coalesced to ~2 s.
-    fn maybe_persist_session(&mut self, force: bool) {
-        let Some(item) = self
-            .controller
-            .as_ref()
-            .and_then(PlaybackController::current_item)
-        else {
-            return;
-        };
-        if self
-            .controller
-            .as_ref()
-            .is_some_and(PlaybackController::restore_pending)
-        {
-            return;
-        }
-        let position = self.position_ms();
-        let uri_changed = item.uri != self.saved_uri;
-        let pos_changed = position != self.saved_position_ms;
-        if !force && !uri_changed && !pos_changed {
-            return;
-        }
-        let elapsed = self
-            .saved_at
-            .is_none_or(|at| at.elapsed() >= SESSION_SAVE_INTERVAL);
-        if !force && !uri_changed && !elapsed {
-            return;
-        }
-        self.write_audio_config();
-        self.persist_queue();
-        self.saved_uri = item.uri;
-        self.saved_position_ms = position;
-        self.saved_at = Some(Instant::now());
-    }
-
-    /// Write ordered URIs + cursor to the library index (not TOML).
-    fn persist_queue(&self) {
-        let Some(controller) = &self.controller else {
-            return;
-        };
-        if controller.restore_pending() {
-            return;
-        }
-        if !self.index_path.is_file() {
-            return;
-        }
-        let items: Vec<tunex_library::SavedQueueItem> = controller
-            .queue_items()
-            .into_iter()
-            .map(item_to_saved)
-            .collect();
-        let cursor = controller.current_index().unwrap_or(0);
-        let position_ms = u64::try_from(self.position_ms().max(0)).unwrap_or(0);
-        let Ok(mut db) = tunex_library::open_file(&self.index_path) else {
-            return;
-        };
-        if let Err(err) = tunex_library::save_playback_queue(&mut db, &items, cursor, position_ms) {
-            tracing::warn!(
-                name = "queue.persist_failed",
-                error = %err,
-                "up next not saved"
-            );
-        }
-    }
-
-    /// Cursor position (-1 when idle).
-    fn current_index(&self) -> i32 {
-        self.controller
-            .as_ref()
-            .and_then(PlaybackController::current_index)
-            .and_then(|index| i32::try_from(index).ok())
-            .unwrap_or(-1)
-    }
-
-    /// Library track id at a queue row (`-1` when missing/dangling).
-    fn track_id_at(&self, row: i32) -> i32 {
-        usize::try_from(row)
-            .ok()
-            .and_then(|index| self.rows.get(index))
-            .map_or(-1, |row| row.5)
-    }
-
-    /// Last failure, if any (cleared by the next success).
-    fn error_message(&self) -> Option<String> {
-        self.last_error.clone()
-    }
-
-    /// Open the library index for enqueue-by-id entry points.
-    fn open_index(&mut self) -> Option<rusqlite::Connection> {
-        if !self.index_path.is_file() {
-            self.last_error = Some("Your library is empty — add a music folder first.".to_owned());
-            return None;
-        }
-        match tunex_library::open_file(&self.index_path) {
-            Ok(db) => Some(db),
-            Err(err) => {
-                tracing::warn!(name = "queue.index_failed", error = %err, "index unreadable");
-                self.last_error = Some("The music library cannot be read.".to_owned());
-                None
-            }
-        }
-    }
-
-    /// Resolve one library track to a playable item (shared by the
-    /// track entry points): missing/unplayable rows surface text.
-    fn resolve_track(&mut self, db: &rusqlite::Connection, track_id: i64) -> Option<QueueItem> {
-        let row = match tunex_library::track_by_id(db, track_id) {
-            Ok(row) => row,
-            Err(err) => {
-                tracing::warn!(name = "queue.lookup_failed", error = %err, "track lookup failed");
-                self.last_error = Some("That track is no longer in the library.".to_owned());
-                return None;
-            }
-        };
-        let Some(row) = row else {
-            self.last_error = Some("That track is no longer in the library.".to_owned());
-            return None;
-        };
-        if row.missing {
-            self.last_error = Some("That file is missing from disk.".to_owned());
-            return None;
-        }
-        let Some(item) = queue_item_from_row(&row) else {
-            self.last_error = Some("That file cannot be played.".to_owned());
-            return None;
-        };
-        Some(item)
-    }
-
-    /// Enqueue one library track by row id. Returns 1 on success, 0 with
-    /// surfaced text when unavailable.
-    fn do_enqueue_track(&mut self, track_id: i64) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let Some(item) = self.resolve_track(&db, track_id) else {
-            return 0;
-        };
-        if let Some(controller) = &mut self.controller {
-            controller.enqueue(item);
-        }
-        self.sync_rows();
-        self.last_error = None;
-        1
-    }
-
-    /// Insert one library track to play next. Same contract as
-    /// [`do_enqueue_track`](Self::do_enqueue_track).
-    fn do_play_track_next(&mut self, track_id: i64) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let Some(item) = self.resolve_track(&db, track_id) else {
-            return 0;
-        };
-        if let Some(controller) = &mut self.controller {
-            controller.enqueue_next(item);
-        }
-        self.sync_rows();
-        self.last_error = None;
-        1
-    }
-
-    /// Play one library track immediately. Failures surface as text and leave
-    /// the queue untouched.
-    fn do_play_track_now(&mut self, track_id: i64) {
-        if !self.ensure_controller() {
-            return;
-        }
-        let Some(db) = self.open_index() else {
-            return;
-        };
-        let Some(item) = self.resolve_track(&db, track_id) else {
-            return;
-        };
-        if let Some(controller) = &mut self.controller {
-            if let Err(err) = controller.play_now(item) {
-                self.last_error = Some(err.to_string());
-                return;
-            }
-        }
-        self.sync_rows();
-        self.last_error = None;
-        self.maybe_persist_session(true);
-    }
-
-    /// Enqueue one album in disc/track order. Returns the number enqueued.
-    fn do_enqueue_album(&mut self, album_id: i64) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let count = self
-            .controller
-            .as_mut()
-            .map(|controller| crate::playback::enqueue_album(controller, &db, album_id));
-        if let Some(Ok(count)) = count {
-            self.sync_rows();
-            self.last_error = None;
-            i32::try_from(count).unwrap_or(i32::MAX)
-        } else {
-            self.last_error = Some("That album is no longer in the library.".to_owned());
-            0
-        }
-    }
-
-    /// Enqueue one folder's direct child tracks. Returns the number enqueued.
-    fn do_enqueue_folder(&mut self, folder: &str, sort_key: &str, descending: bool) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let sort = tunex_library::TrackSort::from_key(sort_key);
-        let dir = tunex_library::SortDir::from_descending(descending);
-        let rows = match tunex_library::list_tracks_in_folder(&db, folder, u32::MAX, sort, dir) {
-            Ok(rows) => rows,
-            Err(err) => {
-                tracing::warn!(name = "queue.folder_failed", error = %err, "folder lookup failed");
-                self.last_error = Some("That folder is no longer in the library.".to_owned());
-                return 0;
-            }
-        };
-        let mut added = 0;
-        if let Some(controller) = &mut self.controller {
-            for row in &rows {
-                if row.missing {
-                    continue;
-                }
-                if let Some(item) = queue_item_from_row(row) {
-                    controller.enqueue(item);
-                    added += 1;
-                }
-            }
-        }
-        self.sync_rows();
-        self.last_error = None;
-        added
-    }
-
-    /// Enqueue one artist in album order. Returns the number enqueued.
-    fn do_enqueue_artist(&mut self, artist: &str) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let count = self
-            .controller
-            .as_mut()
-            .map(|controller| crate::playback::enqueue_artist(controller, &db, artist));
-        if let Some(Ok(count)) = count {
-            self.sync_rows();
-            self.last_error = None;
-            i32::try_from(count).unwrap_or(i32::MAX)
-        } else {
-            self.last_error = Some("That artist is no longer in the library.".to_owned());
-            0
-        }
-    }
-
-    /// Enqueue one playlist in entry order, skipping dangling and missing
-    /// entries. Returns the number enqueued.
-    fn do_enqueue_playlist(&mut self, playlist_id: i64) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(mut db) = self.open_index() else {
-            return 0;
-        };
-        if let Err(err) = tunex_library::evaluate_smart_playlist(&mut db, playlist_id) {
-            tracing::debug!(
-                name = "queue.smart_eval_failed",
-                error = %err,
-                "smart playlist not rebuilt"
-            );
-        }
-        let entries = match tunex_library::list_entries(&db, playlist_id) {
-            Ok(entries) => entries,
-            Err(err) => {
-                tracing::warn!(name = "queue.playlist_failed", error = %err, "entries lookup failed");
-                self.last_error = Some("That playlist is no longer in the library.".to_owned());
-                return 0;
-            }
-        };
-        let mut added = 0;
-        if let Some(controller) = &mut self.controller {
-            for entry in &entries {
-                let playable = entry.track.as_ref().filter(|row| !row.missing);
-                if let Some(item) = playable.and_then(queue_item_from_row) {
-                    controller.enqueue(item);
-                    added += 1;
-                }
-            }
-        }
-        self.sync_rows();
-        self.last_error = None;
-        added
-    }
-
-    /// Enqueue one library browse list (Play all). Returns the number added.
-    fn do_enqueue_library_list(
-        &mut self,
-        kind: &str,
-        key: &str,
-        sort_key: &str,
-        descending: bool,
-    ) -> i32 {
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let count = self.controller.as_mut().map(|controller| {
-            crate::playback::enqueue_library_list(
-                controller,
-                &db,
-                kind,
-                key,
-                sort_key,
-                descending,
-                crate::bridge::library_track_model::SONGS_CAP,
-            )
-        });
-        match count {
-            Some(Ok(count)) if count > 0 => {
-                self.sync_rows();
-                self.last_error = None;
-                i32::try_from(count).unwrap_or(i32::MAX)
-            }
-            Some(Ok(_)) => {
-                self.last_error = Some("Nothing playable in that list.".to_owned());
-                0
-            }
-            Some(Err(err)) => {
-                tracing::warn!(name = "queue.play_all_failed", error = %err, "library list lookup failed");
-                self.last_error = Some("That list is no longer in the library.".to_owned());
-                0
-            }
-            None => 0,
-        }
-    }
-
-    /// Play ids now: first starts, the rest insert immediately after it.
-    fn do_play_track_ids(&mut self, ids: &[i64]) -> i32 {
-        if ids.is_empty() {
-            return 0;
-        }
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let mut items = Vec::new();
-        for track_id in ids {
-            if let Some(item) = self.resolve_track(&db, *track_id) {
-                items.push(item);
-            }
-        }
-        if items.is_empty() {
-            self.last_error = Some("Nothing playable in that list.".to_owned());
-            return 0;
-        }
-        let first = items.remove(0);
-        let added = i32::try_from(items.len() + 1).unwrap_or(i32::MAX);
-        if let Some(controller) = &mut self.controller {
-            if let Err(err) = controller.play_now(first) {
-                self.last_error = Some(err.to_string());
-                return 0;
-            }
-            for item in items.into_iter().rev() {
-                controller.enqueue_next(item);
-            }
-        }
-        self.sync_rows();
-        self.last_error = None;
-        self.maybe_persist_session(true);
-        added
-    }
-
-    /// Insert ids after the cursor, preserving list order.
-    fn do_play_track_ids_next(&mut self, ids: &[i64]) -> i32 {
-        if ids.is_empty() {
-            return 0;
-        }
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let mut items = Vec::new();
-        for track_id in ids {
-            if let Some(item) = self.resolve_track(&db, *track_id) {
-                items.push(item);
-            }
-        }
-        if items.is_empty() {
-            self.last_error = Some("Nothing playable in that list.".to_owned());
-            return 0;
-        }
-        let added = i32::try_from(items.len()).unwrap_or(i32::MAX);
-        if let Some(controller) = &mut self.controller {
-            for item in items.into_iter().rev() {
-                controller.enqueue_next(item);
-            }
-        }
-        self.sync_rows();
-        self.last_error = None;
-        self.maybe_persist_session(true);
-        added
-    }
-
-    /// Insert tracks by database id at `position` (clamped into range),
-    /// preserving list order. Returns the number inserted; failures surface
-    /// as text and leave the queue untouched.
-    fn do_enqueue_track_ids_at(&mut self, ids: &[i64], position: usize) -> i32 {
-        if ids.is_empty() {
-            return 0;
-        }
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let mut items = Vec::new();
-        for track_id in ids {
-            if let Some(item) = self.resolve_track(&db, *track_id) {
-                items.push(item);
-            }
-        }
-        if items.is_empty() {
-            self.last_error = Some("Nothing playable in that list.".to_owned());
-            return 0;
-        }
-        let mut added = 0;
-        if let Some(controller) = &mut self.controller {
-            let at = position.min(controller.queue_len());
-            for (offset, item) in items.into_iter().enumerate() {
-                controller.insert_at(at + offset, item);
-                added += 1;
-            }
-        }
-        self.sync_rows();
-        self.last_error = None;
-        added
-    }
-
-    /// Move queue rows (comma positions from QML) to `to` as one block.
-    fn do_move_items(&mut self, rows: &[usize], to: usize) {
-        if !self.ensure_controller() {
-            return;
-        }
-        if let Some(controller) = &mut self.controller {
-            controller.move_items(rows, to);
-        }
-        self.sync_rows();
-    }
-
-    /// Enqueue tracks by database id, one model reset at the end.
-    fn do_enqueue_track_ids(&mut self, ids: &[i64]) -> i32 {
-        if ids.is_empty() {
-            return 0;
-        }
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let mut items = Vec::new();
-        for track_id in ids {
-            if let Some(item) = self.resolve_track(&db, *track_id) {
-                items.push(item);
-            }
-        }
-        let mut added = 0;
-        if let Some(controller) = &mut self.controller {
-            for item in items {
-                controller.enqueue(item);
-                added += 1;
-            }
-        }
-        if added > 0 {
-            self.sync_rows();
-            self.last_error = None;
-        } else {
-            self.last_error = Some("Nothing playable in that list.".to_owned());
-        }
-        added
-    }
-
-    /// Enqueue albums by id, concatenating each album's disc order.
-    fn do_enqueue_album_ids(&mut self, album_ids: &[i64]) -> i32 {
-        if album_ids.is_empty() {
-            return 0;
-        }
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let count = self
-            .controller
-            .as_mut()
-            .map(|controller| crate::playback::enqueue_album_ids(controller, &db, album_ids));
-        match count {
-            Some(Ok(count)) if count > 0 => {
-                self.sync_rows();
-                self.last_error = None;
-                i32::try_from(count).unwrap_or(i32::MAX)
-            }
-            Some(Ok(_)) => {
-                self.last_error = Some("Nothing playable in that list.".to_owned());
-                0
-            }
-            Some(Err(err)) => {
-                tracing::warn!(name = "queue.albums_failed", error = %err, "album list lookup failed");
-                self.last_error = Some("Those albums are no longer in the library.".to_owned());
-                0
-            }
-            None => 0,
-        }
-    }
-
-    /// Enqueue artists by name, concatenating each artist's album order.
-    fn do_enqueue_artist_names(&mut self, names: &[String]) -> i32 {
-        if names.is_empty() {
-            return 0;
-        }
-        if !self.ensure_controller() {
-            return 0;
-        }
-        let Some(db) = self.open_index() else {
-            return 0;
-        };
-        let count = self
-            .controller
-            .as_mut()
-            .map(|controller| crate::playback::enqueue_artist_names(controller, &db, names));
-        match count {
-            Some(Ok(count)) if count > 0 => {
-                self.sync_rows();
-                self.last_error = None;
-                i32::try_from(count).unwrap_or(i32::MAX)
-            }
-            Some(Ok(_)) => {
-                self.last_error = Some("Nothing playable in that list.".to_owned());
-                0
-            }
-            Some(Err(err)) => {
-                tracing::warn!(name = "queue.artists_failed", error = %err, "artist list lookup failed");
-                self.last_error = Some("Those artists are no longer in the library.".to_owned());
-                0
-            }
-            None => 0,
         }
     }
 }
@@ -2158,7 +938,7 @@ fn parse_name_list(block: &str) -> Vec<String> {
 
 /// Queue item type for [`resolve_track`](QueueModelRust::resolve_track).
 /// (Alias keeps the signature readable.)
-type QueueItem = tunex_player::QueueItem;
+pub(crate) type QueueItem = tunex_player::QueueItem;
 
 impl qobject::QueueModel {
     /// Announce the current rows with the narrowest signal that fits: one
@@ -2839,40 +1619,8 @@ fn queue_uri_missing(uri: &str) -> bool {
     tunex_player::uri_to_path(uri).is_none_or(|path| !path.is_file())
 }
 
-fn saved_to_item(row: tunex_library::SavedQueueItem) -> tunex_player::QueueItem {
-    let mut item = tunex_player::QueueItem::new(&row.uri, &row.title);
-    if let Some(track_id) = row.track_id {
-        item = item.with_track_id(track_id);
-    }
-    if let Some(artist) = row.artist {
-        item = item.with_artist(artist);
-    }
-    if let Some(album) = row.album {
-        item = item.with_album(album);
-    }
-    if let Some(duration_ms) = row.duration_ms.filter(|ms| *ms > 0) {
-        item = item.with_duration(Duration::from_millis(
-            u64::try_from(duration_ms).unwrap_or(0),
-        ));
-    }
-    item
-}
-
-fn item_to_saved(item: tunex_player::QueueItem) -> tunex_library::SavedQueueItem {
-    tunex_library::SavedQueueItem {
-        uri: item.uri,
-        track_id: item.track_id,
-        title: item.title,
-        artist: item.artist,
-        album: item.album,
-        duration_ms: item
-            .duration
-            .and_then(|duration| i64::try_from(duration.as_millis()).ok()),
-    }
-}
-
 /// Repeat mode as 0 (off), 1 (all), 2 (one) for QML.
-fn repeat_to_int(mode: tunex_core::RepeatMode) -> i32 {
+pub(crate) fn repeat_to_int(mode: tunex_core::RepeatMode) -> i32 {
     match mode {
         tunex_core::RepeatMode::Off => 0,
         tunex_core::RepeatMode::All => 1,
@@ -2881,7 +1629,7 @@ fn repeat_to_int(mode: tunex_core::RepeatMode) -> i32 {
 }
 
 /// Playback state as 0 (stopped), 1 (loading), 2 (playing), 3 (paused).
-fn state_to_int(state: tunex_core::PlaybackState) -> i32 {
+pub(crate) fn state_to_int(state: tunex_core::PlaybackState) -> i32 {
     match state {
         tunex_core::PlaybackState::Stopped => 0,
         tunex_core::PlaybackState::Loading => 1,
@@ -2891,21 +1639,19 @@ fn state_to_int(state: tunex_core::PlaybackState) -> i32 {
 }
 
 /// Saturating `Duration` → microseconds for MPRIS `Time`.
-fn duration_to_us(duration: Duration) -> i64 {
+pub(crate) fn duration_to_us(duration: Duration) -> i64 {
     i64::try_from(duration.as_micros()).unwrap_or(i64::MAX)
 }
 
 /// Saturating microseconds → whole milliseconds for engine seeks.
-fn us_to_ms_saturating(micros: i64) -> i32 {
+pub(crate) fn us_to_ms_saturating(micros: i64) -> i32 {
     i32::try_from(micros.max(0) / 1000).unwrap_or(i32::MAX)
 }
 
 #[cfg(test)]
 mod tests {
     use super::qobject::QueueRoles;
-    use super::{
-        QueueModelRust, QueueRow, RowChange, parse_id_list, row_change, spawn_lyrics_worker,
-    };
+    use super::{QueueModelRust, QueueRow, RowChange, parse_id_list, row_change};
     use crate::bridge::test_support::seeded_index;
     use cxx_qt_lib::{QString, QVariant};
 
@@ -2921,34 +1667,6 @@ mod tests {
             track_id,
             false,
         )
-    }
-
-    #[test]
-    fn lyrics_worker_resolves_off_thread_with_uri_keys() {
-        let dir = std::env::temp_dir().join(format!("tunex-lyrics-worker-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("setup works");
-        let audio = dir.join("track.flac");
-        std::fs::write(&audio, []).expect("setup works");
-        std::fs::write(dir.join("track.lrc"), "[00:01.00]Hello\n").expect("setup works");
-        let worker = spawn_lyrics_worker().expect("worker spawns");
-        assert!(
-            worker.request(("file:///track.flac".to_owned(), audio.clone())),
-            "first request starts the worker"
-        );
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        let settled = loop {
-            let settled = worker.drain();
-            if !settled.is_empty() || std::time::Instant::now() >= deadline {
-                break settled;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        };
-        assert_eq!(settled.len(), 1, "exactly one answer lands");
-        assert_eq!(settled[0].0, "file:///track.flac");
-        assert_eq!(settled[0].1.lines[0].text, "Hello");
-        assert!(worker.drain().is_empty(), "drain is one-shot");
-        std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 
     /// Model pointed at a scratch seeded index (never the real home dir).
