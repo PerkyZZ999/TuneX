@@ -5,7 +5,9 @@ import TuneX
 // persistent player — surface-raised, 12px radius, icon + copy. Success and
 // error differ by icon and copy, never colour alone. Auto-dismisses after
 // 5s; errors without actions dismiss too (actions are not in V1). The copy
-// announces politely for screen readers.
+// announces politely for screen readers. Replacement policy: latest wins,
+// except a visible error is never overwritten by an info toast, so a failed
+// add cannot be hidden by the next success.
 Rectangle {
     id: root
 
@@ -14,17 +16,27 @@ Rectangle {
     readonly property bool showing: root.message !== ""
 
     function show(text, error) {
+        const isErr = error === true;
+        if (root.showing && root.isError && !isErr)
+            return;
         root.message = text;
-        root.isError = error === true;
+        root.isError = isErr;
         hideTimer.restart();
     }
 
     function dismiss() {
+        if (!root.showing)
+            return;
         root.message = "";
         hideTimer.stop();
+        // Keep the item visible for the fade-out below; the guard hides it
+        // exactly when the opacity animation lands.
+        fadeGuard.restart();
     }
 
-    visible: root.showing
+    // Stays up through the exit fade; instant under reduce-motion, when the
+    // fade duration (and this guard) collapse to zero.
+    visible: root.showing || fadeGuard.running
     opacity: root.showing ? 1 : 0
     width: Math.min(row.implicitWidth + Theme.spaceLg * 2, parent ? parent.width - Theme.spaceXl * 2 : 480)
     height: row.implicitHeight + Theme.spaceMd
@@ -48,6 +60,15 @@ Rectangle {
 
         interval: 5000
         onTriggered: root.dismiss()
+    }
+
+    // Holds `visible` true through the exit fade: `visible` above reads
+    // `fadeGuard.running`, so expiry hides the item with no imperative
+    // assignment (which would destroy that binding).
+    Timer {
+        id: fadeGuard
+
+        interval: Appearance.duration(Theme.motionHover)
     }
 
     Row {
