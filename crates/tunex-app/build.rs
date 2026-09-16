@@ -60,6 +60,7 @@ fn main() {
                 "qml/TuneX/PlaylistCard.qml",
                 "qml/TuneX/EmptyState.qml",
                 "qml/TuneX/ErrorLine.qml",
+                "qml/TuneX/NoticeBus.qml",
                 "qml/TuneX/SearchView.qml",
                 "qml/TuneX/CapFooter.qml",
                 "qml/TuneX/SearchingIndicator.qml",

@@ -20,8 +20,6 @@ Item {
 
     signal backRequested
     signal albumRequested(int albumId)
-    signal notice(string text, bool isError)
-
     function playArtist() {
         root.queue.clearQueue();
         root.queue.enqueueArtist(root.artistName);
@@ -72,7 +70,6 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: songs.refreshArtist(root.artistName)
-        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Flickable {
@@ -218,7 +215,6 @@ Item {
                     count: trackSelection.count
                     trackIds: trackSelection.mimeIds(songs)
                     onCleared: trackSelection.clear()
-                    onNotice: (text, isError) => root.notice(text, isError)
                 }
                 Accessible.role: Accessible.List
                 Accessible.selectable: true

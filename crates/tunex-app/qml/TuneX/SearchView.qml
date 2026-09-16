@@ -40,8 +40,6 @@ Item {
     signal queryRequested(string text)
     signal albumRequested(int albumId)
     signal artistRequested(string name)
-    signal notice(string text, bool isError)
-
     function loadRecents() {
         const items = [];
         const n = root.library.recentSearchCount();
@@ -241,7 +239,6 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: root.submitAll()
-        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Timer {
@@ -502,7 +499,6 @@ Item {
                         count: songsSelection.count
                         trackIds: songsSelection.mimeIds(songs)
                         onCleared: songsSelection.clear()
-                        onNotice: (text, isError) => root.notice(text, isError)
                     }
                     Accessible.role: Accessible.List
                     Accessible.selectable: true

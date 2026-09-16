@@ -16,8 +16,6 @@ Rectangle {
     signal cleared
     signal removeRequested
     signal playInPlaceRequested
-    signal notice(string text, bool isError)
-
     visible: root.count > 0
     implicitHeight: flow.implicitHeight + Theme.spaceXs * 2
     height: visible ? Math.max(Theme.targetMin, implicitHeight) : 0
@@ -80,11 +78,11 @@ Rectangle {
                 if (id >= 0) {
                     const added = root.playlists.addTracks(id, root.trackIds);
                     if (added > 0)
-                        root.notice(qsTr("%n track(s) added to the new playlist", "", added), false);
+                        NoticeBus.send(qsTr("%n track(s) added to the new playlist", "", added), false);
                     else
-                        root.notice(root.playlists.errorText(), true);
+                        NoticeBus.send(root.playlists.errorText(), true);
                 } else {
-                    root.notice(root.playlists.errorText(), true);
+                    NoticeBus.send(root.playlists.errorText(), true);
                 }
                 root.cleared();
             }

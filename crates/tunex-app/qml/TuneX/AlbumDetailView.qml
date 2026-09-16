@@ -35,8 +35,6 @@ Item {
     signal backRequested
     signal albumRequested(int albumId)
     signal artistRequested(string name)
-    signal notice(string text, bool isError)
-
     // Durations shape through the Format singleton.
 
     function playAlbum() {
@@ -93,7 +91,6 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: songs.refreshAlbum(root.albumId)
-        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Column {
@@ -226,7 +223,6 @@ Item {
                 count: trackSelection.count
                 trackIds: trackSelection.mimeIds(songs)
                 onCleared: trackSelection.clear()
-                onNotice: (text, isError) => root.notice(text, isError)
             }
             Accessible.role: Accessible.List
             Accessible.selectable: true

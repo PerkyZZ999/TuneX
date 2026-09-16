@@ -864,7 +864,6 @@ Window {
                                 queue: queueModel
                                 playlists: playlistModel
                                 library: library
-                                onNotice: (text, isError) => toast.show(text, isError)
                                 onFocusFieldRequested: searchField.forceActiveFocus()
                                 onClearRequested: {
                                     searchField.text = "";
@@ -891,7 +890,6 @@ Window {
                                 queue: queueModel
                                 playlists: playlistModel
                                 library: library
-                                onNotice: (text, isError) => toast.show(text, isError)
                                 onSettingsRequested: pickFolder => root.openSettings("library", pickFolder)
                             }
 
@@ -901,7 +899,6 @@ Window {
                                 visible: root.section === "playlists"
                                 queue: queueModel
                                 playlists: playlistModel
-                                onNotice: (text, isError) => toast.show(text, isError)
                             }
 
                             SettingsView {
@@ -952,7 +949,7 @@ Window {
         }
 
         // Shell toast (DESIGN.md Components): one-line confirmations above
-        // the persistent player, fed by the views' `notice` signals.
+        // the persistent player, fed by the NoticeBus channel.
         Toast {
             id: toast
 
@@ -960,6 +957,14 @@ Window {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: (miniPlayer.visible ? miniPlayer.height : 0) + Theme.spaceLg
+        }
+
+        Connections {
+            target: NoticeBus
+
+            function onNotice(text, isError) {
+                toast.show(text, isError);
+            }
         }
     }
     Loader {

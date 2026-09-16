@@ -48,8 +48,6 @@ Item {
         return line;
     }
 
-    signal notice(string text, bool isError)
-
     function selectPlaylist(id, name) {
         root.playlistId = id;
         root.playlistName = name;
@@ -469,9 +467,9 @@ Item {
                                     return;
                                 const added = root.playlists.addTracks(sidebarRow.playlistId, ids);
                                 if (added > 0)
-                                    root.notice(qsTr("%n track(s) added to “%1”", "", added).arg(sidebarRow.name), false);
+                                    NoticeBus.send(qsTr("%n track(s) added to “%1”", "", added).arg(sidebarRow.name), false);
                                 else
-                                    root.notice(root.playlists.errorText(), true);
+                                    NoticeBus.send(root.playlists.errorText(), true);
                             }
                         }
                     }
@@ -603,7 +601,6 @@ Item {
                             count: entrySelection.count
                             trackIds: entrySelection.mimeIds(entries)
                             onCleared: entrySelection.clear()
-                            onNotice: (text, isError) => root.notice(text, isError)
                             onRemoveRequested: {
                                 entrySelection.removeSelected(entries);
                                 playlists.refresh();

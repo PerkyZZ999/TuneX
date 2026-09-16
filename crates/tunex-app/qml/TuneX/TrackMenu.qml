@@ -19,18 +19,16 @@ GlassMenu {
     signal indexChanged
     // One-line confirmation for playlist adds (handled by the shell toast):
     // every add names the count and the list, errors surface loudly.
-    signal notice(string text, bool isError)
-
     // `name` empty means the auto-named list from "New playlist".
     function confirmPlaylistAdd(added, name) {
         if (added > 0) {
             if (name === "")
-                root.notice(qsTr("%n track(s) added to the new playlist", "", added), false);
+                NoticeBus.send(qsTr("%n track(s) added to the new playlist", "", added), false);
             else
-                root.notice(qsTr("%n track(s) added to “%1”", "", added).arg(name), false);
+                NoticeBus.send(qsTr("%n track(s) added to “%1”", "", added).arg(name), false);
         } else {
             const err = root.playlists.errorText();
-            root.notice(err !== "" ? err : qsTr("Could not add to “%1”").arg(name), true);
+            NoticeBus.send(err !== "" ? err : qsTr("Could not add to “%1”").arg(name), true);
         }
         root.close();
     }
@@ -153,7 +151,7 @@ GlassMenu {
                     root.confirmPlaylistAdd(added, "");
                 } else {
                     const err = root.playlists.errorText();
-                    root.notice(err !== "" ? err : qsTr("Could not create a playlist"), true);
+                    NoticeBus.send(err !== "" ? err : qsTr("Could not create a playlist"), true);
                     root.close();
                 }
             }
