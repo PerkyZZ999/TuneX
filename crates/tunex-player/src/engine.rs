@@ -119,9 +119,17 @@ pub(crate) struct Inner {
     /// Live dragging posts many seeks; overlapping FLUSH events refuse or
     /// snap the playhead, so intermediates are dropped here.
     queued_seek: Option<gst::ClockTime>,
+    /// Monotonic claim counter for seeks. A refused post must only release
+    /// its own claim: a newer seek stored while posting is posted instead of
+    /// discarded, so no accepted seek is ever lost.
+    seek_generation: u64,
     /// Gapless handoff state, shared between the preload hook, the swap
     /// report ([`connect_source_removed`]), and teardown.
     handoff: Handoff,
+    /// URI of the last confirmed gapless swap, awaiting the controller's
+    /// cursor commit. The queue cursor moves here — never speculatively at
+    /// preload — so manual skips and failed preloads cannot double-account.
+    swapped_uri: Option<String>,
     /// `ReplayGain` mode (applied downstream of playbin user volume).
     rg_mode: ReplayGainMode,
     lofty_track: Option<f64>,
@@ -149,7 +157,9 @@ impl std::fmt::Debug for Inner {
             .field("pause_requested", &self.pause_requested)
             .field("seek_pending", &self.seek_pending)
             .field("queued_seek", &self.queued_seek)
+            .field("seek_generation", &self.seek_generation)
             .field("handoff", &self.handoff)
+            .field("swapped_uri", &self.swapped_uri)
             .field("rg_mode", &self.rg_mode)
             .field("eq_enabled", &self.eq_enabled)
             .field("eq_missing", &self.eq_missing)
@@ -216,7 +226,9 @@ impl PlayerEngine {
             pause_requested: false,
             seek_pending: false,
             queued_seek: None,
+            seek_generation: 0,
             handoff: Handoff::Idle,
+            swapped_uri: None,
             rg_mode: ReplayGainMode::Off,
             lofty_track: None,
             lofty_album: None,
@@ -380,28 +392,30 @@ impl PlayerEngine {
         let start = gst::ClockTime::try_from(position).map_err(|err| {
             Error::Player(format!("position out of range: {position:?} ({err:?})"))
         })?;
-        let pending = match self.inner.lock() {
+        let (immediate, generation) = match self.inner.lock() {
             Ok(mut inner) => {
+                inner.seek_generation = inner.seek_generation.wrapping_add(1);
+                let generation = inner.seek_generation;
                 if inner.seek_pending {
                     inner.queued_seek = Some(start);
-                    true
+                    (None, generation)
                 } else {
                     inner.seek_pending = true;
                     inner.queued_seek = None;
-                    false
+                    (Some(start), generation)
                 }
             }
-            Err(_) => false,
+            Err(_) => (Some(start), 0),
         };
-        if pending {
+        let Some(start) = immediate else {
+            // Queued behind the in-flight flush; its AsyncDone drains it.
             return Ok(());
-        }
+        };
         if post_flush_seek(&self.playbin, &self.inner, start) {
             return Ok(());
         }
-        if let Ok(mut inner) = self.inner.lock() {
-            inner.seek_pending = false;
-            inner.queued_seek = None;
+        if recover_refused_post(&self.playbin, &self.inner, start, generation) {
+            return Ok(());
         }
         Err(Error::Player("seek refused".to_owned()))
     }
@@ -447,6 +461,12 @@ impl PlayerEngine {
             .lock()
             .ok()
             .and_then(|inner| inner.queued_uri.clone())
+    }
+
+    /// Take the last confirmed gapless-swap URI, if the controller has not
+    /// committed it yet. One-shot: each swap drains exactly once.
+    pub fn take_swapped_uri(&self) -> Option<String> {
+        self.inner.lock().ok()?.swapped_uri.take()
     }
 
     /// `ReplayGain` mode. Applied on the next tag refresh and immediately.
@@ -615,6 +635,10 @@ impl PlayerEngine {
         let Ok(mut inner) = self.inner.lock() else {
             return;
         };
+        // A pending swap record belongs to the pipeline being torn down:
+        // clear it before and after the settle wait so a stale URI can never
+        // commit a cursor move under the replacement track.
+        inner.swapped_uri = None;
         inner.handoff = inner.handoff.blocking();
         let deadline = Instant::now() + HANDOFF_SETTLE;
         while inner.handoff.in_flight() {
@@ -625,20 +649,23 @@ impl PlayerEngine {
                     waited_ms = HANDOFF_SETTLE.as_millis(),
                     "gapless handoff never swapped over; tearing down anyway"
                 );
-                return;
+                break;
             }
             let Ok((waited, _)) = self.handoff_settled.wait_timeout(inner, remaining) else {
-                return;
+                break;
             };
             inner = waited;
         }
     }
 
     /// Lift the teardown gate. The state change purged any preloaded item, so
-    /// nothing is in flight any more and the next handoff may start.
+    /// nothing is in flight any more and the next handoff may start. Also
+    /// drops any swap record the teardown discarded, so it can never commit
+    /// a cursor move under the replacement track.
     fn finish_teardown(&self) {
         if let Ok(mut inner) = self.inner.lock() {
             inner.handoff = Handoff::Idle;
+            inner.swapped_uri = None;
         }
     }
 
@@ -747,6 +774,9 @@ fn connect_source_removed(
         }
         if let Ok(mut guard) = inner.lock() {
             guard.handoff = guard.handoff.swapped();
+            // Record what swapped in for the controller's cursor commit. The
+            // teardown below may clear this if it discards the preload.
+            guard.swapped_uri = guard.queued_uri.clone();
         }
         handoff_settled.notify_all();
     })
@@ -943,7 +973,7 @@ fn post_flush_seek(
 
 /// Post the latest scrub target once the in-flight flush completes.
 fn apply_queued_seek(playbin: &gst::Element, inner: &Arc<Mutex<Inner>>) {
-    let start = {
+    let (start, generation) = {
         let Ok(mut guard) = inner.lock() else {
             return;
         };
@@ -952,14 +982,41 @@ fn apply_queued_seek(playbin: &gst::Element, inner: &Arc<Mutex<Inner>>) {
             return;
         };
         guard.seek_pending = true;
-        start
+        (start, guard.seek_generation)
     };
     if post_flush_seek(playbin, inner, start) {
         return;
     }
-    if let Ok(mut guard) = inner.lock() {
+    recover_refused_post(playbin, inner, start, generation);
+}
+
+/// Recover a refused flush post without losing newer work. Posts the newest
+/// queued target when one arrived while posting (its caller was already told
+/// success); releases the claim only when nothing newer exists. Returns true
+/// when a post was accepted.
+fn recover_refused_post(
+    playbin: &gst::Element,
+    inner: &Arc<Mutex<Inner>>,
+    mut start: gst::ClockTime,
+    mut generation: u64,
+) -> bool {
+    loop {
+        if post_flush_seek(playbin, inner, start) {
+            return true;
+        }
+        let Ok(mut guard) = inner.lock() else {
+            return false;
+        };
+        if guard.seek_generation != generation
+            && let Some(next) = guard.queued_seek.take()
+        {
+            generation = guard.seek_generation;
+            start = next;
+            continue;
+        }
         guard.seek_pending = false;
-        guard.queued_seek = Some(start);
+        guard.queued_seek = None;
+        return false;
     }
 }
 
@@ -1336,7 +1393,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_load_emits_loading_event() {
+    fn sync_load_tracks_loading_synchronously() {
         let (tx, mut rx) = mpsc::channel(PlayerEngine::event_buffer());
         let engine = PlayerEngine::new(tx).expect("engine builds");
         let sink = gst::ElementFactory::make("fakesink").build().expect("sink");
@@ -1344,10 +1401,19 @@ mod tests {
         engine
             .load_uri("file:///nonexistent-probe.flac")
             .expect("load stages");
-        match rx.try_recv() {
-            Ok(event) => eprintln!("PROBE: got {event:?}"),
-            Err(err) => eprintln!("PROBE: channel {err:?}"),
-        }
-        eprintln!("PROBE: tracked state {:?}", engine.state());
+        // Staging is synchronous: the tracked state and the first event are
+        // observable without pumping the bus.
+        assert_eq!(
+            engine.state(),
+            PlaybackState::Loading,
+            "staged load tracks Loading synchronously"
+        );
+        assert!(
+            matches!(
+                rx.try_recv(),
+                Ok(PlayerEvent::StateChanged(PlaybackState::Loading))
+            ),
+            "staged load emits Loading first"
+        );
     }
 }

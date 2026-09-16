@@ -132,17 +132,39 @@ impl PlaybackController {
         })
     }
 
-    /// Gapless lookahead that advances the cursor as it peeks: peek previews
-    /// exactly what `next` takes, so consuming the pick lands the cursor on
-    /// the preloaded track. Nothing is consumed at the true end (peek is
-    /// `None`), leaving the cursor for the end-of-track advance.
+    /// Gapless lookahead: peek-only. The cursor commits when the engine
+    /// confirms the swap (see `drain_swap`), never speculatively here — a
+    /// manual skip or a failed preload between peek and swap must not
+    /// double-account the cursor or poison history with unplayed tracks.
+    /// Nothing is consumed at the true end (peek is `None`). A peeked file
+    /// that already vanished is also declined: handing it over errors the
+    /// pipeline mid-handoff, while the end-of-track advance skips missing
+    /// tracks cleanly with an error event.
     fn provider(queue: Arc<Mutex<Queue>>) -> NextUriProvider {
         Arc::new(move || {
-            let mut guard = lock_queue(&queue);
+            let guard = lock_queue(&queue);
             let uri = guard.peek_next_uri()?;
-            guard.next();
+            if local_path_missing(&uri) {
+                return None;
+            }
             Some(uri)
         })
+    }
+
+    /// Commit a confirmed gapless swap to the queue cursor. The swap is only
+    /// honored when it matches the current peek (same deterministic pick the
+    /// provider previewed): a teardown that raced the drain leaves a stale
+    /// slot behind, and committing that would move the cursor under the
+    /// replacement track. Committing through `next()` pushes history and
+    /// consumes the shuffle pick exactly once.
+    fn drain_swap(&mut self) {
+        let Some(swapped) = self.engine.take_swapped_uri() else {
+            return;
+        };
+        let mut queue = lock_queue(&self.queue);
+        if queue.peek_next_uri().as_deref() == Some(swapped.as_str()) {
+            queue.next();
+        }
     }
 
     /// Override the audio sink (test seam: point at `fakesink` to run the
@@ -170,6 +192,7 @@ impl PlaybackController {
     /// Returns [`Error::Player`] when the item is missing, cannot load, or
     /// the pipeline refuses the transition.
     pub fn play_now(&mut self, item: QueueItem) -> Result<()> {
+        self.drain_swap();
         if local_path_missing(&item.uri) {
             return Err(Error::Player(format!("file is missing: {}", item.title)));
         }
@@ -259,6 +282,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the entry is missing or cannot load.
     pub fn play_at(&mut self, index: usize) -> Result<()> {
+        self.drain_swap();
         let Some(item) = lock_queue(&self.queue).get(index).cloned() else {
             return Ok(());
         };
@@ -386,6 +410,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the pipeline refuses the transition.
     pub fn stop(&mut self) -> Result<()> {
+        self.drain_swap();
         self.engine.stop()
     }
 
@@ -396,6 +421,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the pipeline refuses the transition.
     pub fn next_track(&mut self) -> Result<()> {
+        self.drain_swap();
         self.advance(false)
     }
 
@@ -408,6 +434,7 @@ impl PlaybackController {
     ///
     /// Returns [`Error::Player`] when the seek or load fails.
     pub fn previous_track(&mut self, position: Duration) -> Result<()> {
+        self.drain_swap();
         let mut position = position;
         loop {
             // Bind the outcome first: the queue guard must drop before the
@@ -587,6 +614,9 @@ impl PlaybackController {
     /// bare end stops), so the returned vec is the complete UI feed: state
     /// changes, errors, duration discovery, and end-of-track markers.
     pub fn poll(&mut self) -> Vec<PlayerEvent> {
+        // Commit confirmed gapless swaps before acting on track ends: the
+        // cursor must already sit on the playing track when EOS advances.
+        self.drain_swap();
         let mut out = std::mem::take(&mut *lock_events(&self.pending));
         // Drain under the lock, then release before advancing: advance takes
         // `&mut self`, which cannot coexist with the held guard.
@@ -1150,41 +1180,154 @@ mod tests {
         // skipping the instant it lands aims the reload straight at that
         // swap — the overlap that deadlocks GStreamer 1.28, which wedged
         // `poll` in most measured runs without the teardown gate.
+        //
+        // The provider only peeks: the cursor still sits on the playing
+        // track while the preload is in flight, so the handoff is detected
+        // through the engine's queued URI. The skip must land exactly one
+        // step past the cursor it found — never two (the old speculative
+        // cursor skipped the preloaded track). Three tracks separate those
+        // outcomes: a natural swap between detection and skip lands back on
+        // `at_skip`, which is the only other valid single advance.
         const SKIPS: u32 = 24;
 
-        within_deadline(Duration::from_secs(60), "skips into fresh preloads", || {
+        within_deadline(Duration::from_secs(90), "skips into fresh preloads", || {
             let mut controller = test_controller(true);
-            controller.enqueue(fixture_item("sine.opus"));
-            controller.enqueue(fixture_item("sine.ogg"));
+            let items = [
+                fixture_item("sine.opus"),
+                fixture_item("sine.ogg"),
+                fixture_item("sine.flac"),
+            ];
+            let uris: Vec<String> = items.iter().map(|item| item.uri.clone()).collect();
+            for item in &items {
+                controller.enqueue(item.clone());
+            }
             controller.set_repeat(RepeatMode::All);
             controller.play().expect("playback starts");
             let mut preloaded = 0_u32;
-            for _ in 0..SKIPS {
+            for round in 0..SKIPS {
                 poll_until(&mut controller, Duration::from_secs(10), |controller| {
                     controller.state() == PlaybackState::Playing
                 });
-                // The provider moves the cursor as it hands the URI over, so
-                // the cursor leaving the playing track marks the handoff.
-                let playing = controller.current_index();
-                controller
-                    .seek(Duration::from_millis(4300))
-                    .expect("seek into the tail");
-                let deadline = std::time::Instant::now() + Duration::from_secs(5);
-                while controller.current_index() == playing {
+                let playing = controller.current_index().expect("cursor placed");
+                let want = (playing + 1) % uris.len();
+                // The pipeline may still be settling from the previous skip
+                // (a flush posted mid-preroll is refused): retry the tail
+                // seek until it lands.
+                let seek_deadline = std::time::Instant::now() + Duration::from_secs(5);
+                loop {
+                    if controller.seek(Duration::from_millis(4300)).is_ok() {
+                        break;
+                    }
                     assert!(
-                        std::time::Instant::now() < deadline,
-                        "tail seek never triggered the preload"
+                        std::time::Instant::now() < seek_deadline,
+                        "round {round}: tail seek never accepted"
                     );
                     let _ = controller.poll();
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                // Tight handoff wait: the cursor commits only when the swap
+                // confirms, which may lag the handoff by milliseconds.
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                while controller.engine.queued_uri().as_deref() != Some(uris[want].as_str()) {
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "round {round}: tail seek never preloaded {want} (state={:?}, queued={:?})",
+                        controller.state(),
+                        controller.engine.queued_uri()
+                    );
+                    let _ = controller.poll();
+                    std::thread::sleep(Duration::from_millis(1));
                 }
                 preloaded += 1;
+                // Settle first: a swap that confirmed during the wait above
+                // already moved the cursor, and the skip advances from there.
+                // (The teardown inside the skip then clears the spent swap
+                // record, so the next poll cannot commit a duplicate move.)
+                let _ = controller.poll();
+                let at_skip = controller.current_index().expect("cursor placed");
                 controller.next_track().expect("skip works");
+                let landed = controller.current_index().expect("cursor placed");
+                let stepped = (at_skip + 1) % uris.len();
+                if landed == stepped {
+                    continue;
+                }
+                // A swap confirmed between the settle poll and the skip: the
+                // skip's own drain committed it first, so exactly one more
+                // advance lands two ahead — proved by the committed index
+                // sitting at history's tail (a double advance would have no
+                // such commit).
+                assert_eq!(
+                    landed,
+                    (at_skip + 2) % uris.len(),
+                    "skip from {at_skip} advanced more than once, landed on {landed}"
+                );
+                assert_eq!(
+                    lock_queue(&controller.queue).history_tail(),
+                    Some((at_skip + 1) % uris.len()),
+                    "the intermediate index must have committed through a confirmed swap"
+                );
             }
             assert_eq!(preloaded, SKIPS, "every skip landed on a fresh preload");
             poll_until(&mut controller, Duration::from_secs(10), |controller| {
                 controller.state() == PlaybackState::Playing
             });
         });
+    }
+
+    #[test]
+    fn failed_preload_advances_exactly_once_with_no_phantom_history() {
+        // The provider declines locally-missing files, so no preload hands
+        // a doomed URI to the pipeline: the tail runs to end-of-track and
+        // the normal advance skips the missing entry exactly once, with an
+        // error event — and history never contains the track that never
+        // audibly played.
+        within_deadline(
+            Duration::from_secs(30),
+            "failed preload single advance",
+            || {
+                let mut controller = test_controller(true);
+                controller.enqueue(fixture_item("sine.opus"));
+                controller.enqueue(QueueItem::new(
+                    "file:///nonexistent-tunex-preload.flac",
+                    "Gone",
+                ));
+                controller.enqueue(fixture_item("sine.ogg"));
+                controller.play().expect("playback starts");
+                poll_until(&mut controller, Duration::from_secs(10), |controller| {
+                    controller.state() == PlaybackState::Playing
+                });
+                controller
+                    .seek(Duration::from_millis(4300))
+                    .expect("seek into the tail");
+                let drained = poll_until(&mut controller, Duration::from_secs(15), |controller| {
+                    controller.current_index() == Some(2)
+                });
+                assert!(
+                    drained
+                        .iter()
+                        .any(|event| matches!(event, PlayerEvent::PlaybackError(_))),
+                    "failed preload surfaces an error, got {drained:?}"
+                );
+                assert_eq!(
+                    controller.current_index(),
+                    Some(2),
+                    "cursor steps past the failure exactly once"
+                );
+                // Stepping back must return to the track that actually
+                // played, not the phantom preload.
+                controller
+                    .previous_track(Duration::ZERO)
+                    .expect("step back works");
+                poll_until(&mut controller, Duration::from_secs(10), |controller| {
+                    controller.state() == PlaybackState::Playing
+                });
+                assert_eq!(
+                    controller.current_index(),
+                    Some(0),
+                    "history skips the never-played preload"
+                );
+            },
+        );
     }
 
     #[test]

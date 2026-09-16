@@ -20,21 +20,35 @@ pub struct ReplayGainTags {
 }
 
 /// Parse a `ReplayGain` text field (`-6.50 dB`, `-6.50dB`, or `-6.50`).
+/// The suffix match is case-insensitive; range clamping happens at
+/// conversion ([`linear_from_db`]), so parsing stays honest about the tag.
 #[must_use]
 pub fn parse_gain_text(raw: &str) -> Option<f64> {
-    let trimmed = raw
+    let trimmed = raw.trim();
+    let without_suffix = ["dB", "db", "DB", "Db"]
+        .iter()
+        .find_map(|suffix| trimmed.strip_suffix(suffix))
+        .unwrap_or(trimmed);
+    without_suffix
         .trim()
-        .trim_end_matches("dB")
-        .trim_end_matches("db")
-        .trim_end_matches("DB")
-        .trim();
-    trimmed.parse().ok().filter(|value: &f64| value.is_finite())
+        .parse()
+        .ok()
+        .filter(|value: &f64| value.is_finite())
 }
 
-/// Convert a gain in dB to a linear volume multiplier.
+/// Loudest gain the pipeline will ever apply, in dB. Real mastering tags
+/// live well inside ±15 dB; anything past ±24 dB is a corrupt header or a
+/// hostile file, and must not reach the fader.
+pub const MAX_REPLAYGAIN_DB: f64 = 24.0;
+
+/// Convert a gain in dB to a linear volume multiplier, clamped to the sane
+/// mastering range: a `+999 dB` tag (or a corrupt header parsing as a large
+/// finite float) must scale down to a loud-but-bounded multiplier, never an
+/// acoustic blast or infinity.
 #[must_use]
 pub fn linear_from_db(db: f64) -> f64 {
-    10_f64.powf(db / 20.0)
+    let clamped = db.clamp(-MAX_REPLAYGAIN_DB, MAX_REPLAYGAIN_DB);
+    10_f64.powf(clamped / 20.0)
 }
 
 /// Linear multiplier for the current mode. Missing tags are unity (`1.0`).
@@ -85,8 +99,28 @@ mod tests {
     fn parse_gain_text_accepts_db_suffix() {
         assert_eq!(parse_gain_text("-6.50 dB"), Some(-6.5));
         assert_eq!(parse_gain_text("3.0dB"), Some(3.0));
+        assert_eq!(parse_gain_text("-6.50 Db"), Some(-6.5));
         assert_eq!(parse_gain_text("0"), Some(0.0));
         assert_eq!(parse_gain_text("not-a-gain"), None);
+    }
+
+    #[test]
+    fn hostile_gains_clamp_to_the_mastering_range() {
+        let loud = linear_from_db(999.0);
+        assert!(
+            loud.is_finite() && loud <= 16.0,
+            "+999 dB must stay bounded, got {loud}"
+        );
+        let quiet = linear_from_db(-999.0);
+        assert!(
+            quiet.is_finite() && quiet >= 0.0,
+            "-999 dB must stay finite, got {quiet}"
+        );
+        let applied = replaygain_multiplier(ReplayGainMode::Track, Some(999.0), None);
+        assert!(
+            (applied - loud).abs() < f64::EPSILON,
+            "the multiplier carries the clamp, got {applied}"
+        );
     }
 
     #[test]

@@ -156,6 +156,13 @@ impl Queue {
         self.current
     }
 
+    /// Most recently left index, for tests pinning cursor-commit behavior
+    /// (a gapless swap commits through here exactly like a manual step).
+    #[cfg(test)]
+    pub(crate) fn history_tail(&self) -> Option<usize> {
+        self.history.back().copied()
+    }
+
     /// Entry by position, for Up Next rows.
     #[must_use]
     pub fn get(&self, index: usize) -> Option<&QueueItem> {
