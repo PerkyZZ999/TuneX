@@ -194,7 +194,7 @@ impl PlaybackController {
     pub fn play_now(&mut self, item: QueueItem) -> Result<()> {
         self.drain_swap();
         if local_path_missing(&item.uri) {
-            return Err(Error::Player(format!("file is missing: {}", item.title)));
+            return Err(Error::missing_track(item.title));
         }
         let at = lock_queue(&self.queue).push_next(item);
         lock_queue(&self.queue).jump(at);
@@ -212,7 +212,7 @@ impl PlaybackController {
     /// Returns [`Error::Player`] when the item is missing or cannot load.
     pub fn restore_paused(&mut self, item: QueueItem, position: Duration) -> Result<()> {
         if local_path_missing(&item.uri) {
-            return Err(Error::Player(format!("file is missing: {}", item.title)));
+            return Err(Error::missing_track(item.title));
         }
         let at = lock_queue(&self.queue).push_back(item);
         lock_queue(&self.queue).jump(at);
@@ -287,7 +287,7 @@ impl PlaybackController {
             return Ok(());
         };
         if local_path_missing(&item.uri) {
-            return Err(Error::Player(format!("file is missing: {}", item.title)));
+            return Err(Error::missing_track(item.title));
         }
         lock_queue(&self.queue).jump(index);
         self.load_and_play(&item.uri)
@@ -447,10 +447,9 @@ impl PlaybackController {
                         return Ok(());
                     };
                     if local_path_missing(&current.uri) {
-                        self.push_pending(PlayerEvent::PlaybackError(format!(
-                            "file is missing: {}",
-                            current.title
-                        )));
+                        self.push_pending(PlayerEvent::PlaybackError(
+                            Error::missing_track(&current.title).to_string(),
+                        ));
                         // Keep walking back from the top (the threshold
                         // applied to the original position only).
                         position = Duration::ZERO;
@@ -801,7 +800,7 @@ impl PlaybackController {
             return PickOutcome::Stopped(self.engine.stop());
         };
         let outcome = if local_path_missing(&item.uri) {
-            Err(Error::Player(format!("file is missing: {}", item.title)))
+            Err(Error::missing_track(item.title))
         } else {
             self.load_and_play(&item.uri)
         };
@@ -1376,10 +1375,7 @@ mod tests {
                 Duration::from_millis(800),
             )
             .expect_err("missing file is explicit");
-        assert!(
-            err.to_string().contains("missing"),
-            "unexpected restore error: {err}"
-        );
+        assert!(err.is_missing_track(), "unexpected restore error: {err}");
         assert_eq!(controller.queue_len(), 0);
     }
 

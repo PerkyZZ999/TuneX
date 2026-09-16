@@ -54,6 +54,23 @@ pub enum Error {
 /// Fallible result using the crate error type.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+impl Error {
+    /// Routine missing-file skip: the file vanished between scan and play.
+    /// Skips, never fatal; surfaced once as an error event. Centralized so
+    /// the wording cannot drift between the five skip sites.
+    #[must_use]
+    pub fn missing_track(title: impl AsRef<str>) -> Self {
+        Error::Player(format!("file is missing: {}", title.as_ref()))
+    }
+
+    /// Whether this is the routine missing-file skip above (as opposed to a
+    /// malfunction). Callers branch on this, never on message text.
+    #[must_use]
+    pub fn is_missing_track(&self) -> bool {
+        matches!(self, Error::Player(message) if message.starts_with("file is missing: "))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,5 +138,14 @@ mod tests {
             Error::Metadata("truncated header".to_owned()).to_string(),
             "metadata error: truncated header"
         );
+    }
+
+    #[test]
+    fn missing_track_error_round_trips_through_its_predicate() {
+        let err = Error::missing_track("Gone");
+        assert_eq!(err.to_string(), "playback error: file is missing: Gone");
+        assert!(err.is_missing_track());
+        assert!(!Error::Player("decode failed".to_owned()).is_missing_track());
+        assert!(!Error::Cancelled.is_missing_track());
     }
 }
