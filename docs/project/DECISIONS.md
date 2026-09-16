@@ -209,3 +209,17 @@
 - **Reopen criteria:** Only via explicit product-loop adding further network scope.
 - **Confirmed by / date:** user, 2026-09-09; product-loop exception documented 2026-09-13 (S13)
 - **Supersedes / superseded by:** —
+
+## D-015 — Explicit bridge props, no ambient QML context (proposed)
+- **Status:** proposed (pending human lock confirm)
+- **Date:** 2026-09-16
+- **Owner:** agent (architecture pass C07)
+- **Context:** Architecture review proposed an ambient context module handing the `QueueModel`/`PlaylistModel`/`LibraryManager` handles to leaves, to end prop drilling.
+- **Decision:** Keep explicit `required property` wiring; no ambient/global context object for bridge handles.
+- **Rationale:** Measured drilling depth is two (App → view → leaf menu/dialog), and every holder consumes its props directly (4–15 use sites each) — there is no pure-forwarding layer to delete. An ambient singleton would trade deterministic, qmllint-typed wiring for global mutable state with init-order risk, for no deletion-test win.
+- **Evidence:** `grep required property` + per-file `root.queue./playlists./library.` use counts, 2026-09-16.
+- **Consequences:** New leaves keep declaring the handles they use; reviewers should re-verify the depth claim if a third forwarding-only layer ever appears.
+- **Alternatives:** Singleton context (rejected: unjustified); context-property injection from Rust (rejected: same global-state shape, plus a new Rust↔QML seam).
+- **Reopen criteria:** A genuinely forwarding-only intermediate layer (uses none of the props it forwards) appears in the tree.
+- **Confirmed by / date:** —
+- **Supersedes / superseded by:** —
