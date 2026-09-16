@@ -446,26 +446,10 @@ Item {
                             }
                         }
 
-                        Row {
-                            visible: root.errorLine !== ""
+                        ErrorLine {
                             width: parent.width
-                            spacing: Theme.spaceSm
-
-                            Icon {
-                                name: "alert"
-                                iconSize: 16
-                                stroke: Theme.error
-                            }
-
-                            Text {
-                                width: parent.width - Theme.spaceMd - Theme.spaceSm
-                                wrapMode: Text.WordWrap
-                                text: root.errorLine
-                                textFormat: Text.PlainText
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontBodySm
-                                color: Theme.error
-                            }
+                            text: root.errorLine
+                            fontPixelSize: Theme.fontBodySm
                         }
 
                         EmptyState {

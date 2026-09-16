@@ -62,15 +62,10 @@ GlassDialog {
         width: parent.width
         spacing: Theme.spaceSm
 
-        Text {
-            visible: root.errorLine !== ""
+        ErrorLine {
             width: parent.width
-            wrapMode: Text.WordWrap
             text: root.errorLine
-            textFormat: Text.PlainText
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
-            color: Theme.error
+            showIcon: false
         }
 
         Field {

@@ -551,19 +551,12 @@ Item {
                     }
                 }
 
-                Text {
+                ErrorLine {
                     id: errorText
 
-                    visible: root.errorLine !== ""
                     width: parent.width
-                    height: visible ? implicitHeight : 0
-                    clip: true
-                    wrapMode: Text.WordWrap
                     text: root.errorLine
-                    textFormat: Text.PlainText
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontCaption
-                    color: Theme.error
+                    showIcon: false
                 }
 
                 Item {

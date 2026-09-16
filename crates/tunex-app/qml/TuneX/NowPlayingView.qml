@@ -598,29 +598,10 @@ Popup {
 
                     // Errors pair the alert glyph with words (never colour
                     // alone).
-                    Row {
+                    ErrorLine {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        visible: root.errorLine !== ""
-                        height: visible ? implicitHeight : 0
-                        spacing: Theme.spaceSm
-
-                        Icon {
-                            anchors.verticalCenter: parent.verticalCenter
-                            name: "alert"
-                            iconSize: 16
-                            stroke: Theme.error
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.min(implicitWidth, column.width - Theme.spaceLg)
-                            wrapMode: Text.WordWrap
-                            text: root.errorLine
-                            textFormat: Text.PlainText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontCaption
-                            color: Theme.error
-                        }
+                        width: Math.min(implicitWidth, column.width - Theme.spaceLg)
+                        text: root.errorLine
                     }
                 }
             }

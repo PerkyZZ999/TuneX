@@ -496,32 +496,11 @@ Rectangle {
 
         // Errors pair the alert glyph with words, like the overlay
         // (never colour alone).
-        Row {
+        ErrorLine {
             id: errorText
 
-            visible: root.errorLine !== ""
             width: parent.width
-            height: visible ? implicitHeight : 0
-            clip: true
-            spacing: Theme.spaceSm
-
-            Icon {
-                anchors.verticalCenter: parent.verticalCenter
-                name: "alert"
-                iconSize: 16
-                stroke: Theme.error
-            }
-
-            Text {
-                width: parent.width - Theme.navIconSize - Theme.spaceSm
-                anchors.verticalCenter: parent.verticalCenter
-                wrapMode: Text.WordWrap
-                text: root.errorLine
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
-                color: Theme.error
-            }
+            text: root.errorLine
         }
 
         Item {
