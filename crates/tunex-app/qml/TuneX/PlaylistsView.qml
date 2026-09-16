@@ -118,6 +118,12 @@ Item {
         id: entrySelection
     }
 
+    PlaylistWriter {
+        id: playlistWriter
+
+        playlists: root.playlists
+    }
+
     // Shared keyboard contract for the sidebar list (Return opens).
     TrackListKeys {
         id: sidebarKeys
@@ -487,11 +493,7 @@ Item {
                             onTracksDropped: ids => {
                                 if (root.playlists.isSmart(sidebarRow.playlistId))
                                     return;
-                                const added = root.playlists.addTracks(sidebarRow.playlistId, ids);
-                                if (added > 0)
-                                    NoticeBus.send(qsTr("%n track(s) added to “%1”", "", added).arg(sidebarRow.name), false);
-                                else
-                                    NoticeBus.send(root.playlists.errorText(), true);
+                                playlistWriter.addTracks(sidebarRow.playlistId, sidebarRow.name, ids);
                             }
                         }
                     }

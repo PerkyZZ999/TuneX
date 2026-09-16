@@ -16,6 +16,13 @@ Rectangle {
     signal cleared
     signal removeRequested
     signal playInPlaceRequested
+
+    PlaylistWriter {
+        id: playlistWriter
+
+        playlists: root.playlists
+    }
+
     visible: root.count > 0
     implicitHeight: flow.implicitHeight + Theme.spaceXs * 2
     height: visible ? Math.max(Theme.targetMin, implicitHeight) : 0
@@ -74,16 +81,7 @@ Rectangle {
             primary: false
             text: qsTr("New playlist")
             onClicked: {
-                const id = root.playlists.createPlaylistAuto();
-                if (id >= 0) {
-                    const added = root.playlists.addTracks(id, root.trackIds);
-                    if (added > 0)
-                        NoticeBus.send(qsTr("%n track(s) added to the new playlist", "", added), false);
-                    else
-                        NoticeBus.send(root.playlists.errorText(), true);
-                } else {
-                    NoticeBus.send(root.playlists.errorText(), true);
-                }
+                playlistWriter.addTracksToNew(root.trackIds);
                 root.cleared();
             }
         }
