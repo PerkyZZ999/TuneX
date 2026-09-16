@@ -104,6 +104,12 @@ Item {
     TrackListSelection {
         id: songsSelection
     }
+    // Cached drag ids of the songs selection: delegates read this string
+    // so one selection change walks the model once, not once per row.
+    readonly property string songsDragIds: {
+        songsSelection.stamp;
+        return songsSelection.mimeIds(songs);
+    }
 
     function submitAll() {
         songs.search(root.query);
@@ -569,7 +575,7 @@ Item {
                         durationMs: model.durationMs
                         missing: model.missing
                         selected: songsSelection.contains(index)
-                        dragTrackIds: selected && songsSelection.mimeIds(songs) !== "" ? songsSelection.mimeIds(songs) : String(model.trackId)
+                        dragTrackIds: selected && root.songsDragIds !== "" ? root.songsDragIds : String(model.trackId)
                         onPlayRequested: (trackId, rowIndex, dangling) => {
                             songsSelection.clear();
                             songsView.currentIndex = index;

@@ -154,8 +154,21 @@ Item {
         id: songsSelection
     }
 
+    // Cached drag ids of the songs selection: delegates read this string
+    // so one selection change walks the model once, not once per row.
+    readonly property string songsDragIds: {
+        songsSelection.stamp;
+        return songsSelection.mimeIds(songs);
+    }
+
     TrackListSelection {
         id: facetSelection
+    }
+
+    // Same cache for the facet tab's selection.
+    readonly property string facetDragIds: {
+        facetSelection.stamp;
+        return facetSelection.mimeIds(songs);
     }
 
     function sortSongs(key, descending) {
@@ -797,7 +810,7 @@ Item {
                 durationMs: model.durationMs
                 missing: model.missing
                 selected: songsSelection.contains(index)
-                dragTrackIds: selected && songsSelection.mimeIds(songs) !== "" ? songsSelection.mimeIds(songs) : String(model.trackId)
+                dragTrackIds: selected && root.songsDragIds !== "" ? root.songsDragIds : String(model.trackId)
                 onPlayRequested: (trackId, rowIndex, dangling) => {
                     songsSelection.clear();
                     songsView.currentIndex = index;
@@ -1211,7 +1224,7 @@ Item {
                     durationMs: model.durationMs
                     missing: model.missing
                     selected: facetSelection.contains(index)
-                    dragTrackIds: selected && facetSelection.mimeIds(songs) !== "" ? facetSelection.mimeIds(songs) : String(model.trackId)
+                    dragTrackIds: selected && root.facetDragIds !== "" ? root.facetDragIds : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
                         facetSelection.clear();
                         facetTracksView.currentIndex = index;

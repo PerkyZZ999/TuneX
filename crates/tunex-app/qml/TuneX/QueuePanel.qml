@@ -42,6 +42,13 @@ Rectangle {
     readonly property string durationText: Format.durationOrDash(root.durationMs)
     readonly property bool hasCurrent: root.titleText !== "" || root.transportState > 0
     readonly property string mimeIds: queueSelection.mimeIds(root.queue)
+    // Cached source rows of the queue selection for internal drags. The
+    // stamp read keeps this subscribed; delegates read the string instead
+    // of re-sorting per row.
+    readonly property string rowsCsv: {
+        queueSelection.stamp;
+        return queueSelection.sorted().join(",");
+    }
 
     signal browseRequested
     signal closeRequested
@@ -51,25 +58,6 @@ Rectangle {
 
     function clearSelection() {
         return queueSelection.clear();
-    }
-
-    function queueMimeIds() {
-        const stamp = queueSelection.stamp;
-        const rows = queueSelection.sorted();
-        const ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const id = root.queue.trackIdAt(rows[i]);
-            if (id >= 0)
-                ids.push(id);
-        }
-        return stamp >= 0 ? ids.join(",") : ids.join(",");
-    }
-
-    // Source rows for an internal drag (comma positions). The target moves
-    // rows, never track ids, so repeated tracks stay independent.
-    function queueRowsCsv() {
-        queueSelection.stamp;
-        return queueSelection.sorted().join(",");
     }
 
     function removeSelected() {
@@ -696,10 +684,7 @@ Rectangle {
                     selected: queueSelection.contains(index)
                     dragTrackIds: selected && root.mimeIds !== "" ? root.mimeIds : (model.trackId >= 0 ? String(model.trackId) : "")
                     dragOrigin: "queue"
-                    dragRows: {
-                        queueSelection.stamp;
-                        return selected ? root.queueRowsCsv() : String(index);
-                    }
+                    dragRows: selected ? root.rowsCsv : String(index)
                     onPlayRequested: (trackId, rowIndex) => {
                         queueSelection.clear();
                         queueList.currentIndex = rowIndex;

@@ -66,7 +66,11 @@ Item {
         return entrySelection.clear();
     }
 
-    function entryMimeIds() {
+    // Cached drag payload of the entry selection: comma ids plus comma
+    // source rows. Delegates read these strings so one selection change
+    // walks entries once instead of once per visible row.
+    readonly property string dragEntryIds: {
+        entrySelection.stamp;
         const rows = entrySelection.sorted();
         const ids = [];
         for (let i = 0; i < rows.length; i++) {
@@ -76,10 +80,7 @@ Item {
         }
         return ids.join(",");
     }
-
-    // Source rows for an internal drag (comma positions). The detail target
-    // moves entry rows, never track ids, so repeats stay independent.
-    function entryRowsCsv() {
+    readonly property string dragEntryRows: {
         entrySelection.stamp;
         return entrySelection.sorted().join(",");
     }
@@ -694,12 +695,9 @@ Item {
                                 entrySelection.stamp;
                                 return entrySelection.contains(index);
                             }
-                            dragTrackIds: selected && root.entryMimeIds() !== "" ? root.entryMimeIds() : String(model.trackId)
+                            dragTrackIds: selected && root.dragEntryIds !== "" ? root.dragEntryIds : String(model.trackId)
                             dragOrigin: "playlist:" + root.playlistId
-                            dragRows: {
-                                entrySelection.stamp;
-                                return selected ? root.entryRowsCsv() : String(index);
-                            }
+                            dragRows: selected ? root.dragEntryRows : String(index)
                             onPlayRequested: (trackId, rowIndex, dangling) => {
                                 entrySelection.clear();
                                 entriesView.currentIndex = rowIndex;

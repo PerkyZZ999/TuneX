@@ -52,6 +52,12 @@ Item {
     TrackListSelection {
         id: trackSelection
     }
+    // Cached drag ids of the track selection: delegates read this string
+    // so one selection change walks the model once, not once per row.
+    readonly property string trackDragIds: {
+        trackSelection.stamp;
+        return trackSelection.mimeIds(songs);
+    }
 
     ArtPump {
         id: artPump
@@ -238,7 +244,7 @@ Item {
                     durationMs: model.durationMs
                     missing: model.missing
                     selected: trackSelection.contains(index)
-                    dragTrackIds: selected && trackSelection.mimeIds(songs) !== "" ? trackSelection.mimeIds(songs) : String(model.trackId)
+                    dragTrackIds: selected && root.trackDragIds !== "" ? root.trackDragIds : String(model.trackId)
                     onPlayRequested: (trackId, rowIndex, dangling) => {
                         trackSelection.clear();
                         if (!dangling && songs.isPlayableAt(index))
