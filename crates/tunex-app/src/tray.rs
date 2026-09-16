@@ -388,8 +388,13 @@ impl StatusNotifier {
 
     #[zbus(property)]
     fn menu(&self) -> OwnedObjectPath {
-        let _ = self;
-        OwnedObjectPath::try_from("/NO_DBUSMENU").expect("SNI sentinel is a valid object path")
+        // Built once: a D-Bus property getter runs on every peer read and
+        // must never panic, so construction failure falls back to the
+        // default path instead of expecting on a literal.
+        static SENTINEL: OnceLock<OwnedObjectPath> = OnceLock::new();
+        SENTINEL
+            .get_or_init(|| OwnedObjectPath::try_from("/NO_DBUSMENU").unwrap_or_default())
+            .clone()
     }
 
     #[zbus(property)]

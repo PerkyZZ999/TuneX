@@ -114,6 +114,29 @@ impl MprisSnapshot {
         signature.position_us = 0;
         MprisSnapshotSignature(signature)
     }
+
+    /// Optimistic status after a toggle command, without lying: flipping to
+    /// `Playing` requires a loaded track, so an empty queue stays honestly
+    /// `Stopped` for the next poll to confirm instead of flashing `Playing`
+    /// with no track.
+    #[must_use]
+    fn toggled_status(&self) -> PlaybackState {
+        match self.status {
+            PlaybackState::Playing => PlaybackState::Paused,
+            _ if self.track.is_some() => PlaybackState::Playing,
+            other => other,
+        }
+    }
+
+    /// Optimistic status after a play command, with the same honesty rule.
+    #[must_use]
+    fn played_status(&self) -> PlaybackState {
+        if self.status == PlaybackState::Stopped && self.track.is_some() {
+            PlaybackState::Playing
+        } else {
+            self.status
+        }
+    }
 }
 
 /// Newtype so the watch loop can compare published state cheaply.
@@ -476,12 +499,8 @@ impl PlayerInterface for MprisPlayer {
 
     async fn play_pause(&self) -> fdo::Result<()> {
         self.hub.send(MprisCommand::PlayPause);
-        self.hub.update(|snapshot| {
-            snapshot.status = match snapshot.status {
-                PlaybackState::Playing => PlaybackState::Paused,
-                _ => PlaybackState::Playing,
-            };
-        });
+        self.hub
+            .update(|snapshot| snapshot.status = snapshot.toggled_status());
         Ok(())
     }
 
@@ -494,11 +513,8 @@ impl PlayerInterface for MprisPlayer {
 
     async fn play(&self) -> fdo::Result<()> {
         self.hub.send(MprisCommand::Play);
-        self.hub.update(|snapshot| {
-            if snapshot.status == PlaybackState::Stopped {
-                snapshot.status = PlaybackState::Playing;
-            }
-        });
+        self.hub
+            .update(|snapshot| snapshot.status = snapshot.played_status());
         Ok(())
     }
 
@@ -780,6 +796,28 @@ mod tests {
     }
 
     #[test]
+    fn optimistic_flips_stay_honest_without_a_track() {
+        let idle = MprisSnapshot::default();
+        assert_eq!(idle.status, PlaybackState::Stopped);
+        assert_eq!(
+            idle.toggled_status(),
+            PlaybackState::Stopped,
+            "toggle on an empty queue must not flash Playing"
+        );
+        assert_eq!(
+            idle.played_status(),
+            PlaybackState::Stopped,
+            "play on an empty queue must not flash Playing"
+        );
+        let mut loaded = MprisSnapshot::default();
+        loaded.track = Some(sample_track());
+        assert_eq!(loaded.toggled_status(), PlaybackState::Playing);
+        assert_eq!(loaded.played_status(), PlaybackState::Playing);
+        loaded.status = PlaybackState::Playing;
+        assert_eq!(loaded.toggled_status(), PlaybackState::Paused);
+    }
+
+    #[test]
     fn metadata_without_track_is_empty() {
         let metadata = metadata_for(None);
         assert!(metadata.get_value("mpris:trackid").is_none());
@@ -855,6 +893,17 @@ mod tests {
         let (hub, _rx) = test_hub();
         let player = MprisPlayer::with_hub(hub);
         assert_eq!(player.status(), PlaybackState::Stopped);
+        // Empty queue first: the optimistic flip must not lie.
+        player.play_pause().await.expect("toggle works");
+        assert_eq!(
+            player.status(),
+            PlaybackState::Stopped,
+            "toggle with no track stays honestly Stopped"
+        );
+        // Then with a loaded track: the full toggle cycle.
+        let mut loaded = MprisSnapshot::default();
+        loaded.track = Some(sample_track());
+        player.hub.publish(loaded);
         player.play_pause().await.expect("toggle works");
         assert_eq!(player.status(), PlaybackState::Playing);
         assert_eq!(

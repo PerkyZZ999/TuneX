@@ -179,11 +179,8 @@ impl LibraryCore {
     }
 
     /// Request a scan: starts immediately when idle, else queues one run.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the OS refuses the worker thread (resource exhaustion) —
-    /// a broken host, not a recoverable scan failure.
+    /// A refused worker thread degrades to a surfaced error (like the search
+    /// worker) instead of aborting the process: the library stays browsable.
     pub fn rescan(&mut self) {
         if lock_state(&self.state).scanning {
             lock_state(&self.state).pending_rescan = true;
@@ -194,7 +191,6 @@ impl LibraryCore {
             return;
         }
         let (scan_tx, scan_rx) = std_mpsc::channel();
-        self.scan_rx = Some(scan_rx);
         lock_state(&self.state).scanning = true;
         lock_state(&self.state).finished = false;
         let db_path = self.db_path.clone();
@@ -203,17 +199,34 @@ impl LibraryCore {
         // Detached by design: the run always ends with a final snapshot (or a
         // dropped sender on panic), which `poll` translates into `finished`.
         // Process teardown mid-run is safe — every upsert commits atomically.
-        std::thread::Builder::new()
+        match std::thread::Builder::new()
             .name("tunex-scan".to_owned())
             .spawn(move || {
                 scan_all_roots(&db_path, &thread_roots, &scan_tx, &state);
-            })
-            .expect("scan thread spawns");
-        tracing::info!(
-            name = "folders.scan_started",
-            roots = roots.len(),
-            "scan run started"
-        );
+            }) {
+            Ok(_) => {
+                self.scan_rx = Some(scan_rx);
+                tracing::info!(
+                    name = "folders.scan_started",
+                    roots = roots.len(),
+                    "scan run started"
+                );
+            }
+            Err(err) => {
+                // Degraded-empty like the search worker: surface the failure
+                // and stay browsable instead of aborting the process.
+                let mut state = lock_state(&self.state);
+                state.scanning = false;
+                state.finished = true;
+                state.last_error = Some(
+                    Error::Io {
+                        path: PathBuf::from("<scan thread>"),
+                        source: err,
+                    }
+                    .to_string(),
+                );
+            }
+        }
     }
 
     /// Whether a scan worker is currently running.

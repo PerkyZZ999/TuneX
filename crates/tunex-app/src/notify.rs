@@ -62,9 +62,30 @@ pub fn should_notify_error(enabled: bool, playback_errors: bool) -> bool {
     enabled && playback_errors
 }
 
+/// Escape markup-significant characters. Track tags are untrusted input
+/// (foreign files, later MusicBrainz-shaped strings) and several
+/// notification servers render a subset of HTML in bodies — unescaped, a
+/// crafted tag could render links or bold-spoof a system message.
+#[must_use]
+fn escape_markup(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 /// Queue a toast for delivery on a detached thread. Returns immediately;
 /// every failure below (no bus, no server, rejected message) is a debug log.
 pub fn post(summary: String, body: String) {
+    let summary = escape_markup(&summary);
+    let body = escape_markup(&body);
     if summary.is_empty() && body.is_empty() {
         return;
     }
@@ -155,6 +176,15 @@ mod tests {
         assert_eq!(track_body(Some("Nova Rae"), None), "Nova Rae");
         assert_eq!(track_body(None, Some("Night Tapes")), "Night Tapes");
         assert_eq!(track_body(None, None), "");
+    }
+
+    #[test]
+    fn markup_in_tags_arrives_inert() {
+        assert_eq!(
+            escape_markup("<a href=\"http://evil\">Free Music</a> & <b>New!</b>"),
+            "&lt;a href=&quot;http://evil&quot;&gt;Free Music&lt;/a&gt; &amp; &lt;b&gt;New!&lt;/b&gt;"
+        );
+        assert_eq!(escape_markup("plain title"), "plain title");
     }
 
     #[test]
