@@ -15,7 +15,7 @@ use super::models::qobject;
 
 use core::pin::Pin;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, mpsc as std_mpsc};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cxx_qt::CxxQtType;
@@ -28,8 +28,12 @@ use crate::mpris::{
     take_inbox, unmap_loop,
 };
 use crate::playback::queue_item_from_row;
+use crate::worker::Worker;
 use tunex_core::{ReplayGainMode, VisualizerMode, matching_preset, preset_bands};
 use tunex_player::{PlaybackController, list_audio_outputs, uri_to_path};
+
+/// Lyrics resolver worker: uri plus path in, settled uri plus lyrics out.
+type LyricsWorker = Worker<(String, PathBuf), (String, tunex_library::Lyrics)>;
 
 /// How often the same-track position is flushed to disk.
 /// Frequent enough that a crash loses at most a couple of seconds; rare
@@ -124,9 +128,9 @@ pub struct QueueModelRust {
     lyrics_uri: String,
     lyrics_plain: String,
     lyrics_lines: Vec<(i32, String)>,
-    /// Background lyrics resolver (sidecar read + LRC parse off the Qt
-    /// thread, ArtCore-shaped: request, drain, token dedupe).
-    lyrics_worker: LyricsWorker,
+    /// Background lyrics resolver (shared [`Worker`] shape): request,
+    /// drain, respawn on death. `None` until the first lyrics lookup.
+    lyrics_worker: Option<LyricsWorker>,
     /// True while the `TuneX` window is focused (QML `Window.active`).
     window_active: bool,
 }
@@ -152,85 +156,19 @@ impl Default for QueueModelRust {
             lyrics_uri: String::new(),
             lyrics_plain: String::new(),
             lyrics_lines: Vec::new(),
-            lyrics_worker: LyricsWorker::default(),
+            lyrics_worker: None,
             window_active: true,
         }
     }
 }
 
-/// Background lyrics resolver (ArtCore-shaped): one worker thread reads and
-/// parses off the Qt thread; the poll drains settled answers. Dropping
-/// releases the request channel and joins the thread.
-#[derive(Debug, Default)]
-struct LyricsWorker {
-    requests: Option<std_mpsc::Sender<(String, PathBuf)>>,
-    answers: Option<std_mpsc::Receiver<(String, tunex_library::Lyrics)>>,
-    thread: Option<std::thread::JoinHandle<()>>,
+/// Start the lyrics resolver thread (shared [`Worker`] shape; see `worker`).
+fn spawn_lyrics_worker() -> Option<LyricsWorker> {
+    crate::worker::Worker::spawn("tunex-lyrics", |(uri, path): (String, PathBuf)| {
+        let lyrics = tunex_library::load_lyrics(&path);
+        (uri, lyrics)
+    })
 }
-
-impl Drop for LyricsWorker {
-    fn drop(&mut self) {
-        drop(self.requests.take());
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
-}
-
-impl LyricsWorker {
-    /// Ask for the lyrics behind `uri`, reading them from `path`. Starts the
-    /// worker on first use. Returns false when the resolver is dead (the
-    /// caller retries on the next poll instead of going silent).
-    fn request(&mut self, uri: String, path: PathBuf) -> bool {
-        if self.thread.is_none() {
-            let (request_tx, request_rx) = std_mpsc::channel::<(String, PathBuf)>();
-            let (answer_tx, answer_rx) = std_mpsc::channel::<(String, tunex_library::Lyrics)>();
-            match std::thread::Builder::new()
-                .name("tunex-lyrics".to_owned())
-                .spawn(move || {
-                    while let Ok((uri, path)) = request_rx.recv() {
-                        let lyrics = tunex_library::load_lyrics(&path);
-                        if answer_tx.send((uri, lyrics)).is_err() {
-                            break;
-                        }
-                    }
-                }) {
-                Ok(thread) => {
-                    self.requests = Some(request_tx);
-                    self.answers = Some(answer_rx);
-                    self.thread = Some(thread);
-                }
-                Err(_) => return false,
-            }
-        }
-        match self.requests.as_ref() {
-            Some(requests) => {
-                if requests.send((uri, path)).is_ok() {
-                    true
-                } else {
-                    // Worker died: release the handle so the next request
-                    // starts a fresh one instead of failing forever.
-                    self.requests = None;
-                    self.thread = None;
-                    false
-                }
-            }
-            None => false,
-        }
-    }
-
-    /// Drain settled answers without blocking.
-    fn drain(&mut self) -> Vec<(String, tunex_library::Lyrics)> {
-        let mut settled = Vec::new();
-        if let Some(answers) = self.answers.as_ref() {
-            while let Ok(answer) = answers.try_recv() {
-                settled.push(answer);
-            }
-        }
-        settled
-    }
-}
-
 impl QueueModelRust {
     /// Drop all rows.
     fn drop_rows(&mut self) {
@@ -401,7 +339,12 @@ impl QueueModelRust {
     /// lands after another track change is dropped, and a definite
     /// no-lyrics answer is cached exactly like cover art.
     fn maybe_load_lyrics(&mut self) {
-        for (uri, lyrics) in self.lyrics_worker.drain() {
+        let settled = self
+            .lyrics_worker
+            .as_mut()
+            .map(|worker| worker.drain())
+            .unwrap_or_default();
+        for (uri, lyrics) in settled {
             if uri == self.lyrics_uri {
                 self.lyrics_plain = lyrics.plain;
                 self.lyrics_lines = lyrics
@@ -433,8 +376,17 @@ impl QueueModelRust {
         let Some(path) = uri_to_path(&uri) else {
             return;
         };
-        if !self.lyrics_worker.request(uri, path) {
-            // Resolver died; retry on the next poll instead of going silent.
+        if self.lyrics_worker.is_none() {
+            self.lyrics_worker = spawn_lyrics_worker();
+        }
+        let alive = self
+            .lyrics_worker
+            .as_ref()
+            .is_some_and(|worker| worker.request((uri, path)));
+        if !alive {
+            // Resolver died or refused to spawn; drop it so the next poll
+            // starts fresh instead of going silent.
+            self.lyrics_worker = None;
             self.lyrics_uri.clear();
         }
     }
@@ -2951,7 +2903,9 @@ fn us_to_ms_saturating(micros: i64) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::qobject::QueueRoles;
-    use super::{LyricsWorker, QueueModelRust, QueueRow, RowChange, parse_id_list, row_change};
+    use super::{
+        QueueModelRust, QueueRow, RowChange, parse_id_list, row_change, spawn_lyrics_worker,
+    };
     use crate::bridge::test_support::seeded_index;
     use cxx_qt_lib::{QString, QVariant};
 
@@ -2977,9 +2931,9 @@ mod tests {
         let audio = dir.join("track.flac");
         std::fs::write(&audio, []).expect("setup works");
         std::fs::write(dir.join("track.lrc"), "[00:01.00]Hello\n").expect("setup works");
-        let mut worker = LyricsWorker::default();
+        let worker = spawn_lyrics_worker().expect("worker spawns");
         assert!(
-            worker.request("file:///track.flac".to_owned(), audio.clone()),
+            worker.request(("file:///track.flac".to_owned(), audio.clone())),
             "first request starts the worker"
         );
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);

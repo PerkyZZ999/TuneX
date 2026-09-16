@@ -34,6 +34,10 @@ pub mod search;
 /// `StatusNotifierItem` tray presence (Plasma/Wayland).
 pub mod tray;
 
+/// One background worker thread behind request/answer channels (art covers,
+/// lyrics; search keeps its stateful debounce loop — see `worker` docs).
+pub mod worker;
+
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QUrl};
 
 // Anchor the cxx-qt generated initializers into every final link.

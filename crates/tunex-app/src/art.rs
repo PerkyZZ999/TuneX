@@ -15,9 +15,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc as std_mpsc;
 
 use tunex_library::{CachedArt, default_cache_dir, read_metadata, resolve_track_art};
+
+use crate::worker::Worker;
+
+/// Cover resolver worker: token in, settled token plus optional art out.
+type ArtWorker = Worker<(i64, PathBuf), (i64, Option<CachedArt>)>;
 
 /// Lazy artwork lookups behind a poll interface.
 #[derive(Debug)]
@@ -28,28 +32,6 @@ pub struct ArtCore {
     /// Tokens with a request in flight.
     asked: HashSet<i64>,
     worker: Option<ArtWorker>,
-}
-
-/// Owns the resolver thread: dropping releases its request channel and joins
-/// it, so no worker outlives the handle.
-#[derive(Debug)]
-struct ArtWorker {
-    /// Released on drop so a blocked `recv` wakes up.
-    requests: Option<std_mpsc::Sender<(i64, PathBuf)>>,
-    /// Resolved artwork, drained by [`ArtCore::poll`].
-    answers: std_mpsc::Receiver<(i64, Option<CachedArt>)>,
-    /// Joined on drop for a clean shutdown.
-    thread: Option<std::thread::JoinHandle<()>>,
-}
-
-impl Drop for ArtWorker {
-    fn drop(&mut self) {
-        // Release the request sender first so a blocked `recv` wakes up.
-        drop(self.requests.take());
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
 }
 
 impl Default for ArtCore {
@@ -85,14 +67,19 @@ impl ArtCore {
         if self.resolved.contains_key(&token) || !self.asked.insert(token) {
             return;
         }
-        let worker = self
-            .worker
-            .get_or_insert_with(|| spawn(self.cache_dir.clone()));
-        let Some(requests) = worker.requests.as_ref() else {
-            return;
+        if self.worker.is_none() {
+            let cache_dir = self.cache_dir.clone();
+            self.worker = Worker::spawn("tunex-art", move |(token, source): (i64, PathBuf)| {
+                (token, resolve_one(&cache_dir, &source))
+            });
+        }
+        let dead = match self.worker.as_ref() {
+            Some(worker) => !worker.request((token, source.to_path_buf())),
+            None => true,
         };
-        if requests.send((token, source.to_path_buf())).is_err() {
-            // The worker died; drop it so the next request starts a new one.
+        if dead {
+            // The worker died (or refused to spawn); drop it so the next
+            // request starts a new one.
             self.worker = None;
             self.asked.remove(&token);
         }
@@ -103,11 +90,11 @@ impl ArtCore {
     /// Callers turn those into row updates; the vec is empty on a quiet poll,
     /// which is the common case.
     pub fn poll(&mut self) -> Vec<i64> {
-        let Some(worker) = self.worker.as_ref() else {
+        let Some(worker) = self.worker.as_mut() else {
             return Vec::new();
         };
         let mut settled = Vec::new();
-        while let Ok((token, art)) = worker.answers.try_recv() {
+        for (token, art) in worker.drain() {
             self.asked.remove(&token);
             self.resolved.insert(token, art);
             settled.push(token);
@@ -126,35 +113,6 @@ impl ArtCore {
     #[must_use]
     pub fn pending(&self) -> bool {
         !self.asked.is_empty()
-    }
-}
-
-/// Start the resolver thread over `cache_dir`.
-fn spawn(cache_dir: PathBuf) -> ArtWorker {
-    let (request_tx, request_rx) = std_mpsc::channel::<(i64, PathBuf)>();
-    let (answer_tx, answer_rx) = std_mpsc::channel::<(i64, Option<CachedArt>)>();
-    let thread = std::thread::Builder::new()
-        .name("tunex-art".to_owned())
-        .spawn(move || resolve_loop(&cache_dir, &request_rx, &answer_tx))
-        .ok();
-    ArtWorker {
-        requests: Some(request_tx),
-        answers: answer_rx,
-        thread,
-    }
-}
-
-/// Resolve requests until the sender is dropped.
-fn resolve_loop(
-    cache_dir: &Path,
-    requests: &std_mpsc::Receiver<(i64, PathBuf)>,
-    answers: &std_mpsc::Sender<(i64, Option<CachedArt>)>,
-) {
-    while let Ok((token, source)) = requests.recv() {
-        let art = resolve_one(cache_dir, &source);
-        if answers.send((token, art)).is_err() {
-            return;
-        }
     }
 }
 
