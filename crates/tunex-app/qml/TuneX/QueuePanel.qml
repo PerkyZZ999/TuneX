@@ -705,16 +705,13 @@ Rectangle {
                 anchors.bottom: parent.bottom
                 z: 2
                 targetView: queueList
+                dropSelection: queueSelection
                 showHint: false
                 onTracksDroppedAt: (ids, index, origin, rows) => {
                     if (DragPayload.isQueueMove(origin, rows))
                         root.queue.moveItems(rows, index);
                     else
                         root.queue.enqueueTrackIdsAt(ids, index);
-                    queueSelection.clear();
-                    // Leave the keyboard cursor where the rows landed.
-                    if (queueList.count > 0)
-                        queueList.currentIndex = Math.max(0, Math.min(index, queueList.count - 1));
                 }
             }
         }

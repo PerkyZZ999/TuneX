@@ -737,6 +737,7 @@ Item {
                         z: 2
                         enabled: root.playlistId >= 0 && !root.playlistIsSmart
                         targetView: entriesView
+                        dropSelection: entrySelection
                         showHint: false
                         onTracksDroppedAt: (ids, index, origin, rows) => {
                             if (root.playlistId < 0 || root.playlistIsSmart)
@@ -746,10 +747,6 @@ Item {
                             else
                                 entries.insertTracks(ids, index);
                             root.errorLine = entries.errorText();
-                            entrySelection.clear();
-                            // Leave the keyboard cursor where the rows landed.
-                            if (entriesView.count > 0)
-                                entriesView.currentIndex = Math.max(0, Math.min(index, entriesView.count - 1));
                         }
                     }
                 }

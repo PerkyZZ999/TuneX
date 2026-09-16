@@ -15,13 +15,18 @@ import TuneX
 // (functional scrolling, not motion chrome — it stays on with
 // reduce-motion). `tracksDroppedAt` carries the index plus the drag
 // origin/rows, so an internal drag moves rows while an external one
-// inserts — never a silent duplicate append.
+// inserts — never a silent duplicate append. After a positional drop the
+// area also settles the landing: it clears `dropSelection` and leaves the
+// target view's cursor where the rows landed, so hosts only perform their
+// model mutation (plus error surfacing).
 DropArea {
     id: root
 
     property string dropHint: qsTr("Drop to add")
     property bool showHint: true
     property ListView targetView
+    // Selection cleared on a positional landing (none in plain mode).
+    property TrackListSelection dropSelection
     // Insertion index while a drag hovers (0..count), -1 when idle.
     property int dropIndex: -1
     // Tracks under the cursor, for the line caption.
@@ -63,13 +68,26 @@ DropArea {
             if (root.positional) {
                 const origin = DragPayload.originOf(drop);
                 const rows = DragPayload.rowsOf(drop);
-                root.tracksDroppedAt(ids, Math.max(0, root.dropIndex), origin, rows);
+                const at = Math.max(0, root.dropIndex);
+                root.tracksDroppedAt(ids, at, origin, rows);
+                root.settleDrop(at);
             } else {
                 root.tracksDropped(ids);
             }
             drop.acceptProposedAction();
         }
         root.clearHover();
+    }
+
+    // Leave the landing consistent: drop the dragged selection and put the
+    // keyboard cursor where the rows landed (clamped to the mutated list,
+    // which the host just updated synchronously above).
+    function settleDrop(index) {
+        if (root.dropSelection)
+            root.dropSelection.clear();
+        const view = root.targetView;
+        if (view && view.count > 0)
+            view.currentIndex = Math.max(0, Math.min(index, view.count - 1));
     }
 
     function updateHover(drag) {
