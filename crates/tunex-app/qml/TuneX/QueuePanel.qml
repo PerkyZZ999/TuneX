@@ -62,6 +62,7 @@ Rectangle {
 
     function removeSelected() {
         queueSelection.removeSelected(root.queue);
+        root.clampCursor();
     }
 
     TrackListSelection {
@@ -150,6 +151,27 @@ Rectangle {
         target: root.queue
     }
 
+    // A replaced queue (Play-all from any view lands here through
+    // clearQueue) invalidates view-local selection indices, which would
+    // otherwise keep highlighting the wrong rows.
+    Connections {
+        target: root.queue
+
+        function onQueueReplaced() {
+            queueSelection.clear();
+            root.clampCursor();
+        }
+    }
+
+    // Keep the keyboard cursor inside the list after removals; -1 when the
+    // list is empty. Valid and absent cursors are left untouched.
+    function clampCursor() {
+        if (queueList.count === 0)
+            queueList.currentIndex = -1;
+        else if (queueList.currentIndex >= queueList.count)
+            queueList.currentIndex = queueList.count - 1;
+    }
+
     GlassMenu {
         id: rowMenu
 
@@ -172,7 +194,10 @@ Rectangle {
 
         GlassMenuItem {
             text: qsTr("Remove from Now Playing")
-            onTriggered: root.queue.removeAt(rowMenu.rowIndex)
+            onTriggered: {
+                root.queue.removeAt(rowMenu.rowIndex);
+                root.clampCursor();
+            }
         }
     }
 
@@ -611,8 +636,10 @@ Rectangle {
                         root.removeSelected();
                         return;
                     }
-                    if (queueList.currentIndex >= 0 && queueList.currentIndex < queueList.count)
+                    if (queueList.currentIndex >= 0 && queueList.currentIndex < queueList.count) {
                         root.queue.removeAt(queueList.currentIndex);
+                        root.clampCursor();
+                    }
                 }
                 Keys.onPressed: event => {
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {

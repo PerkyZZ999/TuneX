@@ -669,6 +669,15 @@ pub mod qobject {
         type QueueModel = super::QueueModelRust;
     }
 
+    unsafe extern "RustQt" {
+        /// The whole queue was replaced (clear + refill, e.g. Play-all from
+        /// any view). View-local selection indices no longer address the
+        /// same rows, so views reset selection and cursor on this.
+        #[qsignal]
+        #[cxx_name = "queueReplaced"]
+        fn queue_replaced(self: Pin<&mut QueueModel>);
+    }
+
     extern "RustQt" {
         /// # Safety
         ///

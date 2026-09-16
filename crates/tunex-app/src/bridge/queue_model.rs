@@ -2266,6 +2266,7 @@ impl qobject::QueueModel {
     pub fn clear_queue(mut self: Pin<&mut Self>) {
         self.as_mut().rust_mut().do_clear_queue();
         self.as_mut().apply_rows();
+        self.as_mut().queue_replaced();
     }
 
     /// Drop all rows without touching the controller (view-only reset; rows

@@ -335,18 +335,24 @@ Item {
         root.albumId = -1;
         root.albumTitle = "";
         songs.refreshSongs();
+        songsSelection.clear();
+        facetSelection.clear();
     }
 
     function drillIntoFolder(path, name) {
         root.folderPath = path;
         root.folderTitle = name;
         songs.refreshFolder(path);
+        songsSelection.clear();
+        facetSelection.clear();
     }
 
     function leaveFolderDrill() {
         root.folderPath = "";
         root.folderTitle = "";
         songs.refreshSongs();
+        songsSelection.clear();
+        facetSelection.clear();
         root.tab = "folders";
     }
 
@@ -354,6 +360,8 @@ Item {
         root.folderPath = "";
         root.folderTitle = "";
         songs.refreshSongs();
+        songsSelection.clear();
+        facetSelection.clear();
     }
 
     function refresh() {
@@ -363,6 +371,9 @@ Item {
         folders.refresh();
         genres.refreshGenres();
         composers.refreshComposers();
+        // Fresh rows invalidate both selections (shared songs model).
+        songsSelection.clear();
+        facetSelection.clear();
     }
 
     onTabChanged: {
@@ -372,8 +383,11 @@ Item {
         if (root.tab !== "folders" && root.folderDrilled)
             root.leaveFolderDrillKeepTab();
 
-        if (root.tab === "songs" && !root.albumDrilled && !root.folderDrilled)
+        if (root.tab === "songs" && !root.albumDrilled && !root.folderDrilled) {
             songs.refreshSongs();
+            songsSelection.clear();
+            facetSelection.clear();
+        }
 
         if (root.tab === "songs" || root.tab === "albums" || root.tab === "artists" || root.tab === "folders" || root.tab === "genres" || root.tab === "composers")
             root.library.setLibraryTab(root.tab);

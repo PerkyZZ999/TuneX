@@ -66,6 +66,15 @@ Item {
         return entrySelection.clear();
     }
 
+    // Keep the keyboard cursor inside the entry list after removals; -1
+    // when the list is empty. Valid and absent cursors are left untouched.
+    function clampCursor() {
+        if (entriesView.count === 0)
+            entriesView.currentIndex = -1;
+        else if (entriesView.currentIndex >= entriesView.count)
+            entriesView.currentIndex = entriesView.count - 1;
+    }
+
     // Cached drag payload of the entry selection: comma ids plus comma
     // source rows. Delegates read these strings so one selection change
     // walks entries once instead of once per visible row.
@@ -105,6 +114,7 @@ Item {
         playlists.reloadIndex();
         playlists.refresh();
         entries.reloadIndex();
+        entrySelection.clear();
         root.syncSidebarCursor();
         if (root.playlistId >= 0) {
             entries.refreshPlaylist(root.playlistId);
@@ -187,6 +197,7 @@ Item {
                 root.playlistName = "";
                 root.playlistIsSmart = false;
                 entries.clear();
+                entrySelection.clear();
             }
         }
 
@@ -269,6 +280,7 @@ Item {
                 entries.removeAt(entryMenu.rowIndex);
                 playlists.refresh();
                 root.errorLine = entries.errorText();
+                root.clampCursor();
             }
         }
     }
@@ -602,6 +614,7 @@ Item {
                             onRemoveRequested: {
                                 entrySelection.removeSelected(entries);
                                 playlists.refresh();
+                                root.clampCursor();
                             }
                         }
                         Accessible.role: Accessible.List
@@ -640,6 +653,7 @@ Item {
                                 entries.removeAt(entriesView.currentIndex);
                                 playlists.refresh();
                                 root.errorLine = entries.errorText();
+                                root.clampCursor();
                             }
                         }
                         Keys.onUpPressed: event => {
