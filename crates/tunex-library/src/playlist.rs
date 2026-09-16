@@ -455,14 +455,90 @@ fn require_track(db: &Connection, id: i64) -> Result<()> {
 }
 
 /// Stored smart-playlist rule (L-004). Evaluated in SQL on open/play.
+/// `kind` stays a string on disk (no migration); parse it through
+/// [`SmartRuleKind`] before branching so new kinds fail closed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SmartRule {
-    /// `added_days` / `never_played` / `artist` / `genre` / `composer`.
+    /// One of [`SmartRuleKind::as_str`].
     pub kind: String,
     /// Days as digits, or an exact artist/genre/composer name.
     pub value: String,
     /// Drop missing files from the generated list.
     pub exclude_missing: bool,
+}
+
+/// Closed smart-playlist rule vocabulary. Matching on this instead of raw
+/// strings makes a new kind a compiler error at every branch site.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SmartRuleKind {
+    /// Tracks indexed in the last N days (`value` is digits).
+    AddedDays,
+    /// Tracks with no play history.
+    NeverPlayed,
+    /// Tracks by one exact artist name.
+    Artist,
+    /// Tracks in one exact genre.
+    Genre,
+    /// Tracks by one exact composer.
+    Composer,
+}
+
+impl SmartRuleKind {
+    /// Stored spelling (also the QML dialog's chip model values).
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SmartRuleKind::AddedDays => "added_days",
+            SmartRuleKind::NeverPlayed => "never_played",
+            SmartRuleKind::Artist => "artist",
+            SmartRuleKind::Genre => "genre",
+            SmartRuleKind::Composer => "composer",
+        }
+    }
+
+    /// Parse a stored or submitted kind. Unknown spellings (including future
+    /// ones) fail closed with the same error evaluation reports.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Database`] for unknown kinds.
+    pub fn parse(kind: &str) -> Result<Self, Error> {
+        match kind {
+            "added_days" => Ok(SmartRuleKind::AddedDays),
+            "never_played" => Ok(SmartRuleKind::NeverPlayed),
+            "artist" => Ok(SmartRuleKind::Artist),
+            "genre" => Ok(SmartRuleKind::Genre),
+            "composer" => Ok(SmartRuleKind::Composer),
+            other => Err(Error::Database(format!(
+                "unknown smart-playlist rule {other}"
+            ))),
+        }
+    }
+
+    /// Whether this kind needs a value (`never_played` stands alone).
+    #[must_use]
+    pub fn needs_value(self) -> bool {
+        !matches!(self, SmartRuleKind::NeverPlayed)
+    }
+
+    /// Validate a submitted value: presence plus digits for `added_days`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Database`] for missing or malformed values.
+    pub fn validate_value(self, value: &str) -> Result<(), Error> {
+        if self.needs_value() && value.trim().is_empty() {
+            return Err(Error::Database(
+                "smart-playlist rule needs a value".to_owned(),
+            ));
+        }
+        if self == SmartRuleKind::AddedDays && value.trim().parse::<u32>().is_err() {
+            return Err(Error::Database(
+                "added_days needs a non-negative day count".to_owned(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Create a smart playlist and evaluate it once.
@@ -471,24 +547,8 @@ pub struct SmartRule {
 ///
 /// Returns [`Error::Database`] when the name is blank/taken or evaluation fails.
 pub fn create_smart_playlist(db: &mut Connection, name: &str, rule: &SmartRule) -> Result<i64> {
-    match rule.kind.as_str() {
-        "added_days" | "artist" | "genre" | "composer" if rule.value.trim().is_empty() => {
-            return Err(Error::Database(
-                "smart-playlist rule needs a value".to_owned(),
-            ));
-        }
-        "added_days" if rule.value.trim().parse::<u32>().is_err() => {
-            return Err(Error::Database(
-                "added_days needs a non-negative day count".to_owned(),
-            ));
-        }
-        "added_days" | "never_played" | "artist" | "genre" | "composer" => {}
-        other => {
-            return Err(Error::Database(format!(
-                "unknown smart-playlist rule {other}"
-            )));
-        }
-    }
+    let kind = SmartRuleKind::parse(&rule.kind)?;
+    kind.validate_value(&rule.value)?;
     let id = create_playlist(db, name)?;
     db.execute(
         "INSERT INTO smart_playlists(playlist_id, rule_kind, rule_value, exclude_missing)
@@ -532,13 +592,10 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
     let Some(rule) = smart_rule(db, playlist_id)? else {
         return Ok(());
     };
-    if rule.kind == "added_days" && rule.value.trim().parse::<u32>().is_err() {
-        // Stored rules predate creation-time validation: refuse loudly
-        // instead of coercing to 0 days back and matching every track.
-        return Err(Error::Database(
-            "added_days needs a non-negative day count".to_owned(),
-        ));
-    }
+    // Stored rules predate creation-time validation: parse and re-validate
+    // so legacy rows refuse loudly instead of matching everything.
+    let kind = SmartRuleKind::parse(&rule.kind)?;
+    kind.validate_value(&rule.value)?;
     // One transaction for clear + refill + renumber: a crash mid-rebuild
     // must not leave a half-filled list. ORDER BY pins entry order so
     // rebuilds are stable run to run.
@@ -554,8 +611,8 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
     } else {
         ""
     };
-    let sql = match rule.kind.as_str() {
-        "added_days" => format!(
+    let sql = match kind {
+        SmartRuleKind::AddedDays => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
@@ -563,7 +620,7 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
                AND tracks.indexed_at > 0{missing}
              ORDER BY tracks.id"
         ),
-        "never_played" => format!(
+        SmartRuleKind::NeverPlayed => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
@@ -571,7 +628,7 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
              WHERE play_history.id IS NULL{missing}
              ORDER BY tracks.id"
         ),
-        "artist" => format!(
+        SmartRuleKind::Artist => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
@@ -579,7 +636,7 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
              WHERE artists.name = ?2{missing}
              ORDER BY tracks.id"
         ),
-        "genre" => format!(
+        SmartRuleKind::Genre => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
@@ -587,20 +644,15 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
              WHERE genres.name = ?2{missing}
              ORDER BY tracks.id"
         ),
-        "composer" => format!(
+        SmartRuleKind::Composer => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
              WHERE tracks.composer = ?2{missing}
              ORDER BY tracks.id"
         ),
-        other => {
-            return Err(Error::Database(format!(
-                "unknown smart-playlist rule {other}"
-            )));
-        }
     };
-    if rule.kind == "never_played" {
+    if kind == SmartRuleKind::NeverPlayed {
         transaction
             .execute(&sql, rusqlite::params![playlist_id])
             .map_err(|err| db_error(&err))?;
@@ -921,6 +973,25 @@ mod tests {
         )
         .expect_err("non-numeric days must fail");
         assert!(matches!(err, Error::Database(_)));
+    }
+
+    #[test]
+    fn smart_rule_kind_round_trips_and_validates() {
+        for (spelling, needs_value) in [
+            ("added_days", true),
+            ("never_played", false),
+            ("artist", true),
+            ("genre", true),
+            ("composer", true),
+        ] {
+            let kind = SmartRuleKind::parse(spelling).expect("known kind parses");
+            assert_eq!(kind.as_str(), spelling);
+            assert_eq!(kind.needs_value(), needs_value);
+        }
+        assert!(SmartRuleKind::parse("shuffle").is_err());
+        assert!(SmartRuleKind::AddedDays.validate_value("").is_err());
+        assert!(SmartRuleKind::AddedDays.validate_value("30").is_ok());
+        assert!(SmartRuleKind::NeverPlayed.validate_value("").is_ok());
     }
 
     #[test]
