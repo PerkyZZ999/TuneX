@@ -102,6 +102,20 @@ Item {
     TrackListSelection {
         id: songsSelection
     }
+
+    // Shared keyboard contract for the songs list (Return/Menu/Ctrl+A/
+    // Shift-arrows); Tab-cycling, j/k, and plain arrows stay below.
+    TrackListKeys {
+        id: songsKeys
+
+        view: songsView
+        selection: songsSelection
+        onActivateRequested: row => {
+            if (songs.isPlayableAt(row))
+                root.queue.playTrackNow(songs.trackIdAt(row));
+        }
+        onMenuRequested: row => trackMenu.openFor(row, songsView, songsSelection, songs)
+    }
     // Cached drag ids of the songs selection: delegates read this string
     // so one selection change walks the model once, not once per row.
     readonly property string songsDragIds: {
@@ -503,20 +517,11 @@ Item {
                     Accessible.role: Accessible.List
                     Accessible.selectable: true
                     Accessible.name: root.drilled ? root.albumTitle : qsTr("Song results")
-                    Keys.onReturnPressed: {
-                        const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                        if (at < songsView.count && songs.isPlayableAt(at))
-                            root.queue.playTrackNow(songs.trackIdAt(at));
-                    }
-                    Keys.onEnterPressed: {
-                        const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                        if (at < songsView.count && songs.isPlayableAt(at))
-                            root.queue.playTrackNow(songs.trackIdAt(at));
-                    }
+                    Keys.onReturnPressed: songsKeys.activate()
+                    Keys.onEnterPressed: songsKeys.activate()
                     Keys.onPressed: event => {
                         if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
-                            songsSelection.selectAll(songsView.count);
-                            event.accepted = true;
+                            event.accepted = songsKeys.selectAll();
                             return;
                         }
                         if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
@@ -536,25 +541,16 @@ Item {
                             return;
                         }
                         if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                            trackMenu.openFor(songsView.currentIndex >= 0 ? songsView.currentIndex : 0, songsView, songsSelection, songs);
-                            event.accepted = true;
+                            event.accepted = songsKeys.menu();
                         }
                     }
                     Keys.onUpPressed: event => {
-                        if (event.modifiers & Qt.ShiftModifier) {
-                            const next = Math.max(0, songsView.currentIndex - 1);
-                            songsView.currentIndex = next;
-                            songsSelection.setRange(next);
-                            event.accepted = true;
-                        }
+                        if (event.modifiers & Qt.ShiftModifier)
+                            event.accepted = songsKeys.step(-1, true);
                     }
                     Keys.onDownPressed: event => {
-                        if (event.modifiers & Qt.ShiftModifier) {
-                            const next = Math.min(songsView.count - 1, songsView.currentIndex + 1);
-                            songsView.currentIndex = next;
-                            songsSelection.setRange(next);
-                            event.accepted = true;
-                        }
+                        if (event.modifiers & Qt.ShiftModifier)
+                            event.accepted = songsKeys.step(1, true);
                     }
 
                     highlight: Rectangle {

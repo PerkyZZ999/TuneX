@@ -50,6 +50,16 @@ Item {
     TrackListSelection {
         id: trackSelection
     }
+
+    // Shared keyboard contract for the tracks list (Menu/Ctrl+A only — this
+    // list has no Return activation today, left unchanged).
+    TrackListKeys {
+        id: trackKeys
+
+        view: tracksView
+        selection: trackSelection
+        onMenuRequested: row => trackMenu.openFor(row, tracksView, trackSelection, songs)
+    }
     // Cached drag ids of the track selection: delegates read this string
     // so one selection change walks the model once, not once per row.
     readonly property string trackDragIds: {
@@ -221,13 +231,11 @@ Item {
                 Accessible.name: qsTr("Artist tracks")
                 Keys.onPressed: event => {
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
-                        trackSelection.selectAll(tracksView.count);
-                        event.accepted = true;
+                        event.accepted = trackKeys.selectAll();
                         return;
                     }
                     if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                        trackMenu.openFor(tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0, tracksView, trackSelection, songs);
-                        event.accepted = true;
+                        event.accepted = trackKeys.menu();
                     }
                 }
 

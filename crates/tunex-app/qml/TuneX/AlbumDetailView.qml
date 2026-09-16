@@ -67,6 +67,20 @@ Item {
     TrackListSelection {
         id: trackSelection
     }
+
+    // Shared keyboard contract for the tracks list (Return/Menu/Ctrl+A/
+    // Shift-arrows).
+    TrackListKeys {
+        id: trackKeys
+
+        view: tracksView
+        selection: trackSelection
+        onActivateRequested: row => {
+            if (songs.isPlayableAt(row))
+                root.queue.playTrackNow(songs.trackIdAt(row));
+        }
+        onMenuRequested: row => trackMenu.openFor(row, tracksView, trackSelection, songs)
+    }
     // Cached drag ids of the track selection: delegates read this string
     // so one selection change walks the model once, not once per row.
     readonly property string trackDragIds: {
@@ -227,42 +241,24 @@ Item {
             Accessible.role: Accessible.List
             Accessible.selectable: true
             Accessible.name: qsTr("Album tracks")
-            Keys.onReturnPressed: {
-                const at = tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0;
-                if (at < tracksView.count && songs.isPlayableAt(at))
-                    root.queue.playTrackNow(songs.trackIdAt(at));
-            }
-            Keys.onEnterPressed: {
-                const at = tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0;
-                if (at < tracksView.count && songs.isPlayableAt(at))
-                    root.queue.playTrackNow(songs.trackIdAt(at));
-            }
+            Keys.onReturnPressed: trackKeys.activate()
+            Keys.onEnterPressed: trackKeys.activate()
             Keys.onPressed: event => {
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
-                    trackSelection.selectAll(tracksView.count);
-                    event.accepted = true;
+                    event.accepted = trackKeys.selectAll();
                     return;
                 }
                 if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                    trackMenu.openFor(tracksView.currentIndex >= 0 ? tracksView.currentIndex : 0, tracksView, trackSelection, songs);
-                    event.accepted = true;
+                    event.accepted = trackKeys.menu();
                 }
             }
             Keys.onUpPressed: event => {
-                if (event.modifiers & Qt.ShiftModifier) {
-                    const next = Math.max(0, tracksView.currentIndex - 1);
-                    tracksView.currentIndex = next;
-                    trackSelection.setRange(next);
-                    event.accepted = true;
-                }
+                if (event.modifiers & Qt.ShiftModifier)
+                    event.accepted = trackKeys.step(-1, true);
             }
             Keys.onDownPressed: event => {
-                if (event.modifiers & Qt.ShiftModifier) {
-                    const next = Math.min(tracksView.count - 1, tracksView.currentIndex + 1);
-                    tracksView.currentIndex = next;
-                    trackSelection.setRange(next);
-                    event.accepted = true;
-                }
+                if (event.modifiers & Qt.ShiftModifier)
+                    event.accepted = trackKeys.step(1, true);
             }
 
             highlight: Rectangle {

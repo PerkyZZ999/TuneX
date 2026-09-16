@@ -62,11 +62,31 @@ Rectangle {
 
     function removeSelected() {
         queueSelection.removeSelected(root.queue);
-        root.clampCursor();
+        queueKeys.clamp();
     }
 
     TrackListSelection {
         id: queueSelection
+    }
+
+    // Shared keyboard contract for the Up Next list: cursor policy plus
+    // Return/Menu/Delete/Ctrl+A/Shift-arrows; Alt-reorder stays below.
+    TrackListKeys {
+        id: queueKeys
+
+        view: queueList
+        selection: queueSelection
+        onActivateRequested: row => root.queue.playAt(row)
+        onMenuRequested: row => {
+            queueList.currentIndex = row;
+            rowMenu.rowIndex = row;
+            rowMenu.popup();
+        }
+        onDeleteSelectionRequested: root.removeSelected()
+        onDeleteRowRequested: row => {
+            root.queue.removeAt(row);
+            queueKeys.clamp();
+        }
     }
 
     function sync() {
@@ -159,17 +179,8 @@ Rectangle {
 
         function onQueueReplaced() {
             queueSelection.clear();
-            root.clampCursor();
+            queueKeys.clamp();
         }
-    }
-
-    // Keep the keyboard cursor inside the list after removals; -1 when the
-    // list is empty. Valid and absent cursors are left untouched.
-    function clampCursor() {
-        if (queueList.count === 0)
-            queueList.currentIndex = -1;
-        else if (queueList.currentIndex >= queueList.count)
-            queueList.currentIndex = queueList.count - 1;
     }
 
     GlassMenu {
@@ -196,7 +207,7 @@ Rectangle {
             text: qsTr("Remove from Now Playing")
             onTriggered: {
                 root.queue.removeAt(rowMenu.rowIndex);
-                root.clampCursor();
+                queueKeys.clamp();
             }
         }
     }
@@ -600,40 +611,16 @@ Rectangle {
                 Accessible.role: Accessible.List
                 Accessible.selectable: true
                 Accessible.name: qsTr("Now Playing")
-                Keys.onReturnPressed: {
-                    const at = queueList.currentIndex >= 0 ? queueList.currentIndex : 0;
-                    if (at < queueList.count)
-                        root.queue.playAt(at);
-                }
-                Keys.onEnterPressed: {
-                    const at = queueList.currentIndex >= 0 ? queueList.currentIndex : 0;
-                    if (at < queueList.count)
-                        root.queue.playAt(at);
-                }
-                Keys.onDeletePressed: {
-                    if (queueSelection.count > 0) {
-                        root.removeSelected();
-                        return;
-                    }
-                    if (queueList.currentIndex >= 0 && queueList.currentIndex < queueList.count) {
-                        root.queue.removeAt(queueList.currentIndex);
-                        root.clampCursor();
-                    }
-                }
+                Keys.onReturnPressed: queueKeys.activate()
+                Keys.onEnterPressed: queueKeys.activate()
+                Keys.onDeletePressed: queueKeys.remove()
                 Keys.onPressed: event => {
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
-                        queueSelection.selectAll(queueList.count);
-                        event.accepted = true;
+                        event.accepted = queueKeys.selectAll();
                         return;
                     }
                     if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                        const at = queueList.currentIndex >= 0 ? queueList.currentIndex : 0;
-                        if (at < queueList.count) {
-                            queueList.currentIndex = at;
-                            rowMenu.rowIndex = at;
-                            rowMenu.popup();
-                            event.accepted = true;
-                        }
+                        event.accepted = queueKeys.menu();
                     }
                 }
                 Keys.onUpPressed: event => {
@@ -646,12 +633,8 @@ Rectangle {
                         event.accepted = true;
                         return;
                     }
-                    if (event.modifiers & Qt.ShiftModifier) {
-                        const next = Math.max(0, queueList.currentIndex - 1);
-                        queueList.currentIndex = next;
-                        queueSelection.setRange(next);
-                        event.accepted = true;
-                    }
+                    if (event.modifiers & Qt.ShiftModifier)
+                        event.accepted = queueKeys.step(-1, true);
                 }
                 Keys.onDownPressed: event => {
                     if (event.modifiers & Qt.AltModifier) {
@@ -663,12 +646,8 @@ Rectangle {
                         event.accepted = true;
                         return;
                     }
-                    if (event.modifiers & Qt.ShiftModifier) {
-                        const next = Math.min(queueList.count - 1, queueList.currentIndex + 1);
-                        queueList.currentIndex = next;
-                        queueSelection.setRange(next);
-                        event.accepted = true;
-                    }
+                    if (event.modifiers & Qt.ShiftModifier)
+                        event.accepted = queueKeys.step(1, true);
                 }
 
                 highlight: Rectangle {

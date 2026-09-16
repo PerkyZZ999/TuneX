@@ -62,6 +62,7 @@ fn main() {
                 "qml/TuneX/ErrorLine.qml",
                 "qml/TuneX/NoticeBus.qml",
                 "qml/TuneX/DragPayload.qml",
+                "qml/TuneX/TrackListKeys.qml",
                 "qml/TuneX/SearchView.qml",
                 "qml/TuneX/CapFooter.qml",
                 "qml/TuneX/SearchingIndicator.qml",

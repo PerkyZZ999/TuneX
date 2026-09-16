@@ -152,6 +152,21 @@ Item {
         id: songsSelection
     }
 
+    // Shared keyboard contract for the songs list (Return/Menu/Ctrl+A/
+    // Shift-arrows); j/k, type-to-select, and Alt-free plain arrows stay
+    // with the view's own navigation below.
+    TrackListKeys {
+        id: songsKeys
+
+        view: songsView
+        selection: songsSelection
+        onActivateRequested: row => {
+            if (songs.isPlayableAt(row))
+                root.queue.playTrackNow(songs.trackIdAt(row));
+        }
+        onMenuRequested: row => trackMenu.openFor(row, songsView, songsSelection, songs)
+    }
+
     // Cached drag ids of the songs selection: delegates read this string
     // so one selection change walks the model once, not once per row.
     readonly property string songsDragIds: {
@@ -161,6 +176,19 @@ Item {
 
     TrackListSelection {
         id: facetSelection
+    }
+
+    // Shared keyboard contract for the facet tracks list.
+    TrackListKeys {
+        id: facetKeys
+
+        view: facetTracksView
+        selection: facetSelection
+        onActivateRequested: row => {
+            if (songs.isPlayableAt(row))
+                root.queue.playTrackNow(songs.trackIdAt(row));
+        }
+        onMenuRequested: row => trackMenu.openFor(row, facetTracksView, facetSelection, songs)
     }
 
     // Same cache for the facet tab's selection.
@@ -753,25 +781,15 @@ Item {
             Accessible.role: Accessible.List
             Accessible.selectable: true
             Accessible.name: root.albumDrilled ? root.albumTitle : (root.folderDrilled ? root.folderTitle : qsTr("Tracks"))
-            Keys.onReturnPressed: {
-                const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                if (at < songsView.count && songs.isPlayableAt(at))
-                    root.queue.playTrackNow(songs.trackIdAt(at));
-            }
-            Keys.onEnterPressed: {
-                const at = songsView.currentIndex >= 0 ? songsView.currentIndex : 0;
-                if (at < songsView.count && songs.isPlayableAt(at))
-                    root.queue.playTrackNow(songs.trackIdAt(at));
-            }
+            Keys.onReturnPressed: songsKeys.activate()
+            Keys.onEnterPressed: songsKeys.activate()
             Keys.onPressed: event => {
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
-                    songsSelection.selectAll(songsView.count);
-                    event.accepted = true;
+                    event.accepted = songsKeys.selectAll();
                     return;
                 }
                 if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                    trackMenu.openFor(songsView.currentIndex >= 0 ? songsView.currentIndex : 0, songsView, songsSelection, songs);
-                    event.accepted = true;
+                    event.accepted = songsKeys.menu();
                     return;
                 }
                 if (event.key === Qt.Key_J && root.typePrefix === "") {
@@ -790,20 +808,12 @@ Item {
                 }
             }
             Keys.onUpPressed: event => {
-                if (event.modifiers & Qt.ShiftModifier) {
-                    const next = Math.max(0, songsView.currentIndex - 1);
-                    songsView.currentIndex = next;
-                    songsSelection.setRange(next);
-                    event.accepted = true;
-                }
+                if (event.modifiers & Qt.ShiftModifier)
+                    event.accepted = songsKeys.step(-1, true);
             }
             Keys.onDownPressed: event => {
-                if (event.modifiers & Qt.ShiftModifier) {
-                    const next = Math.min(songsView.count - 1, songsView.currentIndex + 1);
-                    songsView.currentIndex = next;
-                    songsSelection.setRange(next);
-                    event.accepted = true;
-                }
+                if (event.modifiers & Qt.ShiftModifier)
+                    event.accepted = songsKeys.step(1, true);
             }
 
             highlight: Rectangle {
@@ -1179,42 +1189,24 @@ Item {
                 Accessible.role: Accessible.List
                 Accessible.selectable: true
                 Accessible.name: root.facetName
-                Keys.onReturnPressed: {
-                    const at = facetTracksView.currentIndex >= 0 ? facetTracksView.currentIndex : 0;
-                    if (at < facetTracksView.count && songs.isPlayableAt(at))
-                        root.queue.playTrackNow(songs.trackIdAt(at));
-                }
-                Keys.onEnterPressed: {
-                    const at = facetTracksView.currentIndex >= 0 ? facetTracksView.currentIndex : 0;
-                    if (at < facetTracksView.count && songs.isPlayableAt(at))
-                        root.queue.playTrackNow(songs.trackIdAt(at));
-                }
+                Keys.onReturnPressed: facetKeys.activate()
+                Keys.onEnterPressed: facetKeys.activate()
                 Keys.onPressed: event => {
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
-                        facetSelection.selectAll(facetTracksView.count);
-                        event.accepted = true;
+                        event.accepted = facetKeys.selectAll();
                         return;
                     }
                     if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                        trackMenu.openFor(facetTracksView.currentIndex >= 0 ? facetTracksView.currentIndex : 0, facetTracksView, facetSelection, songs);
-                        event.accepted = true;
+                        event.accepted = facetKeys.menu();
                     }
                 }
                 Keys.onUpPressed: event => {
-                    if (event.modifiers & Qt.ShiftModifier) {
-                        const next = Math.max(0, facetTracksView.currentIndex - 1);
-                        facetTracksView.currentIndex = next;
-                        facetSelection.setRange(next);
-                        event.accepted = true;
-                    }
+                    if (event.modifiers & Qt.ShiftModifier)
+                        event.accepted = facetKeys.step(-1, true);
                 }
                 Keys.onDownPressed: event => {
-                    if (event.modifiers & Qt.ShiftModifier) {
-                        const next = Math.min(facetTracksView.count - 1, facetTracksView.currentIndex + 1);
-                        facetTracksView.currentIndex = next;
-                        facetSelection.setRange(next);
-                        event.accepted = true;
-                    }
+                    if (event.modifiers & Qt.ShiftModifier)
+                        event.accepted = facetKeys.step(1, true);
                 }
 
                 highlight: Rectangle {

@@ -64,13 +64,35 @@ Item {
         return entrySelection.clear();
     }
 
-    // Keep the keyboard cursor inside the entry list after removals; -1
-    // when the list is empty. Valid and absent cursors are left untouched.
-    function clampCursor() {
-        if (entriesView.count === 0)
-            entriesView.currentIndex = -1;
-        else if (entriesView.currentIndex >= entriesView.count)
-            entriesView.currentIndex = entriesView.count - 1;
+    // Shared keyboard contract for the entry list (cursor policy plus
+    // Return/Menu/Delete/Ctrl+A/Shift-arrows); Alt-reorder stays below.
+    TrackListKeys {
+        id: entryKeys
+
+        view: entriesView
+        selection: entrySelection
+        onActivateRequested: row => {
+            if (entries.isPlayableAt(row))
+                root.queue.playTrackNow(entries.trackIdAt(row));
+        }
+        onMenuRequested: row => {
+            entriesView.currentIndex = row;
+            entryMenu.rowIndex = row;
+            entryMenu.rowTrackId = entries.trackIdAt(row);
+            entryMenu.rowPlayable = entries.isPlayableAt(row);
+            entryMenu.popup();
+        }
+        onDeleteSelectionRequested: {
+            entrySelection.removeSelected(entries);
+            playlists.refresh();
+            entryKeys.clamp();
+        }
+        onDeleteRowRequested: row => {
+            entries.removeAt(row);
+            playlists.refresh();
+            root.errorLine = entries.errorText();
+            entryKeys.clamp();
+        }
     }
 
     // Cached drag payload of the entry selection: comma ids plus comma
@@ -94,6 +116,14 @@ Item {
 
     TrackListSelection {
         id: entrySelection
+    }
+
+    // Shared keyboard contract for the sidebar list (Return opens).
+    TrackListKeys {
+        id: sidebarKeys
+
+        view: playlistsView
+        onActivateRequested: row => root.selectPlaylist(playlists.playlistIdAt(row), playlists.playlistNameAt(row))
     }
 
     // The sidebar highlight follows the open playlist, however it opened
@@ -278,7 +308,7 @@ Item {
                 entries.removeAt(entryMenu.rowIndex);
                 playlists.refresh();
                 root.errorLine = entries.errorText();
-                root.clampCursor();
+                entryKeys.clamp();
             }
         }
     }
@@ -359,16 +389,8 @@ Item {
                     highlightMoveDuration: Appearance.duration(Theme.motionHover)
                     Accessible.role: Accessible.List
                     Accessible.name: qsTr("Playlists")
-                    Keys.onReturnPressed: {
-                        const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
-                        if (at < playlistsView.count)
-                            root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
-                    }
-                    Keys.onEnterPressed: {
-                        const at = playlistsView.currentIndex >= 0 ? playlistsView.currentIndex : 0;
-                        if (at < playlistsView.count)
-                            root.selectPlaylist(playlists.playlistIdAt(at), playlists.playlistNameAt(at));
-                    }
+                    Keys.onReturnPressed: sidebarKeys.activate()
+                    Keys.onEnterPressed: sidebarKeys.activate()
 
                     highlight: Rectangle {
                         color: Theme.selected
@@ -604,48 +626,24 @@ Item {
                             onRemoveRequested: {
                                 entrySelection.removeSelected(entries);
                                 playlists.refresh();
-                                root.clampCursor();
+                                entryKeys.clamp();
                             }
                         }
                         Accessible.role: Accessible.List
                         Accessible.name: root.playlistName
-                        Keys.onReturnPressed: {
-                            const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
-                            if (at < entriesView.count && entries.isPlayableAt(at))
-                                root.queue.playTrackNow(entries.trackIdAt(at));
-                        }
-                        Keys.onEnterPressed: {
-                            const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
-                            if (at < entriesView.count && entries.isPlayableAt(at))
-                                root.queue.playTrackNow(entries.trackIdAt(at));
-                        }
+                        Keys.onReturnPressed: entryKeys.activate()
+                        Keys.onEnterPressed: entryKeys.activate()
                         Accessible.selectable: true
                         Keys.onPressed: event => {
                             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
-                                entrySelection.selectAll(entriesView.count);
-                                event.accepted = true;
+                                event.accepted = entryKeys.selectAll();
                                 return;
                             }
                             if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                                const at = entriesView.currentIndex >= 0 ? entriesView.currentIndex : 0;
-                                if (at < entriesView.count) {
-                                    entriesView.currentIndex = at;
-                                    entryMenu.rowIndex = at;
-                                    entryMenu.rowTrackId = entries.trackIdAt(at);
-                                    entryMenu.rowPlayable = entries.isPlayableAt(at);
-                                    entryMenu.popup();
-                                    event.accepted = true;
-                                }
+                                event.accepted = entryKeys.menu();
                             }
                         }
-                        Keys.onDeletePressed: {
-                            if (entriesView.currentIndex >= 0 && entriesView.currentIndex < entriesView.count) {
-                                entries.removeAt(entriesView.currentIndex);
-                                playlists.refresh();
-                                root.errorLine = entries.errorText();
-                                root.clampCursor();
-                            }
-                        }
+                        Keys.onDeletePressed: entryKeys.remove()
                         Keys.onUpPressed: event => {
                             if (event.modifiers & Qt.AltModifier) {
                                 const from = entriesView.currentIndex;
