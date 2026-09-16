@@ -222,9 +222,7 @@ fn tag_type_for(path: &Path) -> Result<TagType> {
         "ogg" | "opus" | "flac" => Ok(TagType::VorbisComments),
         "wav" => Ok(TagType::RiffInfo),
         "aiff" | "aif" => Ok(TagType::AiffText),
-        other => Err(Error::Metadata(format!(
-            "no tag family for .{other} files"
-        ))),
+        other => Err(Error::Metadata(format!("no tag family for .{other} files"))),
     }
 }
 

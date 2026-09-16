@@ -234,11 +234,7 @@ impl HttpGet for UreqClient {
             .get(url)
             .call()
             .map_err(|err| Error::Config(format!("coverart: {err}")))?;
-        check_content_length(
-            response.body().content_length(),
-            MAX_ART_BYTES,
-            "coverart",
-        )?;
+        check_content_length(response.body().content_length(), MAX_ART_BYTES, "coverart")?;
         response
             .body_mut()
             .with_config()
@@ -465,7 +461,10 @@ mod tests {
             url.contains("recording:%22"),
             "structural field stays intact: {url}"
         );
-        assert!(url.contains("%20AND%20"), "structural AND stays intact: {url}");
+        assert!(
+            url.contains("%20AND%20"),
+            "structural AND stays intact: {url}"
+        );
         assert!(
             url.contains("1989%3A%20Taylor%27s%20Version%20%28Deluxe%29"),
             "value syntax is escaped: {url}"

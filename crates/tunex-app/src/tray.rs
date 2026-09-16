@@ -472,8 +472,15 @@ mod tests {
             events_tx,
         });
         let notifier = StatusNotifier { hub };
-        for index in 0..(EVENT_CHANNEL_DEPTH as i32 + 8) {
-            notifier.push(TrayEvent::Popup { x: index, y: 0 });
+        for index in 0..EVENT_CHANNEL_DEPTH {
+            notifier.push(TrayEvent::Popup {
+                x: i32::try_from(index).unwrap_or(i32::MAX),
+                y: 0,
+            });
+        }
+        // Eight more than the channel holds: the newest drop.
+        for _ in 0..8 {
+            notifier.push(TrayEvent::Popup { x: -1, y: 0 });
         }
         let mut seen = Vec::new();
         while let Ok(TrayEvent::Popup { x, .. }) = events_rx.try_recv() {
@@ -483,7 +490,7 @@ mod tests {
         assert_eq!(seen[0], 0, "oldest survives; newest drops");
         assert_eq!(
             seen[EVENT_CHANNEL_DEPTH - 1],
-            EVENT_CHANNEL_DEPTH as i32 - 1
+            i32::try_from(EVENT_CHANNEL_DEPTH - 1).unwrap_or(i32::MAX)
         );
     }
 }

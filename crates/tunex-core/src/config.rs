@@ -350,7 +350,7 @@ pub fn data_dir() -> PathBuf {
 /// [`profile_db_path`] instead.
 #[must_use]
 pub fn library_db_path() -> PathBuf {
-    profile_db_path(&load_cached_config(&config_file()))
+    profile_db_path(&load_cached(&config_file()))
 }
 
 /// Snapshot of one config file, refreshed only when its mtime moves.
@@ -365,7 +365,12 @@ static CONFIG_CACHE: LazyLock<Mutex<HashMap<PathBuf, CachedConfig>>> =
 
 /// Load `path`, reusing the cached snapshot while the file is untouched.
 /// Corrupt or missing files yield defaults (see [`library_db_path`]).
-fn load_cached_config(path: &Path) -> TunexConfig {
+/// Poll-rate readers prefer this over [`load_from`]: repeated reads within
+/// one file state parse once instead of hitting disk per tick. Writers keep
+/// using [`load_from`]/[`update`] so read-modify-write always sees fresh
+/// state (saves bump the mtime, invalidating the snapshot anyway).
+#[must_use]
+pub fn load_cached(path: &Path) -> TunexConfig {
     let modified = std::fs::metadata(path)
         .and_then(|meta| meta.modified())
         .ok();
@@ -661,8 +666,10 @@ mod tests {
     fn save_leaves_valid_toml_and_no_staging_file() {
         let dir = scratch_dir("atomic-save");
         let path = dir.join("config.toml");
-        let mut config = TunexConfig::default();
-        config.volume = 0.25;
+        let config = TunexConfig {
+            volume: 0.25,
+            ..TunexConfig::default()
+        };
         save_to(&path, &config).expect("save works");
         assert!(
             !path.with_extension("toml.tmp").exists(),
@@ -679,16 +686,10 @@ mod tests {
         let path = dir.join("config.toml");
         std::fs::create_dir_all(&dir).expect("setup works");
         std::fs::write(&path, "volume = 0.5\n").expect("setup works");
-        assert_eq!(
-            load_cached_config(&path).volume.to_bits(),
-            0.5f32.to_bits()
-        );
+        assert_eq!(load_cached(&path).volume.to_bits(), 0.5f32.to_bits());
         // Same content state serves the snapshot without re-parsing (stable
         // assertion: the second read agrees).
-        assert_eq!(
-            load_cached_config(&path).volume.to_bits(),
-            0.5f32.to_bits()
-        );
+        assert_eq!(load_cached(&path).volume.to_bits(), 0.5f32.to_bits());
         // Bump mtime past filesystem granularity so the change is visible.
         let stamp = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
         let times = std::fs::FileTimes::new().set_modified(stamp);
@@ -700,7 +701,7 @@ mod tests {
             .expect("setup works");
         std::fs::write(&path, "volume = 0.25\n").expect("setup works");
         assert_eq!(
-            load_cached_config(&path).volume.to_bits(),
+            load_cached(&path).volume.to_bits(),
             0.25f32.to_bits(),
             "mtime move must invalidate the snapshot"
         );

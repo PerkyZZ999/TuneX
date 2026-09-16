@@ -112,7 +112,9 @@ impl TrayControllerRust {
 }
 
 impl qobject::TrayController {
-    /// Drain host events and emit the matching QML signals.
+    /// Drain host events and emit the matching QML signals. The match is
+    /// exhaustive over `TrayEvent`, so a new host event fails to compile
+    /// until it is wired here.
     pub fn poll(mut self: Pin<&mut Self>) {
         let events = tray::take_events();
         for event in events {

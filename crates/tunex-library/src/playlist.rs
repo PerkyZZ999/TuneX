@@ -401,11 +401,12 @@ fn renumber(transaction: &rusqlite::Transaction, playlist_id: i64) -> Result<()>
         .collect::<rusqlite::Result<Vec<i64>>>()
         .map_err(|err| db_error(&err))?;
     for (position, id) in ids.iter().enumerate() {
-        transaction.execute(
-            "UPDATE playlist_tracks SET position = ?1 WHERE id = ?2",
-            rusqlite::params![i64::try_from(position).unwrap_or(i64::MAX), id],
-        )
-        .map_err(|err| db_error(&err))?;
+        transaction
+            .execute(
+                "UPDATE playlist_tracks SET position = ?1 WHERE id = ?2",
+                rusqlite::params![i64::try_from(position).unwrap_or(i64::MAX), id],
+            )
+            .map_err(|err| db_error(&err))?;
     }
     Ok(())
 }
@@ -926,7 +927,7 @@ mod tests {
     fn smart_legacy_invalid_rule_refuses_at_evaluation() {
         let mut db = open_memory().expect("in-memory opens");
         let _track = seed_track(&mut db, "/m/a.flac", "Heard");
-        let id = create_playlist(&mut db, "Legacy").expect("playlist");
+        let id = create_playlist(&db, "Legacy").expect("playlist");
         // Bypass creation-time validation the way pre-validation rows look.
         db.execute(
             "INSERT INTO smart_playlists(playlist_id, rule_kind, rule_value, exclude_missing)

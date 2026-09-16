@@ -20,7 +20,8 @@ pub mod playback;
 pub use config::{
     AppearanceConfig, EnrichmentConfig, LibraryProfile, NotifyConfig, PlaybackConfig, TunexConfig,
     ViewConfig, WindowConfig, active_roots, config_dir, config_file, data_dir, library_db_path,
-    load_from, profile_db_path, sanitize_profile_id, save_to, sort_dir_is_desc, update,
+    load_cached, load_from, profile_db_path, sanitize_profile_id, save_to, sort_dir_is_desc,
+    update,
 };
 pub use equalizer::{
     EQ_BAND_COUNT, EQ_BAND_LABELS, EQ_GAIN_MAX, EQ_GAIN_MIN, EQ_PRESET_IDS, SPECTRUM_BANDS,

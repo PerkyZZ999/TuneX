@@ -110,10 +110,7 @@ mod tests {
             (RepeatMode::One, "\"one\""),
         ] {
             assert_eq!(serde_json::to_string(&mode).unwrap(), spelling);
-            assert_eq!(
-                serde_json::from_str::<RepeatMode>(spelling).unwrap(),
-                mode
-            );
+            assert_eq!(serde_json::from_str::<RepeatMode>(spelling).unwrap(), mode);
         }
     }
 

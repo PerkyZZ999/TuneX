@@ -478,6 +478,7 @@ impl PlayerEngine {
 
     /// Take the last confirmed gapless-swap URI, if the controller has not
     /// committed it yet. One-shot: each swap drains exactly once.
+    #[must_use]
     pub fn take_swapped_uri(&self) -> Option<String> {
         self.inner.lock().ok()?.swapped_uri.take()
     }
@@ -779,11 +780,15 @@ fn connect_about_to_finish(
 /// pipeline locks.
 ///
 /// Swap detection string-matches the internal `urisourcebin` factory name
-/// (tested against GStreamer 1.28 via gstreamer-rs 0.24): if a future
-/// GStreamer renames that element, swaps silently stop reporting and every
+/// (tested against `GStreamer` 1.28 via gstreamer-rs 0.24): if a future
+/// `GStreamer` renames that element, swaps silently stop reporting and every
 /// teardown degrades to the `HANDOFF_SETTLE` wait plus a warn log. A sudden
-/// run of `player.handoff.unsettled` warnings after a GStreamer upgrade
+/// run of `player.handoff.unsettled` warnings after a `GStreamer` upgrade
 /// means this assumption broke.
+#[allow(
+    clippy::assigning_clones,
+    reason = "clone-then-assign: clone_from would borrow the guard both ways at once"
+)]
 fn connect_source_removed(
     playbin: &gst::Bin,
     inner: &Arc<Mutex<Inner>>,

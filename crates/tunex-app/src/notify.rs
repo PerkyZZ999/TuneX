@@ -83,9 +83,9 @@ fn escape_markup(text: &str) -> String {
 
 /// Queue a toast for delivery on a detached thread. Returns immediately;
 /// every failure below (no bus, no server, rejected message) is a debug log.
-pub fn post(summary: String, body: String) {
-    let summary = escape_markup(&summary);
-    let body = escape_markup(&body);
+pub fn post(summary: &str, body: &str) {
+    let summary = escape_markup(summary);
+    let body = escape_markup(body);
     if summary.is_empty() && body.is_empty() {
         return;
     }
@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn post_without_content_sends_nothing() {
         // Returns immediately; nothing to deliver.
-        post(String::new(), String::new());
+        post("", "");
     }
 
     #[test]
@@ -271,7 +271,7 @@ mod tests {
         // Headless CI has a session bus but no notification daemon: the
         // detached send fails gracefully while `post` itself never blocks.
         let start = std::time::Instant::now();
-        post("TuneX test".to_owned(), "body".to_owned());
+        post("TuneX test", "body");
         assert!(
             start.elapsed() < std::time::Duration::from_secs(2),
             "post must not block the caller"

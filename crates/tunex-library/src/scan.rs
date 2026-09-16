@@ -169,7 +169,8 @@ fn canonical_root(root: &Path) -> PathBuf {
 
 /// Path prefix (with trailing separator) scoping rows to one root, so a
 /// rescan of `/music` never flags `/podcasts` rows missing.
-fn root_prefix(root: &Path) -> String {    let mut prefix = root.to_string_lossy().into_owned();
+fn root_prefix(root: &Path) -> String {
+    let mut prefix = root.to_string_lossy().into_owned();
     if !prefix.ends_with(std::path::MAIN_SEPARATOR) {
         prefix.push(std::path::MAIN_SEPARATOR);
     }
@@ -431,8 +432,7 @@ fn index_file(
 /// the extension must match (deleted rows free their inodes for unrelated
 /// reuse; real renames always keep the container).
 fn is_rename_target(previous: &TrackIdentity, path: &Path) -> bool {
-    !Path::new(&previous.path).exists()
-        && Path::new(&previous.path).extension() == path.extension()
+    !Path::new(&previous.path).exists() && Path::new(&previous.path).extension() == path.extension()
 }
 
 /// Collect media files without touching the database (fixture probes, tests).
@@ -626,7 +626,8 @@ mod tests {
     }
 
     #[test]
-    fn rename_retargets_row_without_duplicating() {        let dir = scratch("rename");
+    fn rename_retargets_row_without_duplicating() {
+        let dir = scratch("rename");
         std::fs::create_dir_all(&dir).expect("setup works");
         std::fs::write(dir.join("before.flac"), [1u8; 64]).expect("setup works");
         let mut db = open_memory().expect("db opens");
@@ -645,7 +646,6 @@ mod tests {
 
     #[test]
     fn recycled_inode_with_new_extension_indexes_as_new() {
-        use std::path::PathBuf;
         let dir = scratch("recycled");
         std::fs::create_dir_all(&dir).expect("setup works");
         // Vanished row whose inode a new, differently-suffixed file could
@@ -658,10 +658,7 @@ mod tests {
             missing: true,
             incomplete: false,
         };
-        assert!(!is_rename_target(
-            &vanished,
-            &PathBuf::from(dir.join("fresh.ogg"))
-        ));
+        assert!(!is_rename_target(&vanished, &dir.join("fresh.ogg")));
         // The live-file twin keeps its own row too.
         std::fs::write(dir.join("live.flac"), [1u8; 8]).expect("setup works");
         let live = TrackIdentity {
@@ -672,10 +669,7 @@ mod tests {
             missing: false,
             incomplete: false,
         };
-        assert!(!is_rename_target(
-            &live,
-            &PathBuf::from(dir.join("live.flac"))
-        ));
+        assert!(!is_rename_target(&live, &dir.join("live.flac")));
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 
@@ -693,7 +687,7 @@ mod tests {
             // Symlink to the directory itself (Unix-only test shape).
             symlink(&dir, &link).expect("setup works");
             scan_folder(&mut db, &link).expect("aliased scan works");
-        }
+        };
         let slashed = format!("{}/", dir.display());
         scan_folder(&mut db, Path::new(&slashed)).expect("slashed scan works");
         let roots: i64 = db

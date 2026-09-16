@@ -816,12 +816,18 @@ mod tests {
             PlaybackState::Stopped,
             "play on an empty queue must not flash Playing"
         );
-        let mut loaded = MprisSnapshot::default();
-        loaded.track = Some(sample_track());
+        let loaded = MprisSnapshot {
+            track: Some(sample_track()),
+            ..MprisSnapshot::default()
+        };
         assert_eq!(loaded.toggled_status(), PlaybackState::Playing);
         assert_eq!(loaded.played_status(), PlaybackState::Playing);
-        loaded.status = PlaybackState::Playing;
-        assert_eq!(loaded.toggled_status(), PlaybackState::Paused);
+        let playing = MprisSnapshot {
+            status: PlaybackState::Playing,
+            track: Some(sample_track()),
+            ..MprisSnapshot::default()
+        };
+        assert_eq!(playing.toggled_status(), PlaybackState::Paused);
     }
 
     #[test]
@@ -908,9 +914,10 @@ mod tests {
             "toggle with no track stays honestly Stopped"
         );
         // Then with a loaded track: the full toggle cycle.
-        let mut loaded = MprisSnapshot::default();
-        loaded.track = Some(sample_track());
-        player.hub.publish(loaded);
+        player.hub.publish(MprisSnapshot {
+            track: Some(sample_track()),
+            ..MprisSnapshot::default()
+        });
         player.play_pause().await.expect("toggle works");
         assert_eq!(player.status(), PlaybackState::Playing);
         assert_eq!(

@@ -43,17 +43,14 @@ impl Lyrics {
 pub fn load_lyrics(audio_path: &Path) -> Lyrics {
     let sidecar = audio_path.with_extension("lrc");
     if sidecar.is_file() {
-        let capped = std::fs::metadata(&sidecar)
-            .map(|meta| meta.len() <= MAX_LRC_BYTES as u64)
-            .unwrap_or(false);
-        if capped
-            && let Ok(text) = std::fs::read_to_string(&sidecar)
-        {
+        let capped =
+            std::fs::metadata(&sidecar).is_ok_and(|meta| meta.len() <= MAX_LRC_BYTES as u64);
+        if capped && let Ok(text) = std::fs::read_to_string(&sidecar) {
             return parse_lrc(&text);
         }
     }
     match embedded_lyrics(audio_path) {
-        Some(text) if looks_like_lrc(&text) => parse_lrc(&truncate_lrc(&text)),
+        Some(text) if looks_like_lrc(&text) => parse_lrc(truncate_lrc(&text)),
         Some(text) => Lyrics {
             lines: Vec::new(),
             plain: truncate_plain(&text),

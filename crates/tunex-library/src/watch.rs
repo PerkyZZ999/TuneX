@@ -110,13 +110,7 @@ pub fn watch_roots(
     let thread = std::thread::Builder::new()
         .name("tunex-watch".to_owned())
         .spawn(move || {
-            debounce_loop(
-                raw_receiver,
-                stop_receiver,
-                debounce,
-                updates,
-                dropped_raw,
-            );
+            debounce_loop(raw_receiver, stop_receiver, debounce, updates, dropped_raw);
         })
         .map_err(|err| Error::Io {
             path: PathBuf::from("<watcher thread>"),
@@ -354,7 +348,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn watching_missing_root_errors_loudly() {        let missing = std::env::temp_dir().join(format!("tunex-watch-gone-{}", std::process::id()));
+    async fn watching_missing_root_errors_loudly() {
+        let missing = std::env::temp_dir().join(format!("tunex-watch-gone-{}", std::process::id()));
         let (updates, _receiver) = mpsc::channel(16);
         let err = watch_roots(
             std::slice::from_ref(&missing),
@@ -367,8 +362,7 @@ mod tests {
 
     #[tokio::test]
     async fn steady_rewrite_of_one_file_coalesces_into_one_batch() {
-        let dir =
-            std::env::temp_dir().join(format!("tunex-watch-rewrite-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("tunex-watch-rewrite-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("setup works");
         let target = dir.join("growing.flac");
         let (updates, mut receiver) = mpsc::channel(16);
@@ -382,19 +376,16 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
         let mut batches = 0_u32;
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while Instant::now() < deadline {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            match tokio::time::timeout(remaining, receiver.recv()).await {
-                Ok(Some(batch)) => {
-                    assert!(batch.contains(&target));
-                    batches += 1;
-                    break;
-                }
-                _ => break,
+        // The one coalesced batch, within a generous deadline...
+        let first = tokio::time::timeout(Duration::from_secs(5), receiver.recv()).await;
+        match first {
+            Ok(Some(batch)) => {
+                assert!(batch.contains(&target));
+                batches += 1;
             }
+            _ => panic!("steady rewrites never produced a batch"),
         }
-        // Drain anything else that (incorrectly) arrives afterwards.
+        // ...then anything else arriving afterwards is an incorrect extra.
         while tokio::time::timeout(Duration::from_millis(700), receiver.recv())
             .await
             .is_ok()

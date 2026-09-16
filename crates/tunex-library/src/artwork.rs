@@ -471,7 +471,7 @@ fn touch_manifest(cache: &Path, key: &str) {
 /// Cached entry for `key` when every file is present, refreshing recency.
 #[must_use]
 pub fn cached_art(cache: &Path, key: &str) -> Option<CachedArt> {
-    let _guard = lock_manifest();
+    let guard = lock_manifest();
     let manifest = load_manifest(cache);
     if !manifest.contains_key(key) {
         return None;
@@ -493,7 +493,7 @@ pub fn cached_art(cache: &Path, key: &str) -> Option<CachedArt> {
     // Release before touching: the touch takes the guard itself, and holding
     // across it would deadlock on the non-reentrant lock. The touch is
     // best-effort recency either way.
-    drop(_guard);
+    drop(guard);
     if complete {
         touch_manifest(cache, key);
     }
@@ -590,7 +590,7 @@ pub fn store_artwork_with_budget(
         let _guard = lock_manifest();
         save_manifest(cache, &manifest)?;
         evict_over_budget(cache, &mut manifest, budget, &key)?;
-    }
+    };
     // Re-read through the hit path so recency is uniform; the fresh entry
     // is keep-protected, so this only misses on I/O failure mid-write.
     Ok(cached_art(cache, &key))

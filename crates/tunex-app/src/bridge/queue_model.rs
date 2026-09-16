@@ -373,7 +373,7 @@ impl QueueModelRust {
                 self.last_error = Some(message.clone());
                 let notify = self.notify_config();
                 if crate::notify::should_notify_error(notify.enabled, notify.playback_errors) {
-                    crate::notify::post("Playback error".to_owned(), message.clone());
+                    crate::notify::post("Playback error", message);
                 }
             }
         }
@@ -396,7 +396,6 @@ impl QueueModelRust {
     }
 
     /// Load sidecar or embedded lyrics when the current URI changes.
-
     /// File I/O and parsing run on the resolver thread (a track change must
     /// never stall the poll); answers carry their URI so a resolution that
     /// lands after another track change is dropped, and a definite
@@ -459,8 +458,8 @@ impl QueueModelRust {
         ) {
             if let Some(item) = &current {
                 crate::notify::post(
-                    item.title.clone(),
-                    crate::notify::track_body(item.artist.as_deref(), item.album.as_deref()),
+                    &item.title,
+                    &crate::notify::track_body(item.artist.as_deref(), item.album.as_deref()),
                 );
                 self.record_play_history(item);
             }
@@ -1286,8 +1285,7 @@ impl QueueModelRust {
     }
 
     fn replaygain_mode(&self) -> i32 {
-        match self.config_snapshot().playback.replaygain
-        {
+        match self.config_snapshot().playback.replaygain {
             ReplayGainMode::Off => 0,
             ReplayGainMode::Track => 1,
             ReplayGainMode::Album => 2,
@@ -1323,9 +1321,7 @@ impl QueueModelRust {
     }
 
     fn crossfade_secs(&self) -> i32 {
-        i32::from(
-            self.config_snapshot().playback.crossfade_secs,
-        )
+        i32::from(self.config_snapshot().playback.crossfade_secs)
     }
 
     fn set_crossfade_secs(&mut self, secs: i32) {
@@ -1453,8 +1449,7 @@ impl QueueModelRust {
     }
 
     fn visualizer_mode(&self) -> i32 {
-        match self.config_snapshot().appearance.visualizer
-        {
+        match self.config_snapshot().appearance.visualizer {
             VisualizerMode::Artwork => 0,
             VisualizerMode::Spectrum => 1,
             VisualizerMode::Waveform => 2,
@@ -1481,9 +1476,7 @@ impl QueueModelRust {
     }
 
     fn visualizer_fps(&self) -> i32 {
-        i32::from(
-            self.config_snapshot().appearance.visualizer_fps,
-        )
+        i32::from(self.config_snapshot().appearance.visualizer_fps)
     }
 
     fn set_visualizer_fps(&self, fps: i32) {

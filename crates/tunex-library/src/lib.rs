@@ -39,11 +39,11 @@ pub use db::{
     track_identities, upsert_track,
 };
 pub use display::{UNKNOWN_ARTIST, UNKNOWN_TITLE, display_title_artist};
+#[cfg(feature = "enrichment")]
+pub use enrich::run_missing_pass;
 pub use enrich::{
     Enrichment, cover_art_url, fill_missing, lookup_recording, parse_recording_search,
 };
-#[cfg(feature = "enrichment")]
-pub use enrich::run_missing_pass;
 pub use lyrics::{LyricLine, Lyrics, active_line, load_lyrics, parse_lrc};
 pub use metadata::{EmbeddedArtwork, FileMetadata, TagEdit, read_metadata, write_tags};
 pub use playlist::{

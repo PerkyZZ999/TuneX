@@ -225,11 +225,11 @@ mod tests {
 
     #[test]
     fn non_finite_gains_reset_to_flat() {
-        assert_eq!(clamp_gain(f32::NAN), 0.0);
-        assert_eq!(clamp_gain(f32::INFINITY), 0.0);
-        assert_eq!(clamp_gain(f32::NEG_INFINITY), 0.0);
+        for gain in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_eq!(clamp_gain(gain).to_bits(), 0.0f32.to_bits());
+        }
         let bands = clamp_bands([f32::NAN; EQ_BAND_COUNT]);
-        assert!(bands.iter().all(|gain| *gain == 0.0));
+        assert!(bands.iter().all(|gain| gain.to_bits() == 0.0f32.to_bits()));
     }
 
     #[test]
