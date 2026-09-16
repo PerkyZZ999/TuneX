@@ -41,6 +41,7 @@ Item {
     readonly property int gridCell: Format.gridCell(content.width)
 
     signal settingsRequested(bool pickFolder)
+    signal notice(string text, bool isError)
 
     // Display name for one tab key (the tab strip models keys, not labels).
     function tabLabel(key) {
@@ -413,6 +414,7 @@ Item {
         playlists: root.playlists
         library: root.library
         onIndexChanged: root.refresh()
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Timer {
@@ -723,6 +725,7 @@ Item {
                 count: songsSelection.count
                 trackIds: songsSelection.mimeIds(songs)
                 onCleared: songsSelection.clear()
+                onNotice: (text, isError) => root.notice(text, isError)
             }
             Accessible.role: Accessible.List
             Accessible.selectable: true
@@ -1071,6 +1074,7 @@ Item {
         onBackRequested: root.goBack()
         onAlbumRequested: id => root.openAlbum(id)
         onArtistRequested: name => root.openArtist(name)
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     ArtistDetailView {
@@ -1083,6 +1087,7 @@ Item {
         library: root.library
         onBackRequested: root.goBack()
         onAlbumRequested: id => root.openAlbum(id)
+        onNotice: (text, isError) => root.notice(text, isError)
     }
 
     Item {
@@ -1149,6 +1154,7 @@ Item {
                     count: facetSelection.count
                     trackIds: facetSelection.mimeIds(songs)
                     onCleared: facetSelection.clear()
+                    onNotice: (text, isError) => root.notice(text, isError)
                 }
                 Accessible.role: Accessible.List
                 Accessible.selectable: true

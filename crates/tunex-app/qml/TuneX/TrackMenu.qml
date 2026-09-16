@@ -17,6 +17,23 @@ GlassMenu {
     readonly property bool hasSet: root.trackIds !== ""
 
     signal indexChanged
+    // One-line confirmation for playlist adds (handled by the shell toast):
+    // every add names the count and the list, errors surface loudly.
+    signal notice(string text, bool isError)
+
+    // `name` empty means the auto-named list from "New playlist".
+    function confirmPlaylistAdd(added, name) {
+        if (added > 0) {
+            if (name === "")
+                root.notice(qsTr("%n track(s) added to the new playlist", "", added), false);
+            else
+                root.notice(qsTr("%n track(s) added to “%1”", "", added).arg(name), false);
+        } else {
+            const err = root.playlists.errorText();
+            root.notice(err !== "" ? err : qsTr("Could not add to “%1”").arg(name), true);
+        }
+        root.close();
+    }
 
     onAboutToShow: root.playlists.refresh()
 
@@ -111,10 +128,12 @@ GlassMenu {
                 visible: !root.playlists.isSmart(model.playlistId)
                 text: model.name
                 onTriggered: {
+                    let added = 0;
                     if (root.hasSet)
-                        root.playlists.addTracks(model.playlistId, root.trackIds);
+                        added = root.playlists.addTracks(model.playlistId, root.trackIds);
                     else
-                        root.playlists.addTrack(model.playlistId, root.trackId);
+                        added = root.playlists.addTrack(model.playlistId, root.trackId);
+                    root.confirmPlaylistAdd(added, model.name);
                 }
             }
         }
@@ -126,10 +145,16 @@ GlassMenu {
             onTriggered: {
                 const id = root.playlists.createPlaylistAuto();
                 if (id >= 0) {
+                    let added = 0;
                     if (root.hasSet)
-                        root.playlists.addTracks(id, root.trackIds);
+                        added = root.playlists.addTracks(id, root.trackIds);
                     else
-                        root.playlists.addTrack(id, root.trackId);
+                        added = root.playlists.addTrack(id, root.trackId);
+                    root.confirmPlaylistAdd(added, "");
+                } else {
+                    const err = root.playlists.errorText();
+                    root.notice(err !== "" ? err : qsTr("Could not create a playlist"), true);
+                    root.close();
                 }
             }
         }

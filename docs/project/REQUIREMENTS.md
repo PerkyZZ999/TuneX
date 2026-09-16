@@ -84,13 +84,14 @@
 - **Validation method:** manual + test
 
 ### R-010 — Queue + modes
-- **Description:** Independent session playlist (UI: Now Playing): add/remove/reorder (including drag)/clear/play-next/play-now/shuffle/repeat; gapless via about-to-finish; survives navigation and restart (paused restore, missing files stay as dangling rows, no auto-play). Drop songs onto the list; reorder one row at a time.
+- **Description:** Independent session playlist (UI: Now Playing): add/remove/reorder (including drag)/clear/play-next/play-now/shuffle/repeat; gapless via about-to-finish; survives navigation and restart (paused restore, missing files stay as dangling rows, no auto-play). Drop songs onto the list at the insertion line; reorder one row at a time or a selected block at once.
 - **Priority:** must
 - **Acceptance:**
   - [x] Queue ops reflect instantly; gapless transition has no audible gap on album fixture
   - [x] Drag-reorder and Play next / Move to end / Remove on Now Playing rows (W-056)
   - [x] Queue ordered URIs + cursor persist in SQLite and restore paused (W-057, promoted L-012)
   - [x] Drop TrackRow mime (comma track ids) onto Now Playing; playlist detail reorder + drop (W-070)
+  - [x] Drops land at the insertion line (`#N of M` + accent, never colour-only); internal drags move rows without duplicating (W-074)
 - **Validation method:** manual + test
 
 ### R-011 — Volume / mute / position
@@ -136,11 +137,12 @@
 - **Validation method:** manual + test
 
 ### R-012 — Playlists
-- **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing. Manual playlists drag-reorder and accept dropped TrackRows; smart playlists do not.
+- **Description:** Local playlists: create/rename/delete/add/remove/reorder/play; dangling-as-missing. Manual playlists drag-reorder and accept dropped TrackRows at the insertion line; smart playlists do not. Every menu/sidebar add confirms with a toast naming the count and the list.
 - **Priority:** must
 - **Acceptance:**
   - [x] Full CRUD + play persists across restart
   - [x] Playlist detail drag-reorder + drop-add; New playlist from a TrackRow selection (W-070, W-073)
+  - [x] Detail drops land at the insertion line; internal drags move entry rows without duplicating; every menu/sidebar add closes the menu and toasts the count + list (W-074)
 - **Validation method:** manual + test
 
 ### R-013 — MPRIS + media keys

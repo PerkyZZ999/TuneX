@@ -82,6 +82,7 @@ fn main() {
                 "qml/TuneX/GlassMenuItem.qml",
                 "qml/TuneX/GlassMenuSeparator.qml",
                 "qml/TuneX/GlassDialog.qml",
+                "qml/TuneX/Toast.qml",
                 "qml/TuneX/SettingsView.qml",
                 "qml/TuneX/SettingsSection.qml",
                 "qml/TuneX/SettingsCycleRow.qml",

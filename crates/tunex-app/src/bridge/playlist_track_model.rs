@@ -208,6 +208,74 @@ impl PlaylistTrackModelRust {
         }
     }
 
+    /// Insert comma-separated library ids at `position` in the open
+    /// playlist, preserving list order. Returns the number inserted.
+    fn do_insert_tracks(&mut self, ids: &[i64], position: usize) -> i32 {
+        let Some(playlist_id) = self.playlist_id else {
+            self.last_error = Some("Open a playlist first.".to_owned());
+            return 0;
+        };
+        let Ok(db) = tunex_library::open_file(&self.index_path) else {
+            self.last_error = Some("The music library cannot be read.".to_owned());
+            return 0;
+        };
+        let mut playable = Vec::new();
+        for track_id in ids {
+            match tunex_library::track_by_id(&db, *track_id) {
+                Ok(Some(row)) if !row.missing => playable.push(*track_id),
+                Ok(Some(_)) => {
+                    self.last_error = Some("That file is missing from disk.".to_owned());
+                }
+                _ => {
+                    self.last_error = Some("That track is no longer in the library.".to_owned());
+                }
+            }
+        }
+        if playable.is_empty() {
+            return 0;
+        }
+        let Ok(mut db) = tunex_library::open_file(&self.index_path) else {
+            self.last_error = Some("The music library cannot be read.".to_owned());
+            return 0;
+        };
+        let mut added = 0;
+        for (offset, track_id) in playable.iter().enumerate() {
+            match tunex_library::insert_into_playlist(
+                &mut db,
+                playlist_id,
+                *track_id,
+                position + offset,
+            ) {
+                Ok(()) => {
+                    added += 1;
+                    self.last_error = None;
+                }
+                Err(err) => self.last_error = Some(friendly_error(&err)),
+            }
+        }
+        if added > 0 {
+            self.refresh_rows(playlist_id);
+        }
+        added
+    }
+
+    /// Move open-playlist rows (display positions) to `to` as one block.
+    fn do_move_items(&mut self, rows: &[usize], to: usize) {
+        let Some(playlist_id) = self.playlist_id else {
+            return;
+        };
+        let Ok(mut db) = tunex_library::open_file(&self.index_path) else {
+            self.last_error = Some("The music library cannot be read.".to_owned());
+            return;
+        };
+        match tunex_library::move_entries(&mut db, playlist_id, rows, to) {
+            Ok(()) => {
+                self.refresh_rows(playlist_id);
+            }
+            Err(err) => self.last_error = Some(friendly_error(&err)),
+        }
+    }
+
     /// Last failure, if any (cleared by the next success).
     fn error_message(&self) -> Option<String> {
         self.last_error.clone()
@@ -322,6 +390,59 @@ impl qobject::PlaylistTrackModel {
             };
         }
         added
+    }
+
+    /// Insert comma-separated library ids at `position` in the open
+    /// playlist; returns the number inserted (0 + error text when
+    /// unavailable).
+    #[must_use]
+    pub fn insert_tracks(mut self: Pin<&mut Self>, ids: &QString, position: i32) -> i32 {
+        let parsed = ids
+            .to_string()
+            .split(',')
+            .filter_map(|part| {
+                let part = part.trim();
+                if part.is_empty() {
+                    None
+                } else {
+                    part.parse::<i64>().ok()
+                }
+            })
+            .collect::<Vec<_>>();
+        let at = usize::try_from(position.max(0)).unwrap_or(usize::MAX);
+        let added = self.as_mut().rust_mut().do_insert_tracks(&parsed, at);
+        if added > 0 {
+            // SAFETY: reset pair strictly paired on this single path.
+            unsafe {
+                self.as_mut().begin_reset_model_playlist_tracks();
+                self.as_mut().end_reset_model_playlist_tracks();
+            };
+        }
+        added
+    }
+
+    /// Move open-playlist rows (comma-separated positions) to `to` as one
+    /// block.
+    pub fn move_items(mut self: Pin<&mut Self>, rows: &QString, to: i32) {
+        let parsed = rows
+            .to_string()
+            .split(',')
+            .filter_map(|part| {
+                let part = part.trim();
+                if part.is_empty() {
+                    None
+                } else {
+                    part.parse::<usize>().ok()
+                }
+            })
+            .collect::<Vec<_>>();
+        let to = usize::try_from(to.max(0)).unwrap_or(usize::MAX);
+        self.as_mut().rust_mut().do_move_items(&parsed, to);
+        // SAFETY: reset pair strictly paired on this single path.
+        unsafe {
+            self.as_mut().begin_reset_model_playlist_tracks();
+            self.as_mut().end_reset_model_playlist_tracks();
+        }
     }
 
     /// Entry id at `row` (-1 when out of range).
@@ -541,6 +662,50 @@ mod tests {
         drop(db);
         assert!(model.refresh_rows(id));
         assert!(!model.is_playable_at(0), "dangling rows never play");
+    }
+
+    #[test]
+    fn insert_and_block_move_round_trip() {
+        let (mut model, _guard) = model_with_seeded_library("ptracks-insert-move");
+        let db = tunex_library::open_file(&model.index_path).expect("seed opens");
+        let id = tunex_library::create_playlist(&db, "Mix").expect("create works");
+        let ids: Vec<i64> = tunex_library::list_tracks(&db)
+            .expect("list works")
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        drop(db);
+        assert!(ids.len() >= 3);
+        assert!(model.refresh_rows(id));
+        assert_eq!(model.do_insert_tracks(&ids, 0), 3);
+        assert_eq!(model.row_count(), 3);
+        // Insert the first track on the second line: no append, no copy loss.
+        assert_eq!(model.do_insert_tracks(&ids[..1], 1), 1);
+        let order: Vec<i32> = model.entries.iter().map(|entry| entry.1).collect();
+        let narrow = |id: i64| i32::try_from(id).expect("seed ids fit");
+        assert_eq!(
+            order,
+            vec![
+                narrow(ids[0]),
+                narrow(ids[0]),
+                narrow(ids[1]),
+                narrow(ids[2])
+            ]
+        );
+        // Reorder the block (rows 0 + 2) to the end: still four rows.
+        model.do_move_items(&[0, 2], 4);
+        let order: Vec<i32> = model.entries.iter().map(|entry| entry.1).collect();
+        assert_eq!(
+            order,
+            vec![
+                narrow(ids[0]),
+                narrow(ids[2]),
+                narrow(ids[0]),
+                narrow(ids[1])
+            ]
+        );
+        assert_eq!(model.row_count(), 4, "a move never copies");
+        assert!(model.error_message().is_none());
     }
 
     #[test]

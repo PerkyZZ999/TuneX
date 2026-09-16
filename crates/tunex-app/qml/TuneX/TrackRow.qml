@@ -37,6 +37,12 @@ Item {
     readonly property int titleSize: root.compact ? Theme.fontBodySm : Theme.fontBody
     readonly property int artistSize: root.compact ? Theme.fontCaption : Theme.fontBodySm
     property string dragTrackIds: root.trackId >= 0 ? String(root.trackId) : ""
+    // Drag origin for drop routing: "" means an external copy (library /
+    // search); "queue" and "playlist:<id>" mark an internal move, with the
+    // source display rows in `dragRows` so the target moves rows, never ids
+    // (queue and playlist rows can repeat the same track).
+    property string dragOrigin: ""
+    property string dragRows: ""
     // m:ss, em dash when unknown (shaping lives in Format).
     readonly property string durationText: Format.durationOrDash(root.durationMs)
     readonly property string numberText: root.trackNumber > 0 ? String(root.trackNumber) : "—"
@@ -54,10 +60,12 @@ Item {
     }
     readonly property bool dragging: rowArea.drag.active
 
-    Drag.keys: ["application/x-tunex-trackids"]
+    Drag.keys: ["application/x-tunex-trackids", "application/x-tunex-origin", "application/x-tunex-rows"]
     Drag.mimeData: {
         "text/plain": root.dragTrackIds,
-        "application/x-tunex-trackids": root.dragTrackIds
+        "application/x-tunex-trackids": root.dragTrackIds,
+        "application/x-tunex-origin": root.dragOrigin,
+        "application/x-tunex-rows": root.dragRows
     }
     Drag.dragType: Drag.Automatic
     Drag.active: rowArea.drag.active
@@ -224,7 +232,9 @@ Item {
 
     // In-window drag chip. Wayland often has no compositor pixmap for
     // Drag.Automatic, so the chip is the visible grab (surface-raised,
-    // 1px border, never glow).
+    // 1px border, never glow). It rides up and right of the cursor so the
+    // tip — and the list's insertion line under it — stays visible while
+    // aiming a positional drop.
     Rectangle {
         id: dragProxy
 
@@ -235,12 +245,12 @@ Item {
         x: {
             if (!root.dragging || !parent)
                 return 0;
-            return root.mapToItem(parent, rowArea.mouseX, rowArea.mouseY).x - Theme.spaceMd;
+            return root.mapToItem(parent, rowArea.mouseX, rowArea.mouseY).x + Theme.spaceMd;
         }
         y: {
             if (!root.dragging || !parent)
                 return 0;
-            return root.mapToItem(parent, rowArea.mouseX, rowArea.mouseY).y - height / 2;
+            return root.mapToItem(parent, rowArea.mouseX, rowArea.mouseY).y - height - Theme.spaceSm;
         }
         z: 10000
         radius: Theme.radiusSm

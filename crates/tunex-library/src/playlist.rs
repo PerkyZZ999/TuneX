@@ -170,6 +170,112 @@ pub fn add_to_playlist(db: &mut Connection, playlist_id: i64, track_id: i64) -> 
     Ok(())
 }
 
+/// Insert a track at `position` (clamped into range, 0-based) instead of
+/// appending. Positions at and past the insertion point shift up inside one
+/// transaction, so the list stays dense. Same validation as
+/// [`add_to_playlist`]: the track must exist (dangling arises later, through
+/// deletion — never at insert time) and smart playlists refuse.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the playlist or track is gone, or the
+/// insert fails.
+pub fn insert_into_playlist(
+    db: &mut Connection,
+    playlist_id: i64,
+    track_id: i64,
+    position: usize,
+) -> Result<()> {
+    require_playlist(db, playlist_id)?;
+    if smart_rule(db, playlist_id)?.is_some() {
+        return Err(Error::Database(
+            "smart playlists rebuild from rules — edit the rule instead".to_owned(),
+        ));
+    }
+    require_track(db, track_id)?;
+    let count: i64 = db
+        .query_row(
+            "SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = ?1",
+            [playlist_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| db_error(&err))?;
+    let position = (i64::try_from(position).unwrap_or(i64::MAX)).min(count);
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    transaction
+        .execute(
+            "UPDATE playlist_tracks SET position = position + 1 \
+             WHERE playlist_id = ?1 AND position >= ?2",
+            rusqlite::params![playlist_id, position],
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction
+        .execute(
+            "INSERT INTO playlist_tracks(playlist_id, track_id, position) VALUES (?1, ?2, ?3)",
+            rusqlite::params![playlist_id, track_id, position],
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction.commit().map_err(|err| db_error(&err))?;
+    Ok(())
+}
+
+/// Move a set of entries (by display position) to `to` as one block,
+/// keeping their relative order. `to` is an insertion index in the current
+/// list (clamped into range): a drop line between rows lands exactly there.
+/// Out-of-range rows are ignored and an empty set is a no-op.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the playlist is gone or the rewrite fails.
+pub fn move_entries(
+    db: &mut Connection,
+    playlist_id: i64,
+    rows: &[usize],
+    to: usize,
+) -> Result<()> {
+    require_playlist(db, playlist_id)?;
+    let mut ids: Vec<i64> = db
+        .prepare("SELECT id FROM playlist_tracks WHERE playlist_id = ?1 ORDER BY position")
+        .map_err(|err| db_error(&err))?
+        .query_map([playlist_id], |row| row.get(0))
+        .map_err(|err| db_error(&err))?
+        .collect::<rusqlite::Result<Vec<i64>>>()
+        .map_err(|err| db_error(&err))?;
+    let mut moving: Vec<usize> = rows
+        .iter()
+        .copied()
+        .filter(|row| *row < ids.len())
+        .collect();
+    moving.sort_unstable();
+    moving.dedup();
+    if moving.is_empty() {
+        return Ok(());
+    }
+    let to = to.min(ids.len());
+    let before = moving.iter().filter(|row| **row < to).count();
+    let dest = to - before;
+    let mut block = Vec::with_capacity(moving.len());
+    for row in moving.iter().rev() {
+        block.push(ids.remove(*row));
+    }
+    block.reverse();
+    let at = dest.min(ids.len());
+    for (offset, entry) in block.into_iter().enumerate() {
+        ids.insert(at + offset, entry);
+    }
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    for (position, id) in ids.iter().enumerate() {
+        transaction
+            .execute(
+                "UPDATE playlist_tracks SET position = ?1 WHERE id = ?2",
+                rusqlite::params![i64::try_from(position).unwrap_or(i64::MAX), id],
+            )
+            .map_err(|err| db_error(&err))?;
+    }
+    transaction.commit().map_err(|err| db_error(&err))?;
+    Ok(())
+}
+
 /// Remove one entry by entry id (repeats stay distinct) and renumber.
 ///
 /// # Errors
@@ -612,6 +718,76 @@ mod tests {
         assert!(move_entry(&mut db, id, 999_999, 0).is_err());
         assert!(add_to_playlist(&mut db, 999_999, a).is_err());
         assert!(add_to_playlist(&mut db, id, 999_999).is_err());
+    }
+
+    #[test]
+    fn inserts_land_exactly_where_asked() {
+        let mut db = open_memory().expect("in-memory opens");
+        let a = seed_track(&mut db, "/m/a.flac", "A");
+        let b = seed_track(&mut db, "/m/b.flac", "B");
+        let c = seed_track(&mut db, "/m/c.flac", "C");
+        let x = seed_track(&mut db, "/m/x.flac", "X");
+        let id = create_playlist(&db, "Order").expect("create works");
+        for track in [a, b, c] {
+            add_to_playlist(&mut db, id, track).expect("add works");
+        }
+        insert_into_playlist(&mut db, id, x, 1).expect("insert works");
+        let entries = list_entries(&db, id).expect("entries list");
+        assert_eq!(entry_titles(&entries), ["A", "X", "B", "C"]);
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.position)
+                .collect::<Vec<_>>(),
+            [0, 1, 2, 3],
+            "positions stay dense"
+        );
+        insert_into_playlist(&mut db, id, x, 99).expect("overshoot clamps");
+        assert_eq!(
+            entry_titles(&list_entries(&db, id).expect("entries list")),
+            ["A", "X", "B", "C", "X"],
+            "overshoot appends"
+        );
+        assert!(insert_into_playlist(&mut db, 999_999, a, 0).is_err());
+        assert!(insert_into_playlist(&mut db, id, 999_999, 0).is_err());
+    }
+
+    #[test]
+    fn block_moves_reorder_without_duplicating() {
+        let mut db = open_memory().expect("in-memory opens");
+        let tracks: Vec<i64> = ["A", "B", "C", "D", "E"]
+            .iter()
+            .map(|title| seed_track(&mut db, &format!("/m/{title}.flac"), title))
+            .collect();
+        let id = create_playlist(&db, "Order").expect("create works");
+        for track in &tracks {
+            add_to_playlist(&mut db, id, *track).expect("add works");
+        }
+        // Drop B + D on the line before E: no copies, order kept.
+        move_entries(&mut db, id, &[1, 3], 4).expect("move works");
+        let entries = list_entries(&db, id).expect("entries list");
+        assert_eq!(entry_titles(&entries), ["A", "C", "B", "D", "E"]);
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.position)
+                .collect::<Vec<_>>(),
+            [0, 1, 2, 3, 4],
+            "positions stay dense"
+        );
+        // Drop rows 1 + 3 (C + D) at the top (unsorted input accepted).
+        move_entries(&mut db, id, &[3, 1], 0).expect("move works");
+        assert_eq!(
+            entry_titles(&list_entries(&db, id).expect("entries list")),
+            ["C", "D", "A", "B", "E"]
+        );
+        move_entries(&mut db, id, &[], 0).expect("empty set is a no-op");
+        move_entries(&mut db, id, &[99], 0).expect("junk rows are ignored");
+        assert_eq!(
+            entry_titles(&list_entries(&db, id).expect("entries list")),
+            ["C", "D", "A", "B", "E"]
+        );
+        assert!(move_entries(&mut db, 999_999, &[0], 0).is_err());
     }
 
     #[test]

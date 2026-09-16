@@ -279,6 +279,17 @@ impl PlaybackController {
         lock_queue(&self.queue).move_item(from, to);
     }
 
+    /// Insert an item at `index` (clamped), keeping the cursor on the same
+    /// track; returns the landing index.
+    pub fn insert_at(&mut self, index: usize, item: QueueItem) -> usize {
+        lock_queue(&self.queue).insert_at(index, item)
+    }
+
+    /// Move a set of entries to `to` as one block (see [`Queue::move_items`]).
+    pub fn move_items(&mut self, rows: &[usize], to: usize) {
+        lock_queue(&self.queue).move_items(rows, to);
+    }
+
     /// Move an already-queued entry so it plays next.
     pub fn play_next_at(&mut self, index: usize) {
         lock_queue(&self.queue).play_next_at(index);

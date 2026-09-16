@@ -53,6 +53,25 @@ Rectangle {
         return queueSelection.clear();
     }
 
+    function queueMimeIds() {
+        const stamp = queueSelection.stamp;
+        const rows = queueSelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = root.queue.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return stamp >= 0 ? ids.join(",") : ids.join(",");
+    }
+
+    // Source rows for an internal drag (comma positions). The target moves
+    // rows, never track ids, so repeated tracks stay independent.
+    function queueRowsCsv() {
+        queueSelection.stamp;
+        return queueSelection.sorted().join(",");
+    }
+
     function removeSelected() {
         queueSelection.removeSelected(root.queue);
     }
@@ -676,6 +695,11 @@ Rectangle {
                     reorderable: true
                     selected: queueSelection.contains(index)
                     dragTrackIds: selected && root.mimeIds !== "" ? root.mimeIds : (model.trackId >= 0 ? String(model.trackId) : "")
+                    dragOrigin: "queue"
+                    dragRows: {
+                        queueSelection.stamp;
+                        return selected ? root.queueRowsCsv() : String(index);
+                    }
                     onPlayRequested: (trackId, rowIndex) => {
                         queueSelection.clear();
                         queueList.currentIndex = rowIndex;
@@ -702,14 +726,26 @@ Rectangle {
                 }
             }
 
+            // Positional landing: the insertion line shows the index, an
+            // internal drag moves rows there, an external one inserts.
             TrackDropArea {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: selectionBar.bottom
                 anchors.bottom: parent.bottom
                 z: 2
-                dropHint: qsTr("Drop in Now Playing")
-                onTracksDropped: ids => root.queue.enqueueTrackIds(ids)
+                targetView: queueList
+                showHint: false
+                onTracksDroppedAt: (ids, index, origin, rows) => {
+                    if (origin === "queue" && rows !== "")
+                        root.queue.moveItems(rows, index);
+                    else
+                        root.queue.enqueueTrackIdsAt(ids, index);
+                    queueSelection.clear();
+                    // Leave the keyboard cursor where the rows landed.
+                    if (queueList.count > 0)
+                        queueList.currentIndex = Math.max(0, Math.min(index, queueList.count - 1));
+                }
             }
         }
     }

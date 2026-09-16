@@ -48,6 +48,8 @@ Item {
         return line;
     }
 
+    signal notice(string text, bool isError)
+
     function selectPlaylist(id, name) {
         root.playlistId = id;
         root.playlistName = name;
@@ -62,6 +64,24 @@ Item {
 
     function clearSelection() {
         return entrySelection.clear();
+    }
+
+    function entryMimeIds() {
+        const rows = entrySelection.sorted();
+        const ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const id = entries.trackIdAt(rows[i]);
+            if (id >= 0)
+                ids.push(id);
+        }
+        return ids.join(",");
+    }
+
+    // Source rows for an internal drag (comma positions). The detail target
+    // moves entry rows, never track ids, so repeats stay independent.
+    function entryRowsCsv() {
+        entrySelection.stamp;
+        return entrySelection.sorted().join(",");
     }
 
     TrackListSelection {
@@ -432,8 +452,13 @@ Item {
                             enabled: !root.playlists.isSmart(sidebarRow.playlistId)
                             showHint: false
                             onTracksDropped: ids => {
-                                if (!root.playlists.isSmart(sidebarRow.playlistId))
-                                    root.playlists.addTracks(sidebarRow.playlistId, ids);
+                                if (root.playlists.isSmart(sidebarRow.playlistId))
+                                    return;
+                                const added = root.playlists.addTracks(sidebarRow.playlistId, ids);
+                                if (added > 0)
+                                    root.notice(qsTr("%n track(s) added to “%1”", "", added).arg(sidebarRow.name), false);
+                                else
+                                    root.notice(root.playlists.errorText(), true);
                             }
                         }
                     }
@@ -572,6 +597,7 @@ Item {
                             count: entrySelection.count
                             trackIds: entrySelection.mimeIds(entries)
                             onCleared: entrySelection.clear()
+                            onNotice: (text, isError) => root.notice(text, isError)
                             onRemoveRequested: {
                                 entrySelection.removeSelected(entries);
                                 playlists.refresh();
@@ -664,8 +690,16 @@ Item {
                             missing: model.missing
                             dangling: model.dangling
                             reorderable: !root.playlistIsSmart
-                            selected: entrySelection.contains(index)
-                            dragTrackIds: selected && entrySelection.mimeIds(entries) !== "" ? entrySelection.mimeIds(entries) : String(model.trackId)
+                            selected: {
+                                entrySelection.stamp;
+                                return entrySelection.contains(index);
+                            }
+                            dragTrackIds: selected && root.entryMimeIds() !== "" ? root.entryMimeIds() : String(model.trackId)
+                            dragOrigin: "playlist:" + root.playlistId
+                            dragRows: {
+                                entrySelection.stamp;
+                                return selected ? root.entryRowsCsv() : String(index);
+                            }
                             onPlayRequested: (trackId, rowIndex, dangling) => {
                                 entrySelection.clear();
                                 entriesView.currentIndex = rowIndex;
@@ -695,14 +729,27 @@ Item {
                         }
                     }
 
+                    // Positional landing: the insertion line shows the index,
+                    // an internal drag moves entry rows there, an external
+                    // one inserts. Smart playlists refuse (menu does too).
                     TrackDropArea {
                         anchors.fill: parent
                         z: 2
                         enabled: root.playlistId >= 0 && !root.playlistIsSmart
-                        dropHint: qsTr("Drop in playlist")
-                        onTracksDropped: ids => {
-                            if (root.playlistId >= 0 && !root.playlistIsSmart)
-                                root.playlists.addTracks(root.playlistId, ids);
+                        targetView: entriesView
+                        showHint: false
+                        onTracksDroppedAt: (ids, index, origin, rows) => {
+                            if (root.playlistId < 0 || root.playlistIsSmart)
+                                return;
+                            if (origin === "playlist:" + root.playlistId && rows !== "")
+                                entries.moveItems(rows, index);
+                            else
+                                entries.insertTracks(ids, index);
+                            root.errorLine = entries.errorText();
+                            entrySelection.clear();
+                            // Leave the keyboard cursor where the rows landed.
+                            if (entriesView.count > 0)
+                                entriesView.currentIndex = Math.max(0, Math.min(index, entriesView.count - 1));
                         }
                     }
                 }
