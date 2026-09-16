@@ -2,8 +2,9 @@
 //!
 //! Covers library roots, recursive scan, metadata extraction, the SQLite
 //! index with FTS5 search, the artwork pipeline, and playlists. All heavy work
-//! runs on `tokio` workers and reports back as `tunex_core::AppEvent`s; the Qt
-//! thread is never blocked and never touched from here.
+//! runs on `tokio` workers and reports back over bounded channels following
+//! the `AppEvent` bus pattern (D-007); the Qt thread is never blocked and
+//! never touched from here.
 //!
 //! S1 exposes the index foundation (`db`, `scan`); S2 grows it into the v2
 //! schema (lookup tables + FTS5) with metadata extraction. The scanner

@@ -30,10 +30,15 @@ pub const EQ_PRESET_IDS: [&str; 8] = [
     "pop",
 ];
 
-/// Clamp one band into the slider range.
+/// Clamp one band into the slider range. Non-finite input (which `clamp`
+/// would propagate) resets to flat instead of poisoning the whole row.
 #[must_use]
 pub fn clamp_gain(gain: f32) -> f32 {
-    gain.clamp(EQ_GAIN_MIN, EQ_GAIN_MAX)
+    if gain.is_finite() {
+        gain.clamp(EQ_GAIN_MIN, EQ_GAIN_MAX)
+    } else {
+        0.0
+    }
 }
 
 /// Clamp every band.
@@ -85,13 +90,19 @@ pub const WAVEFORM_SAMPLES: usize = 128;
 /// Floor used when mapping spectrum dB into 0…1 bars.
 pub const SPECTRUM_DB_FLOOR: f32 = -60.0;
 
-/// Map spectrum dB magnitudes into 0…1 display bars.
+/// Map spectrum dB magnitudes into 0…1 display bars. Non-finite magnitudes
+/// (which `clamp` would propagate) pin to the floor instead of reaching QML
+/// as NaN bars.
 #[must_use]
 pub fn normalize_spectrum_db(db: &[f32]) -> [f32; SPECTRUM_BANDS] {
     let mut out = [0.0_f32; SPECTRUM_BANDS];
     for (slot, value) in out.iter_mut().zip(db.iter()) {
-        *slot = ((*value) - SPECTRUM_DB_FLOOR) / (0.0 - SPECTRUM_DB_FLOOR);
-        *slot = slot.clamp(0.0, 1.0);
+        let clamped = if value.is_finite() {
+            *value
+        } else {
+            SPECTRUM_DB_FLOOR
+        };
+        *slot = ((clamped - SPECTRUM_DB_FLOOR) / (0.0 - SPECTRUM_DB_FLOOR)).clamp(0.0, 1.0);
     }
     out
 }
@@ -137,9 +148,16 @@ pub fn bands_from_pcm(samples: &[f32]) -> [f32; SPECTRUM_BANDS] {
         }
         let end = (start + chunk).min(samples.len());
         let window = &samples[start..end];
-        let count = u16::try_from(window.len()).unwrap_or(1).max(1);
-        let mean_sq = window.iter().map(|sample| sample * sample).sum::<f32>() / f32::from(count);
-        *slot = mean_sq.sqrt().clamp(0.0, 1.0);
+        // Mean over the window with a float count accumulated alongside the
+        // sum: no narrowing conversion, so very long windows cannot saturate
+        // a bar the way a `u16` divisor would.
+        let mut sum_sq = 0.0_f32;
+        let mut count = 0.0_f32;
+        for sample in window {
+            sum_sq += sample * sample;
+            count += 1.0;
+        }
+        *slot = (sum_sq / count).sqrt().clamp(0.0, 1.0);
     }
     out
 }
@@ -203,5 +221,32 @@ mod tests {
         let bars = bands_from_pcm(&[0.0, 1.0, 0.0, 1.0]);
         assert_eq!(bars.len(), SPECTRUM_BANDS);
         assert!(bars.iter().any(|value| *value > 0.0));
+    }
+
+    #[test]
+    fn non_finite_gains_reset_to_flat() {
+        assert_eq!(clamp_gain(f32::NAN), 0.0);
+        assert_eq!(clamp_gain(f32::INFINITY), 0.0);
+        assert_eq!(clamp_gain(f32::NEG_INFINITY), 0.0);
+        let bands = clamp_bands([f32::NAN; EQ_BAND_COUNT]);
+        assert!(bands.iter().all(|gain| *gain == 0.0));
+    }
+
+    #[test]
+    fn non_finite_spectrum_pins_to_floor() {
+        let bars = normalize_spectrum_db(&[f32::NAN, f32::INFINITY, f32::NEG_INFINITY]);
+        assert!((bars[0] - 0.0).abs() < f32::EPSILON);
+        assert!((bars[1] - 0.0).abs() < f32::EPSILON);
+        assert!((bars[2] - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn very_long_window_does_not_saturate_bars() {
+        // Past u16 range: the old narrowing divisor saturated this bar to 1.0.
+        let samples = vec![0.5_f32; 70_000];
+        let bars = bands_from_pcm(&samples);
+        for bar in bars.iter().take(SPECTRUM_BANDS) {
+            assert!((*bar - 0.5).abs() < 0.01, "RMS of 0.5 is 0.5, got {bar}");
+        }
     }
 }

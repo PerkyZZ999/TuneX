@@ -2,8 +2,8 @@
 //!
 //! The only crate allowed to touch Qt (via `cxx-qt`, pinned): bridged
 //! `QObject`s, settings/XDG handling, the debounced `notify` watcher,
-//! MPRIS/D-Bus, and the fan-out of worker `AppEvent`s onto the Qt thread as
-//! queued signals land here slice by slice.
+//! MPRIS/D-Bus, and the fan-out of worker events (the `AppEvent` bus pattern
+//! per D-007) onto the Qt thread as queued signals land here slice by slice.
 //!
 //! Layout rule (load-bearing): bridge modules live in this library, and the
 //! `tunex` binary calls [`run`], so every target (binary, lib tests,

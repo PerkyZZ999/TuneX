@@ -98,4 +98,58 @@ mod tests {
             PlayerEvent::StateChanged(PlaybackState::Playing)
         ));
     }
+
+    // The snake_case spellings below are load-bearing: they persist in
+    // config.toml, so a rename or variant reorder must fail loudly here
+    // instead of silently breaking existing configs on load.
+    #[test]
+    fn repeat_mode_serde_spellings_are_stable() {
+        for (mode, spelling) in [
+            (RepeatMode::Off, "\"off\""),
+            (RepeatMode::All, "\"all\""),
+            (RepeatMode::One, "\"one\""),
+        ] {
+            assert_eq!(serde_json::to_string(&mode).unwrap(), spelling);
+            assert_eq!(
+                serde_json::from_str::<RepeatMode>(spelling).unwrap(),
+                mode
+            );
+        }
+    }
+
+    #[test]
+    fn replaygain_mode_serde_spellings_are_stable() {
+        for (mode, spelling) in [
+            (ReplayGainMode::Off, "\"off\""),
+            (ReplayGainMode::Track, "\"track\""),
+            (ReplayGainMode::Album, "\"album\""),
+        ] {
+            assert_eq!(serde_json::to_string(&mode).unwrap(), spelling);
+            assert_eq!(
+                serde_json::from_str::<ReplayGainMode>(spelling).unwrap(),
+                mode
+            );
+        }
+    }
+
+    #[test]
+    fn visualizer_mode_serde_spellings_are_stable() {
+        for (mode, spelling) in [
+            (VisualizerMode::Artwork, "\"artwork\""),
+            (VisualizerMode::Spectrum, "\"spectrum\""),
+            (VisualizerMode::Waveform, "\"waveform\""),
+            (VisualizerMode::Visualizer, "\"visualizer\""),
+        ] {
+            assert_eq!(serde_json::to_string(&mode).unwrap(), spelling);
+            assert_eq!(
+                serde_json::from_str::<VisualizerMode>(spelling).unwrap(),
+                mode
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_variant_rejects_loudly() {
+        assert!(serde_json::from_str::<RepeatMode>("\"shuffle\"").is_err());
+    }
 }

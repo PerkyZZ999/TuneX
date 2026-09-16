@@ -98,4 +98,28 @@ mod tests {
     fn cancelled_error_display_is_stable() {
         assert_eq!(Error::Cancelled.to_string(), "operation cancelled");
     }
+
+    #[test]
+    fn player_error_display_is_stable() {
+        assert_eq!(
+            Error::Player("device busy".to_owned()).to_string(),
+            "playback error: device busy"
+        );
+    }
+
+    #[test]
+    fn database_error_display_is_stable() {
+        assert_eq!(
+            Error::Database("disk image is malformed".to_owned()).to_string(),
+            "database error: disk image is malformed"
+        );
+    }
+
+    #[test]
+    fn metadata_error_display_is_stable() {
+        assert_eq!(
+            Error::Metadata("truncated header".to_owned()).to_string(),
+            "metadata error: truncated header"
+        );
+    }
 }

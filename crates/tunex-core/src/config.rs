@@ -6,8 +6,11 @@
 //! forward-compatibility tests below.
 
 use std::{
+    collections::HashMap,
     env,
     path::{Path, PathBuf},
+    sync::{LazyLock, Mutex},
+    time::SystemTime,
 };
 
 use serde::{Deserialize, Serialize};
@@ -277,11 +280,19 @@ impl Default for TunexConfig {
 
 impl TunexConfig {
     /// Clamp invariants that deserialization alone cannot express.
+    /// Non-finite floats (`volume = nan` is valid TOML) reset to defaults
+    /// instead of riding `clamp` through into the engine.
     fn normalize(&mut self) {
-        self.volume = self.volume.clamp(0.0, 1.0);
+        self.volume = if self.volume.is_finite() {
+            self.volume.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
         self.playback.crossfade_secs = self.playback.crossfade_secs.min(12);
         self.playback.eq_bands = clamp_bands(self.playback.eq_bands);
-        if self.playback.eq_preset.is_empty() {
+        if self.playback.eq_preset.is_empty()
+            || matching_preset(self.playback.eq_bands) != self.playback.eq_preset
+        {
             matching_preset(self.playback.eq_bands).clone_into(&mut self.playback.eq_preset);
         }
         if self.appearance.visualizer_fps == 0 {
@@ -330,9 +341,56 @@ pub fn data_dir() -> PathBuf {
 }
 
 /// Full path of the library index database for the active profile.
+///
+/// Convenience over [`profile_db_path`]: loads the config file on every call
+/// (mtime-guarded, so repeated calls within one file state parse once) and
+/// substitutes defaults when the file is missing or corrupt — the same
+/// degraded-empty story the rest of the app tells. Poll-rate callers should
+/// prefer loading once and threading the snapshot through
+/// [`profile_db_path`] instead.
 #[must_use]
 pub fn library_db_path() -> PathBuf {
-    profile_db_path(&load_from(&config_file()).unwrap_or_default())
+    profile_db_path(&load_cached_config(&config_file()))
+}
+
+/// Snapshot of one config file, refreshed only when its mtime moves.
+#[derive(Clone, Debug, Default)]
+struct CachedConfig {
+    modified: Option<SystemTime>,
+    config: TunexConfig,
+}
+
+static CONFIG_CACHE: LazyLock<Mutex<HashMap<PathBuf, CachedConfig>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Load `path`, reusing the cached snapshot while the file is untouched.
+/// Corrupt or missing files yield defaults (see [`library_db_path`]).
+fn load_cached_config(path: &Path) -> TunexConfig {
+    let modified = std::fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok();
+    let mut cache = CONFIG_CACHE.lock().unwrap_or_else(|poison| {
+        // A poisoned mutex means a previous holder panicked mid-update; the
+        // cached snapshot may be stale, so drop it and start clean rather
+        // than serving it or deadlocking.
+        let mut guard = poison.into_inner();
+        guard.clear();
+        guard
+    });
+    if let Some(hit) = cache.get(path)
+        && hit.modified == modified
+    {
+        return hit.config.clone();
+    }
+    let config = load_from(path).unwrap_or_default();
+    cache.insert(
+        path.to_path_buf(),
+        CachedConfig {
+            modified,
+            config: config.clone(),
+        },
+    );
+    config
 }
 
 /// Index path for one config snapshot.
@@ -363,6 +421,10 @@ pub fn active_roots(config: &TunexConfig) -> Vec<PathBuf> {
 }
 
 /// Slug a profile id: lowercase ASCII letters, digits, and hyphen.
+/// Leading/trailing hyphens trim; empty results fall back to `"library"`.
+/// Distinct ids sharing a 40-char prefix collide by design — profile names
+/// are user-chosen labels, so keep them distinguishable in the first 40
+/// characters rather than working around it here.
 #[must_use]
 pub fn sanitize_profile_id(id: &str) -> String {
     let slug: String = id
@@ -422,6 +484,8 @@ pub fn update(path: &Path, apply: impl FnOnce(&mut TunexConfig)) -> Result<()> {
 }
 
 /// Persist settings to `path`, creating parent directories as needed.
+/// Writes to a sibling temp file and renames over the target so a crash
+/// mid-write cannot leave truncated TOML behind.
 ///
 /// # Errors
 ///
@@ -435,7 +499,12 @@ pub fn save_to(path: &Path, config: &TunexConfig) -> Result<()> {
     }
     let text =
         toml::to_string_pretty(config).map_err(|source| Error::Config(source.to_string()))?;
-    std::fs::write(path, text).map_err(|source| Error::Io {
+    let staging = path.with_extension("toml.tmp");
+    std::fs::write(&staging, text).map_err(|source| Error::Io {
+        path: staging.clone(),
+        source,
+    })?;
+    std::fs::rename(&staging, path).map_err(|source| Error::Io {
         path: path.to_path_buf(),
         source,
     })
@@ -537,6 +606,104 @@ mod tests {
         let config = load_from(&path).expect("clamped load works");
         // Bit-exact: clamping to the literal yields its exact representation.
         assert_eq!(config.volume.to_bits(), 1.0f32.to_bits());
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn non_finite_volume_resets_to_default_on_load() {
+        for spelling in ["volume = nan\n", "volume = inf\n", "volume = -inf\n"] {
+            let dir = scratch_dir("non-finite-volume");
+            let path = dir.join("config.toml");
+            std::fs::create_dir_all(&dir).expect("setup works");
+            std::fs::write(&path, spelling).expect("setup works");
+            let config = load_from(&path).expect("non-finite load works");
+            assert_eq!(
+                config.volume.to_bits(),
+                1.0f32.to_bits(),
+                "{spelling} must reset, not ride clamp through"
+            );
+            std::fs::remove_dir_all(&dir).expect("cleanup works");
+        }
+    }
+
+    #[test]
+    fn mismatched_preset_downgrades_to_custom_on_load() {
+        let dir = scratch_dir("preset-mismatch");
+        let path = dir.join("config.toml");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::write(
+            &path,
+            "[playback]\neq_preset = \"rock\"\neq_bands = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]\n",
+        )
+        .expect("setup works");
+        let config = load_from(&path).expect("mismatch loads");
+        // Uniform +1 dB matches no named preset: the stored label must not
+        // lie about the bands.
+        assert_eq!(config.playback.eq_preset, "custom");
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn sanitize_profile_id_edges() {
+        // Empty and all-symbol ids fall back to the default leaf so profiles
+        // never resolve to a bare or hidden directory.
+        assert_eq!(sanitize_profile_id(""), "library");
+        assert_eq!(sanitize_profile_id("!!!"), "library");
+        assert_eq!(sanitize_profile_id("  Hi Fi  "), "hi-fi");
+        assert_eq!(sanitize_profile_id("Müsik"), "m-sik");
+        let long = "a".repeat(80);
+        let slug = sanitize_profile_id(&long);
+        assert_eq!(slug.len(), 40, "overlong ids truncate to 40 chars");
+        assert!(slug.chars().all(|ch| ch == 'a'));
+    }
+
+    #[test]
+    fn save_leaves_valid_toml_and_no_staging_file() {
+        let dir = scratch_dir("atomic-save");
+        let path = dir.join("config.toml");
+        let mut config = TunexConfig::default();
+        config.volume = 0.25;
+        save_to(&path, &config).expect("save works");
+        assert!(
+            !path.with_extension("toml.tmp").exists(),
+            "staging file must be renamed away"
+        );
+        let reloaded = load_from(&path).expect("saved file reloads");
+        assert_eq!(reloaded.volume.to_bits(), 0.25f32.to_bits());
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn cached_config_tracks_file_changes() {
+        let dir = scratch_dir("config-cache");
+        let path = dir.join("config.toml");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::write(&path, "volume = 0.5\n").expect("setup works");
+        assert_eq!(
+            load_cached_config(&path).volume.to_bits(),
+            0.5f32.to_bits()
+        );
+        // Same content state serves the snapshot without re-parsing (stable
+        // assertion: the second read agrees).
+        assert_eq!(
+            load_cached_config(&path).volume.to_bits(),
+            0.5f32.to_bits()
+        );
+        // Bump mtime past filesystem granularity so the change is visible.
+        let stamp = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        let times = std::fs::FileTimes::new().set_modified(stamp);
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .expect("setup works")
+            .set_times(times)
+            .expect("setup works");
+        std::fs::write(&path, "volume = 0.25\n").expect("setup works");
+        assert_eq!(
+            load_cached_config(&path).volume.to_bits(),
+            0.25f32.to_bits(),
+            "mtime move must invalidate the snapshot"
+        );
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 
