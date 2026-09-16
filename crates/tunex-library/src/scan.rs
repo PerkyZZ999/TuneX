@@ -318,20 +318,14 @@ fn flag_vanished_missing(
     run: &ScanRun,
     prefix: &str,
 ) -> Result<u64> {
-    let mut marked = 0_u64;
-    for row in known {
-        if run.retargeted.contains(&row.id)
-            || run.seen.contains(Path::new(&row.path))
-            || !row.path.starts_with(prefix)
-        {
-            continue;
-        }
-        if !row.missing {
-            set_missing(db, row.id, true)?;
-            marked += 1;
-        }
+    // Decided in `reconcile`, executed here: known rows under this root that
+    // the walk never saw and that no rename retargeted are flagged missing,
+    // never dropped — playlists and history keep pointing at them.
+    let ids = super::reconcile::missing_ids(known, &run.seen, &run.retargeted, prefix);
+    for id in &ids {
+        set_missing(db, *id, true)?;
     }
-    Ok(marked)
+    Ok(u64::try_from(ids.len()).unwrap_or(u64::MAX))
 }
 
 /// Scan on a blocking worker thread, streaming [`ScanProgress`] snapshots.
@@ -373,14 +367,9 @@ pub async fn scan_folder_live(
 }
 
 /// Index one supported file: refresh the known path, retarget a rename, or
-/// insert a new row.
-///
-/// A rename only retargets when the previously indexed path is actually gone
-/// *and* the extension matches: a recycled inode pointing at an unrelated
-/// new file (deleted rows free their inodes for reuse) indexes as new
-/// instead of stealing the row, and real renames always keep their
-/// extension. Retarget and tag refresh land in one transaction
-/// ([`retarget_track`](super::db::retarget_track)).
+/// insert a new row. The what (see [`reconcile`]) is decided by policy;
+/// this function only executes: cheap early-return, tag read, then exactly
+/// one write.
 ///
 /// A file already indexed under this path whose identity key still matches
 /// returns early *when the row already has a title*: the key covers mtime
@@ -396,10 +385,9 @@ fn index_file(
     retargeted: &mut HashSet<i64>,
     stats: &mut ScanStats,
 ) -> Result<()> {
+    use super::reconcile::{Decision, decide, is_unchanged};
     if let Some(previous) = by_path.get(path.to_string_lossy().as_ref())
-        && !previous.missing
-        && !previous.incomplete
-        && previous.stable_key == stable_key(path)
+        && is_unchanged(Some(previous), &stable_key(path))
     {
         stats.tracks_added += 1;
         stats.tracks_unchanged += 1;
@@ -409,30 +397,23 @@ fn index_file(
     if metadata_failed {
         stats.metadata_failed += 1;
     }
-    if by_path.contains_key(track.path.as_str()) {
-        upsert_track(db, &track)?;
-    } else if let Some(previous) = track
-        .file_id
-        .as_deref()
-        .and_then(|file_id| by_file_id.get(file_id))
-        .filter(|previous| is_rename_target(previous, path))
-    {
-        retarget_track(db, previous.id, &track)?;
-        retargeted.insert(previous.id);
-        stats.renamed += 1;
-    } else {
-        upsert_track(db, &track)?;
+    match decide(by_path, by_file_id, &track.path, track.file_id.as_deref()) {
+        Decision::Unchanged => {
+            stats.tracks_added += 1;
+            stats.tracks_unchanged += 1;
+        }
+        Decision::Refresh | Decision::Insert => {
+            upsert_track(db, &track)?;
+            stats.tracks_added += 1;
+        }
+        Decision::Retarget(id) => {
+            retarget_track(db, id, &track)?;
+            retargeted.insert(id);
+            stats.renamed += 1;
+            stats.tracks_added += 1;
+        }
     }
-    stats.tracks_added += 1;
     Ok(())
-}
-
-/// Whether a vanished row may lend its identity to `path`: the old path must
-/// really be gone (a live file with a recycled inode keeps its own row) and
-/// the extension must match (deleted rows free their inodes for unrelated
-/// reuse; real renames always keep the container).
-fn is_rename_target(previous: &TrackIdentity, path: &Path) -> bool {
-    !Path::new(&previous.path).exists() && Path::new(&previous.path).extension() == path.extension()
 }
 
 /// Collect media files without touching the database (fixture probes, tests).
@@ -645,31 +626,28 @@ mod tests {
     }
 
     #[test]
-    fn recycled_inode_with_new_extension_indexes_as_new() {
+    fn replaced_extension_indexes_as_new_instead_of_stealing() {
+        // End-to-end through index_file: delete the tagged file, add an
+        // untagged one with another container, rescan. Different extensions
+        // must not retarget even if the inode was recycled.
         let dir = scratch("recycled");
         std::fs::create_dir_all(&dir).expect("setup works");
-        // Vanished row whose inode a new, differently-suffixed file could
-        // reuse: identity must not transfer.
-        let vanished = TrackIdentity {
-            id: 7,
-            path: dir.join("gone.flac").to_string_lossy().into_owned(),
-            file_id: Some("9:9".to_owned()),
-            stable_key: "old".to_owned(),
-            missing: true,
-            incomplete: false,
-        };
-        assert!(!is_rename_target(&vanished, &dir.join("fresh.ogg")));
-        // The live-file twin keeps its own row too.
-        std::fs::write(dir.join("live.flac"), [1u8; 8]).expect("setup works");
-        let live = TrackIdentity {
-            id: 8,
-            path: dir.join("live.flac").to_string_lossy().into_owned(),
-            file_id: Some("9:9".to_owned()),
-            stable_key: "old".to_owned(),
-            missing: false,
-            incomplete: false,
-        };
-        assert!(!is_rename_target(&live, &dir.join("live.flac")));
+        std::fs::write(dir.join("gone.flac"), [1u8; 8]).expect("setup works");
+        let mut db = open_memory().expect("db opens");
+        scan_folder(&mut db, &dir).expect("first scan works");
+        let id = list_tracks(&db).expect("list works")[0].id;
+        std::fs::remove_file(dir.join("gone.flac")).expect("setup works");
+        std::fs::write(dir.join("fresh.ogg"), [2u8; 8]).expect("setup works");
+        let stats = scan_folder(&mut db, &dir).expect("rescan works");
+        assert_eq!(stats.renamed, 0, "extension change is not a rename");
+        let tracks = list_tracks(&db).expect("list works");
+        assert_eq!(tracks.len(), 2, "old row flags missing, new row inserts");
+        let old = tracks
+            .iter()
+            .find(|track| track.id == id)
+            .expect("old row kept");
+        assert!(old.missing);
+        assert!(tracks.iter().any(|track| track.path.ends_with("fresh.ogg")));
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

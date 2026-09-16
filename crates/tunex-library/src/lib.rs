@@ -17,6 +17,7 @@ pub mod enrich;
 pub mod lyrics;
 pub mod metadata;
 pub mod playlist;
+pub mod reconcile;
 pub mod scan;
 pub mod search;
 pub mod watch;
