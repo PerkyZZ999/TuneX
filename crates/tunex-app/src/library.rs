@@ -127,8 +127,17 @@ impl LibraryCore {
 
     /// Drain finished progress snapshots and watcher batches; start a pending
     /// scan when idle. The single call the UI timer makes, at any cadence.
+    /// Three lifecycle steps, each idempotent: watch batches request rescans,
+    /// scan snapshots update progress, then a pending request starts when
+    /// the worker is idle.
     pub fn poll(&mut self) {
-        // Watcher batches (non-blocking): any change requests a rescan.
+        self.drain_watch_batches();
+        self.drain_scan_progress();
+        self.kick_pending_scan();
+    }
+
+    /// Watcher batches (non-blocking): any change requests a rescan.
+    fn drain_watch_batches(&mut self) {
         if let Some(watch_rx) = &mut self.watch_rx {
             let mut batches = 0_u32;
             while watch_rx.try_recv().is_ok() {
@@ -139,7 +148,10 @@ impl LibraryCore {
                 lock_state(&self.state).pending_rescan = true;
             }
         }
-        // Scan progress: keep the latest snapshot; a dropped sender ends the run.
+    }
+
+    /// Scan progress: keep the latest snapshot; a dropped sender ends the run.
+    fn drain_scan_progress(&mut self) {
         if self.scan_rx.is_some() {
             let mut disconnected = false;
             while let Some(scan_rx) = &self.scan_rx {
@@ -169,7 +181,10 @@ impl LibraryCore {
                 self.maybe_enrich();
             }
         }
-        // One worker at a time: bursts coalesce into a single follow-up run.
+    }
+
+    /// One worker at a time: bursts coalesce into a single follow-up run.
+    fn kick_pending_scan(&mut self) {
         let pending = lock_state(&self.state).pending_rescan;
         let scanning = lock_state(&self.state).scanning;
         if pending && !scanning {
@@ -858,6 +873,19 @@ mod tests {
         std::fs::create_dir_all(&music).expect("setup works");
         std::fs::write(music.join("a.flac"), []).expect("setup works");
         music
+    }
+
+    #[test]
+    fn pending_rescan_without_folders_clears_quietly() {
+        let (config, db, _dir) = scratch("pending-idle");
+        let mut core = LibraryCore::with_paths(config, db);
+        lock_state(&core.state).pending_rescan = true;
+        core.kick_pending_scan();
+        assert!(
+            !lock_state(&core.state).pending_rescan,
+            "idle kick consumes the request"
+        );
+        assert!(!core.is_scanning(), "no folders means no worker");
     }
 
     #[test]
