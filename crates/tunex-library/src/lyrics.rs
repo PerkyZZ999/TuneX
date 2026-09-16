@@ -37,22 +37,48 @@ impl Lyrics {
 }
 
 /// Load lyrics for `audio_path`. Missing sidecar/tags yield an empty value.
+/// Sidecar and embedded texts are capped: a pathological multi-megabyte
+/// `.lrc` next to a track must not allocate on every Now-Playing change.
 #[must_use]
 pub fn load_lyrics(audio_path: &Path) -> Lyrics {
     let sidecar = audio_path.with_extension("lrc");
     if sidecar.is_file() {
-        if let Ok(text) = std::fs::read_to_string(&sidecar) {
+        let capped = std::fs::metadata(&sidecar)
+            .map(|meta| meta.len() <= MAX_LRC_BYTES as u64)
+            .unwrap_or(false);
+        if capped
+            && let Ok(text) = std::fs::read_to_string(&sidecar)
+        {
             return parse_lrc(&text);
         }
     }
     match embedded_lyrics(audio_path) {
-        Some(text) if looks_like_lrc(&text) => parse_lrc(&text),
+        Some(text) if looks_like_lrc(&text) => parse_lrc(&truncate_lrc(&text)),
         Some(text) => Lyrics {
             lines: Vec::new(),
-            plain: text,
+            plain: truncate_plain(&text),
         },
         None => Lyrics::default(),
     }
+}
+
+/// Byte cap for lyric sources (sidecar + embedded): lyrics are kilobytes;
+/// anything larger is pathological, not content.
+pub const MAX_LRC_BYTES: usize = 1024 * 1024;
+
+/// Truncate lyric text to the cap on a char boundary. Parsing tolerates a
+/// cut mid-line (stamps parse per line; the tail simply ends early).
+fn truncate_lrc(text: &str) -> &str {
+    let mut end = text.len().min(MAX_LRC_BYTES);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
+/// Truncate unsynced lyric prose to the cap on a char boundary.
+fn truncate_plain(text: &str) -> String {
+    truncate_lrc(text).to_owned()
 }
 
 /// Parse LRC text into timed lines. Metadata tags (`ti`/`ar`/…) are skipped.
@@ -216,5 +242,29 @@ mod tests {
         let lyrics = load_lyrics(&audio);
         assert_eq!(lyrics.lines[0].text, "Hello");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn oversized_sidecar_degrades_to_empty_without_allocating() {
+        let dir = std::env::temp_dir().join(format!("tunex-lrc-big-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("setup");
+        let audio = dir.join("track.flac");
+        std::fs::write(&audio, []).expect("audio");
+        // Sparse sidecar past the cap: metadata refuses before any read.
+        let sidecar = dir.join("track.lrc");
+        let file = std::fs::File::create(&sidecar).expect("setup");
+        file.set_len(MAX_LRC_BYTES as u64 + 1).expect("setup");
+        let lyrics = load_lyrics(&audio);
+        assert_eq!(lyrics, Lyrics::default());
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn truncate_lrc_stops_at_char_boundary() {
+        let text = format!("{}é{}", "x".repeat(MAX_LRC_BYTES - 1), "y".repeat(8));
+        let cut = truncate_lrc(&text);
+        assert!(cut.len() <= MAX_LRC_BYTES);
+        assert!(cut.is_char_boundary(cut.len()));
     }
 }

@@ -30,7 +30,7 @@
 //! before pixel allocation, and the `image` crate's own limits.
 
 use std::collections::HashMap;
-use std::io::Cursor;
+use std::io::{Cursor, Read as _};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -118,6 +118,43 @@ pub fn find_folder_art(dir: &Path) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Read folder art with a pre-allocation cap. `decode_capped` rejects
+/// oversized inputs only *after* they are resident, so check the length first
+/// and cap the read itself against TOCTOU growth: over-cap files yield `None`
+/// (placeholder) while genuine I/O failures stay loud [`Error::Io`].
+fn read_art_bytes(path: &Path) -> Result<Option<Vec<u8>>> {
+    if let Ok(meta) = std::fs::metadata(path)
+        && meta.len() > MAX_ART_BYTES
+    {
+        tracing::debug!(
+            name = "art.rejected",
+            reason = "byte_cap",
+            "artwork too large"
+        );
+        return Ok(None);
+    }
+    let file = std::fs::File::open(path).map_err(|source| Error::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let mut bytes = Vec::new();
+    file.take(MAX_ART_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|source| Error::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_ART_BYTES {
+        tracing::debug!(
+            name = "art.rejected",
+            reason = "byte_cap",
+            "artwork grew past the cap while reading"
+        );
+        return Ok(None);
+    }
+    Ok(Some(bytes))
 }
 
 /// Decode `bytes` honoring the pipeline caps, or `None` for placeholder.
@@ -397,21 +434,48 @@ fn art_paths(cache: &Path, key: &str, extension: &str) -> CachedArt {
     }
 }
 
+/// Process-wide serialization for manifest mutations. Manifest ops are
+/// read-modify-write with no file locking, so the enrichment thread and the
+/// art worker (plus parallel tests) must never interleave them. The guard
+/// always scopes to one mutation — never hold it across a call into another
+/// manifest op (the lock is not reentrant).
+static MANIFEST_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+
+fn lock_manifest() -> std::sync::MutexGuard<'static, ()> {
+    MANIFEST_LOCK.lock().unwrap_or_else(|poison| {
+        // A previous holder panicked mid-mutation; the manifest file itself
+        // stays parseable (atomic renames), so continue with a fresh guard
+        // rather than deadlocking every future art lookup.
+        poison.into_inner()
+    })
+}
+
 /// Touch a manifest entry's recency (best effort; missing keys are ignored).
 fn touch_manifest(cache: &Path, key: &str) {
+    let _guard = lock_manifest();
     let mut manifest = load_manifest(cache);
     if let Some(entry) = manifest.get_mut(key) {
         entry.last_used = now_unix();
-        let _ = save_manifest(cache, &manifest);
+        if let Err(err) = save_manifest(cache, &manifest) {
+            tracing::debug!(
+                name = "art.touch_failed",
+                key = %key,
+                error = %err,
+                "recency update dropped"
+            );
+        }
     }
 }
 
 /// Cached entry for `key` when every file is present, refreshing recency.
 #[must_use]
 pub fn cached_art(cache: &Path, key: &str) -> Option<CachedArt> {
+    let _guard = lock_manifest();
     let manifest = load_manifest(cache);
-    let entry = manifest.get(key)?;
-    let _ = entry;
+    if !manifest.contains_key(key) {
+        return None;
+    }
     // Extension is unknown pre-decode, so accept whatever `orig.*` exists.
     let orig = std::fs::read_dir(cache.join(key))
         .ok()?
@@ -426,6 +490,10 @@ pub fn cached_art(cache: &Path, key: &str) -> Option<CachedArt> {
         thumb512: cache.join(key).join("512.jpg"),
     };
     let complete = paths.thumb64.is_file() && paths.thumb256.is_file() && paths.thumb512.is_file();
+    // Release before touching: the touch takes the guard itself, and holding
+    // across it would deadlock on the non-reentrant lock. The touch is
+    // best-effort recency either way.
+    drop(_guard);
     if complete {
         touch_manifest(cache, key);
     }
@@ -513,8 +581,16 @@ pub fn store_artwork_with_budget(
             last_used: now_unix(),
         },
     );
-    save_manifest(cache, &manifest)?;
-    evict_over_budget(cache, &mut manifest, budget, &key)?;
+    // Serialized with every other manifest mutation: the enrichment thread
+    // (`store_remote_art`) and the art worker share this cache dir, and an
+    // interleaved load/save would silently drop entries (whose directories
+    // eviction would then never reap). The guard scopes to the mutation
+    // only — the hit-path re-read below locks separately in turn.
+    {
+        let _guard = lock_manifest();
+        save_manifest(cache, &manifest)?;
+        evict_over_budget(cache, &mut manifest, budget, &key)?;
+    }
     // Re-read through the hit path so recency is uniform; the fresh entry
     // is keep-protected, so this only misses on I/O failure mid-write.
     Ok(cached_art(cache, &key))
@@ -546,12 +622,10 @@ pub fn resolve_track_art(
     }
     if let Some(parent) = track.parent() {
         if let Some(folder) = find_folder_art(parent) {
-            let bytes = std::fs::read(&folder).map_err(|source| Error::Io {
-                path: folder.clone(),
-                source,
-            })?;
-            if let Some(cached) = store_artwork(cache, &bytes)? {
-                return Ok(Some(cached));
+            if let Some(bytes) = read_art_bytes(&folder)? {
+                if let Some(cached) = store_artwork(cache, &bytes)? {
+                    return Ok(Some(cached));
+                }
             }
         }
     }
@@ -786,6 +860,27 @@ mod tests {
             store_artwork(&cache, &vec![0u8; over_cap]).expect("store works"),
             None,
             "over-cap bytes must not decode"
+        );
+        std::fs::remove_dir_all(&cache).expect("cleanup works");
+    }
+
+    #[test]
+    fn oversized_folder_art_resolves_to_placeholder_without_reading() {
+        use std::io::Write as _;
+        let cache = scratch("huge-folder");
+        let music = cache.join("music");
+        std::fs::create_dir_all(&music).expect("setup works");
+        // Sparse file: 1 byte past the cap on disk metadata, ~zero resident.
+        let cover = music.join("cover.jpg");
+        let mut file = std::fs::File::create(&cover).expect("setup works");
+        file.set_len(MAX_ART_BYTES + 1).expect("setup works");
+        file.write_all(&[0xFF]).expect("setup works");
+        let track = music.join("track.mp3");
+        std::fs::write(&track, b"fake").expect("setup works");
+        assert_eq!(
+            resolve_track_art(&cache, &track, None).expect("resolve works"),
+            None,
+            "over-cap folder art must fall through, not allocate"
         );
         std::fs::remove_dir_all(&cache).expect("cleanup works");
     }

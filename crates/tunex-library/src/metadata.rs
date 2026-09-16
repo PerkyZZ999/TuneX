@@ -159,9 +159,10 @@ pub fn write_tags(path: &Path, edit: &TagEdit) -> Result<()> {
     let mut tagged = Probe::open(path)
         .and_then(Probe::read)
         .map_err(|err| Error::Metadata(format!("cannot open {}: {err}", path.display())))?;
-    let tag_type = tagged
-        .primary_tag()
-        .map_or_else(|| tag_type_for(path), Tag::tag_type);
+    let tag_type = match tagged.primary_tag() {
+        Some(tag) => tag.tag_type(),
+        None => tag_type_for(path)?,
+    };
     let mut tag = tagged
         .primary_tag()
         .cloned()
@@ -201,14 +202,29 @@ pub fn write_tags(path: &Path, edit: &TagEdit) -> Result<()> {
     Ok(())
 }
 
-fn tag_type_for(path: &Path) -> TagType {
+/// Tag family for a fresh tag on an untagged file, by container. Files that
+/// already carry a tag keep their own family; anything outside the playback
+/// matrix refuses loudly instead of receiving an inappropriate family.
+///
+/// # Errors
+///
+/// Returns [`Error::Metadata`] for containers outside the supported matrix.
+fn tag_type_for(path: &Path) -> Result<TagType> {
     match path
         .extension()
         .and_then(|extension| extension.to_str())
         .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
     {
-        "mp3" => TagType::Id3v2,
-        _ => TagType::VorbisComments,
+        "mp3" => Ok(TagType::Id3v2),
+        "m4a" | "mp4" | "m4b" => Ok(TagType::Mp4Ilst),
+        "ogg" | "opus" | "flac" => Ok(TagType::VorbisComments),
+        "wav" => Ok(TagType::RiffInfo),
+        "aiff" | "aif" => Ok(TagType::AiffText),
+        other => Err(Error::Metadata(format!(
+            "no tag family for .{other} files"
+        ))),
     }
 }
 
@@ -260,6 +276,32 @@ mod tests {
     fn corrupt_file_errors_explicitly() {
         let err = read_metadata(&fixture("corrupt.mp3")).expect_err("must fail loudly");
         assert!(matches!(err, Error::Metadata(_)));
+    }
+
+    #[test]
+    fn fresh_tag_family_dispatches_by_container() {
+        use lofty::tag::TagType;
+        for (name, family) in [
+            ("a.mp3", TagType::Id3v2),
+            ("a.MP3", TagType::Id3v2),
+            ("a.m4a", TagType::Mp4Ilst),
+            ("a.mp4", TagType::Mp4Ilst),
+            ("a.ogg", TagType::VorbisComments),
+            ("a.opus", TagType::VorbisComments),
+            ("a.flac", TagType::VorbisComments),
+            ("a.wav", TagType::RiffInfo),
+            ("a.aiff", TagType::AiffText),
+        ] {
+            assert_eq!(
+                tag_type_for(std::path::Path::new(name)).expect("matrix covers it"),
+                family,
+                "{name} must map to its own family"
+            );
+        }
+        assert!(
+            tag_type_for(std::path::Path::new("a.wma")).is_err(),
+            "unknown containers refuse loudly instead of mis-tagging"
+        );
     }
 
     #[test]

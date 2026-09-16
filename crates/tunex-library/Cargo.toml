@@ -18,7 +18,14 @@ serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tunex-core.workspace = true
-ureq.workspace = true
+ureq = { workspace = true, optional = true }
+
+[features]
+# Live MusicBrainz / Cover Art Archive lookup. Off by default so a plain
+# `tunex-library` build carries no network dependency (offline-mandatory);
+# `tunex-app` opts in and additionally gates every call behind the
+# user-facing opt-in setting (default off).
+enrichment = ["dep:ureq"]
 
 [lints]
 workspace = true

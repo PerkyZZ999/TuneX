@@ -1,8 +1,11 @@
 //! Opt-in `MusicBrainz` / Cover Art Archive lookup (L-009).
 //!
-//! Default **off**. Network is never required: callers skip this module when
-//! the `MusicBrainz` setting is false. Only empty tags and missing artwork are
-//! filled — user edits are never overwritten.
+//! Default **off** twice over: the `enrichment` Cargo feature (off, so a
+//! plain `tunex-library` build carries no network dependency) and the
+//! user-facing setting (off, so the app never calls the live pass without
+//! consent). Network is never required: callers skip this module when the
+//! setting is false. Only empty tags and missing artwork are filled — user
+//! edits are never overwritten.
 
 use std::fmt::Write;
 use std::time::Duration;
@@ -13,6 +16,12 @@ use tunex_core::{Error, Result};
 pub const USER_AGENT: &str = "TuneX/0.1.0 ( https://github.com/PerkyZZ999/TuneX )";
 /// Hard ceiling so a missing network never stalls a scan.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+/// Byte cap for `MusicBrainz` JSON bodies (search documents are kilobytes).
+#[cfg(feature = "enrichment")]
+const MAX_JSON_BYTES: u64 = 1 << 20;
+/// Byte cap for Cover Art Archive bodies (front-250 images are kilobytes).
+#[cfg(feature = "enrichment")]
+const MAX_ART_BYTES: u64 = 4 << 20;
 
 /// Fields that may be filled from `MusicBrainz`. `None` means leave the file alone.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -124,28 +133,27 @@ pub fn fill_missing(
 /// Build the recording-search URL for one title/artist pair.
 #[must_use]
 pub fn recording_search_url(title: &str, artist: &str) -> String {
-    let query = format!("recording:\"{title}\" AND artist:\"{artist}\"");
-    format!(
-        "https://musicbrainz.org/ws/2/recording/?query={}&fmt=json&limit=1",
-        encode_query(&query)
-    )
+    // Structural Lucene (`recording:`, quotes, AND) stays raw; spaces ride
+    // encoded. Values are strictly encoded below.
+    let query = format!(
+        "recording:%22{}%22%20AND%20artist:%22{}%22",
+        encode_query_value(title),
+        encode_query_value(artist)
+    );
+    format!("https://musicbrainz.org/ws/2/recording/?query={query}&fmt=json&limit=1")
 }
 
-fn encode_query(value: &str) -> String {
+/// Percent-encode a query *value*: only unreserved characters pass through,
+/// everything else (including Lucene syntax `: * ( ) ' "`) is escaped.
+fn encode_query_value(value: &str) -> String {
     let mut out = String::new();
     for ch in value.chars() {
-        match ch {
-            ' ' => out.push_str("%20"),
-            '"' => out.push_str("%22"),
-            '&' => out.push_str("%26"),
-            c if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':' | '*') => {
-                out.push(c);
-            }
-            c => {
-                let mut buf = [0; 4];
-                for byte in c.encode_utf8(&mut buf).bytes() {
-                    let _ = write!(out, "%{byte:02X}");
-                }
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~') {
+            out.push(ch);
+        } else {
+            let mut buf = [0; 4];
+            for byte in ch.encode_utf8(&mut buf).bytes() {
+                let _ = write!(out, "%{byte:02X}");
             }
         }
     }
@@ -172,9 +180,24 @@ pub fn lookup_recording<H: HttpGet>(http: &H, title: &str, artist: &str) -> Resu
 }
 
 /// Live `ureq` client with a short timeout. Constructed only when enrichment is on.
+#[cfg(feature = "enrichment")]
 #[derive(Debug, Default)]
 pub struct UreqClient;
 
+/// Reject bodies whose declared length already exceeds `cap`, before reading.
+#[cfg(feature = "enrichment")]
+fn check_content_length(declared: Option<u64>, cap: u64, what: &str) -> Result<()> {
+    if let Some(declared) = declared
+        && declared > cap
+    {
+        return Err(Error::Config(format!(
+            "{what}: declared {declared} bytes exceeds the {cap}-byte cap"
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "enrichment")]
 impl HttpGet for UreqClient {
     fn get_text(&self, url: &str) -> Result<String> {
         let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -187,8 +210,15 @@ impl HttpGet for UreqClient {
             .get(url)
             .call()
             .map_err(|err| Error::Config(format!("musicbrainz: {err}")))?;
+        check_content_length(
+            response.body().content_length(),
+            MAX_JSON_BYTES,
+            "musicbrainz",
+        )?;
         response
             .body_mut()
+            .with_config()
+            .limit(MAX_JSON_BYTES)
             .read_to_string()
             .map_err(|err| Error::Config(format!("musicbrainz: {err}")))
     }
@@ -204,28 +234,56 @@ impl HttpGet for UreqClient {
             .get(url)
             .call()
             .map_err(|err| Error::Config(format!("coverart: {err}")))?;
+        check_content_length(
+            response.body().content_length(),
+            MAX_ART_BYTES,
+            "coverart",
+        )?;
         response
             .body_mut()
+            .with_config()
+            .limit(MAX_ART_BYTES)
             .read_to_vec()
             .map_err(|err| Error::Config(format!("coverart: {err}")))
     }
 }
 
+/// Outcome counts for one [`run_missing_pass`]: per-track failures skip the
+/// track and land in `skipped` instead of aborting the pass.
+#[cfg(feature = "enrichment")]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EnrichStats {
+    /// Indexed tracks with a usable title and artist that were considered.
+    pub examined: u32,
+    /// Tracks whose album tag was written.
+    pub enriched_tags: u32,
+    /// Tracks whose remote art was cached.
+    pub enriched_art: u32,
+    /// Tracks skipped after a lookup, tag-write, or art-fetch failure.
+    pub skipped: u32,
+}
+
 /// Fill missing album tags and Cover Art Archive images for a few indexed tracks.
-/// Rate-limited; errors skip. Never overwrites tags or local art.
+/// Rate-limited; errors skip the track and count into [`EnrichStats::skipped`].
+/// Never overwrites tags or local art.
+///
+/// Runs on its own blocking thread (see the app caller): the paced sleeps
+/// and network waits must never sit on an async executor.
 ///
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the index cannot be opened.
-pub fn run_missing_pass(db_path: &std::path::Path) -> Result<()> {
+#[cfg(feature = "enrichment")]
+pub fn run_missing_pass(db_path: &std::path::Path) -> Result<EnrichStats> {
     use super::NewTrack;
     use super::artwork::{default_cache_dir, load_remote_art, store_remote_art};
     use super::db::{list_tracks, open_file, upsert_track};
     use super::metadata::{TagEdit, read_metadata, write_tags};
     use super::scan::{file_id, stable_key};
 
+    let mut stats = EnrichStats::default();
     if !db_path.is_file() {
-        return Ok(());
+        return Ok(stats);
     }
     let mut db = open_file(db_path)?;
     let tracks = list_tracks(&db)?;
@@ -251,10 +309,12 @@ pub fn run_missing_pass(db_path: &std::path::Path) -> Result<()> {
         if !needs_album && !needs_art {
             continue;
         }
+        stats.examined += 1;
         let found = match lookup_recording(&http, title, artist) {
             Ok(found) => found,
             Err(err) => {
                 tracing::debug!(name = "enrich.lookup_failed", error = %err, "skipping track");
+                stats.skipped += 1;
                 continue;
             }
         };
@@ -287,21 +347,34 @@ pub fn run_missing_pass(db_path: &std::path::Path) -> Result<()> {
                             i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
                         }),
                     };
-                    let _ = upsert_track(&mut db, &row);
+                    if upsert_track(&mut db, &row).is_ok() {
+                        stats.enriched_tags += 1;
+                    } else {
+                        stats.skipped += 1;
+                    }
                 }
+            } else {
+                stats.skipped += 1;
             }
         }
         if let Some(release_id) = fill.cover_release_id.as_deref() {
             if let Ok(bytes) = http.get_bytes(&cover_art_url(release_id)) {
-                let _ = store_remote_art(&cache, &path, &bytes);
+                if store_remote_art(&cache, &path, &bytes).is_ok() {
+                    stats.enriched_art += 1;
+                } else {
+                    stats.skipped += 1;
+                }
+            } else {
+                stats.skipped += 1;
             }
         }
         done += 1;
         std::thread::sleep(Duration::from_millis(1100));
     }
-    Ok(())
+    Ok(stats)
 }
 
+#[cfg(feature = "enrichment")]
 fn has_local_art(path: &std::path::Path) -> bool {
     use super::artwork::find_folder_art;
     use super::metadata::read_metadata;
@@ -383,5 +456,30 @@ mod tests {
     fn lookup_skips_blank_without_http() {
         let found = lookup_recording(&RejectHttp, "", "Nova").expect("blank skip");
         assert_eq!(found, Enrichment::default());
+    }
+
+    #[test]
+    fn search_url_encodes_values_not_structure() {
+        let url = recording_search_url("1989: Taylor's Version (Deluxe)", "Nova & Rae");
+        assert!(
+            url.contains("recording:%22"),
+            "structural field stays intact: {url}"
+        );
+        assert!(url.contains("%20AND%20"), "structural AND stays intact: {url}");
+        assert!(
+            url.contains("1989%3A%20Taylor%27s%20Version%20%28Deluxe%29"),
+            "value syntax is escaped: {url}"
+        );
+        assert!(url.contains("Nova%20%26%20Rae"), "ampersand escaped: {url}");
+        assert!(!url.contains(' '), "no raw spaces reach the URL");
+        assert!(!url.contains('\''), "no raw quote reaches the query");
+    }
+
+    #[test]
+    #[cfg(feature = "enrichment")]
+    fn missing_pass_on_absent_db_reports_zero_stats() {
+        let stats = run_missing_pass(std::path::Path::new("/nonexistent/library.db"))
+            .expect("absent db is not an error");
+        assert_eq!(stats, EnrichStats::default());
     }
 }

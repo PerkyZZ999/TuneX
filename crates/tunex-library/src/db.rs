@@ -299,6 +299,10 @@ pub struct TrackIdentity {
 /// Returns [`Error::Database`] when the schema migrations fail.
 pub fn open_memory() -> Result<Connection> {
     let mut db = Connection::open_in_memory().map_err(|err| db_error(&err))?;
+    // Same contention story as file databases (tests share nothing, but any
+    // future multi-connection memory use must wait, not fail instantly).
+    db.busy_timeout(BUSY_TIMEOUT)
+        .map_err(|err| db_error(&err))?;
     migrations()
         .to_latest(&mut db)
         .map_err(|err| Error::Database(err.to_string()))?;
@@ -432,23 +436,22 @@ fn find_or_create_album(
     owner_id: Option<i64>,
     year: Option<i64>,
 ) -> Result<Option<i64>> {
+    // INSERT OR IGNORE like `get_or_create` above: two scan connections
+    // indexing the same new album concurrently must converge, not fail one
+    // upsert with a UNIQUE violation. (The busy timeout makes the loser wait
+    // for the winner's commit instead of erroring.)
+    transaction
+        .execute(
+            "INSERT OR IGNORE INTO albums(title, artist_id, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params![title, owner_id, year],
+        )
+        .map_err(|err| db_error(&err))?;
     transaction
         .query_row(
             "SELECT id FROM albums WHERE title = ?1 AND artist_id IS ?2",
             rusqlite::params![title, owner_id],
             |row| row.get(0),
         )
-        .or_else(|_| {
-            transaction.execute(
-                "INSERT INTO albums(title, artist_id, year) VALUES (?1, ?2, ?3)",
-                rusqlite::params![title, owner_id, year],
-            )?;
-            transaction.query_row(
-                "SELECT id FROM albums WHERE title = ?1 AND artist_id IS ?2",
-                rusqlite::params![title, owner_id],
-                |row| row.get(0),
-            )
-        })
         .map(Some)
         .map_err(|err| db_error(&err))
 }
@@ -1349,6 +1352,80 @@ pub fn track_identities(db: &Connection) -> Result<Vec<TrackIdentity>> {
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the update fails.
+/// Retarget a renamed row and refresh its tags in one transaction: path,
+/// identity, all tag columns, and the FTS document move together, so a crash
+/// can never leave a retargeted path with stale tags or a stale search
+/// filename. Prefer this over [`rename_track`] + [`upsert_track`] whenever
+/// fresh tags are at hand; `rename_track` stays for path-only moves and
+/// documents its own staleness caveat.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when lookups or the rewrite fail.
+pub fn retarget_track(db: &mut Connection, id: i64, track: &NewTrack) -> Result<()> {
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    let artist_id = resolve_lookup_id(&transaction, "artists", track.artist.as_deref())?;
+    let album_owner = track.album_artist.as_deref().or(track.artist.as_deref());
+    let album_id = resolve_album_id(
+        &transaction,
+        track.album.as_deref(),
+        album_owner,
+        track.year,
+    )?;
+    let genre_id = resolve_lookup_id(&transaction, "genres", track.genre.as_deref())?;
+    transaction
+        .execute(
+            "UPDATE tracks SET path = ?1, title = ?2, stable_key = ?3,
+                artist_id = ?4, album_id = ?5, genre_id = ?6, composer = ?7,
+                year = ?8, track_number = ?9, disc_number = ?10,
+                duration_ms = ?11, file_id = ?12, missing = 0,
+                indexed_at = strftime('%s','now')
+             WHERE id = ?13",
+            rusqlite::params![
+                track.path,
+                track.title,
+                track.stable_key,
+                artist_id,
+                album_id,
+                genre_id,
+                track.composer,
+                track.year,
+                track.track_number,
+                track.disc_number,
+                track.duration_ms,
+                track.file_id,
+                id,
+            ],
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction
+        .execute(
+            "INSERT OR REPLACE INTO track_search_docs(
+                id, title, artist, album, album_artist, composer, genre, filename)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![
+                id,
+                track.title.as_deref().unwrap_or(""),
+                track.artist.as_deref().unwrap_or(""),
+                track.album.as_deref().unwrap_or(""),
+                track.album_artist.as_deref().unwrap_or(""),
+                track.composer.as_deref().unwrap_or(""),
+                track.genre.as_deref().unwrap_or(""),
+                filename_of(&track.path),
+            ],
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction.commit().map_err(|err| db_error(&err))?;
+    Ok(())
+}
+
+/// Retarget a row at a new path without refreshing tags. Standalone use
+/// leaves tags and the FTS filename stale until the next re-upsert — prefer
+/// [`retarget_track`] whenever fresh tags are at hand.
+///
+/// # Errors
+///
+/// Returns [`Error::Database`] when the update fails.
 pub fn rename_track(db: &Connection, id: i64, path: &str, stable_key: &str) -> Result<()> {
     db.execute(
         "UPDATE tracks SET path = ?1, stable_key = ?2, missing = 0 WHERE id = ?3",
@@ -1395,18 +1472,23 @@ pub fn delete_track(db: &Connection, id: i64) -> Result<bool> {
 /// # Errors
 ///
 /// Returns [`Error::Database`] when the deletes fail.
-pub fn remove_library_root(db: &Connection, root: &str) -> Result<u64> {
+pub fn remove_library_root(db: &mut Connection, root: &str) -> Result<u64> {
     // `LIKE` metacharacters in real paths (`%`, `_`, `\`) must match
     // literally, or one root could garbage-collect its neighbor.
     let prefix = format!("{}/{}", like_escaped(root), "%");
-    let removed = db
+    // One transaction: a crash between the track sweep and the root-row
+    // delete must not orphan rows or strand a trackless root.
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    let removed = transaction
         .execute(
             "DELETE FROM tracks WHERE path = ?1 OR path LIKE ?2 ESCAPE '\\'",
             rusqlite::params![root, prefix],
         )
         .map_err(|err| db_error(&err))?;
-    db.execute("DELETE FROM library_roots WHERE path = ?1", [root])
+    transaction
+        .execute("DELETE FROM library_roots WHERE path = ?1", [root])
         .map_err(|err| db_error(&err))?;
+    transaction.commit().map_err(|err| db_error(&err))?;
     Ok(u64::try_from(removed).unwrap_or(u64::MAX))
 }
 
@@ -2351,7 +2433,7 @@ mod tests {
         }
         // `%` and `_` in real paths must not act as LIKE wildcards.
         upsert_track(&mut db, &new_track("/music/100%_hits/d.flac")).expect("upsert works");
-        let removed = remove_library_root(&db, "/music").expect("remove works");
+        let removed = remove_library_root(&mut db, "/music").expect("remove works");
         assert_eq!(removed, 3);
         let tracks = list_tracks(&db).expect("list works");
         assert_eq!(tracks.len(), 1);

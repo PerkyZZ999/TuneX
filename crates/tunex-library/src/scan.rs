@@ -14,6 +14,11 @@
 //! Symlinks (files and directories) are skipped: they cannot escape roots
 //! they never enter, which keeps the trust story trivially safe.
 //!
+//! Check-then-use races (stat → canonicalize → read against a concurrently
+//! mutating library) are accepted as documented: the worst case is a skipped
+//! file, a re-read, or a rename falling back to insert-new — never corrupt
+//! state, since every mutation lands in transactions.
+//!
 //! Heavy lifting stays synchronous on the calling thread; [`scan_folder_live`]
 //! moves it onto a blocking thread and streams [`ScanProgress`] snapshots for
 //! UI progress bars. Watch callbacks (W-014) only ever enqueue paths —
@@ -27,7 +32,7 @@ use tokio::sync::mpsc;
 use tunex_core::{Error, Result};
 
 use crate::db::{
-    NewTrack, TrackIdentity, add_root, rename_track, set_missing, track_identities, upsert_track,
+    NewTrack, TrackIdentity, add_root, retarget_track, set_missing, track_identities, upsert_track,
 };
 use crate::metadata::read_metadata;
 
@@ -153,10 +158,18 @@ fn track_from_file(path: &Path) -> (NewTrack, bool) {
     }
 }
 
+/// Canonical root spelling for registration and prefix scoping: resolves
+/// symlinks and trailing separators so one directory never registers twice.
+/// Falls back to the given path when canonicalization fails (missing roots
+/// still scan to an all-missing pass, as before).
+#[must_use]
+fn canonical_root(root: &Path) -> PathBuf {
+    root.canonicalize().unwrap_or_else(|_| root.to_path_buf())
+}
+
 /// Path prefix (with trailing separator) scoping rows to one root, so a
 /// rescan of `/music` never flags `/podcasts` rows missing.
-fn root_prefix(root: &Path) -> String {
-    let mut prefix = root.to_string_lossy().into_owned();
+fn root_prefix(root: &Path) -> String {    let mut prefix = root.to_string_lossy().into_owned();
     if !prefix.ends_with(std::path::MAIN_SEPARATOR) {
         prefix.push(std::path::MAIN_SEPARATOR);
     }
@@ -190,6 +203,12 @@ pub fn scan_folder_with_callback(
     root: &Path,
     mut on_progress: impl FnMut(&ScanStats),
 ) -> Result<ScanStats> {
+    // One spelling per root: `/music` vs `/music/` vs a symlinked alias must
+    // not register as distinct `library_roots` rows nor scope the missing
+    // pass twice. Falls back to the given spelling when the root is
+    // missing (its rows all flag missing, as before).
+    let root = canonical_root(root);
+    let root = root.as_path();
     add_root(db, &root.to_string_lossy())?;
     let known = track_identities(db)?;
     let mut by_path: HashMap<&str, &TrackIdentity> = HashMap::new();
@@ -355,9 +374,12 @@ pub async fn scan_folder_live(
 /// Index one supported file: refresh the known path, retarget a rename, or
 /// insert a new row.
 ///
-/// A rename only retargets when the previously indexed path is actually
-/// gone — a reused inode pointing at two live files indexes as new instead
-/// of stealing the row.
+/// A rename only retargets when the previously indexed path is actually gone
+/// *and* the extension matches: a recycled inode pointing at an unrelated
+/// new file (deleted rows free their inodes for reuse) indexes as new
+/// instead of stealing the row, and real renames always keep their
+/// extension. Retarget and tag refresh land in one transaction
+/// ([`retarget_track`](super::db::retarget_track)).
 ///
 /// A file already indexed under this path whose identity key still matches
 /// returns early *when the row already has a title*: the key covers mtime
@@ -392,10 +414,9 @@ fn index_file(
         .file_id
         .as_deref()
         .and_then(|file_id| by_file_id.get(file_id))
-        .filter(|previous| !Path::new(&previous.path).exists())
+        .filter(|previous| is_rename_target(previous, path))
     {
-        rename_track(db, previous.id, &track.path, &track.stable_key)?;
-        upsert_track(db, &track)?;
+        retarget_track(db, previous.id, &track)?;
         retargeted.insert(previous.id);
         stats.renamed += 1;
     } else {
@@ -403,6 +424,15 @@ fn index_file(
     }
     stats.tracks_added += 1;
     Ok(())
+}
+
+/// Whether a vanished row may lend its identity to `path`: the old path must
+/// really be gone (a live file with a recycled inode keeps its own row) and
+/// the extension must match (deleted rows free their inodes for unrelated
+/// reuse; real renames always keep the container).
+fn is_rename_target(previous: &TrackIdentity, path: &Path) -> bool {
+    !Path::new(&previous.path).exists()
+        && Path::new(&previous.path).extension() == path.extension()
 }
 
 /// Collect media files without touching the database (fixture probes, tests).
@@ -596,8 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_retargets_row_without_duplicating() {
-        let dir = scratch("rename");
+    fn rename_retargets_row_without_duplicating() {        let dir = scratch("rename");
         std::fs::create_dir_all(&dir).expect("setup works");
         std::fs::write(dir.join("before.flac"), [1u8; 64]).expect("setup works");
         let mut db = open_memory().expect("db opens");
@@ -611,6 +640,66 @@ mod tests {
         assert_eq!(tracks[0].id, id, "row identity (history links) survives");
         assert!(tracks[0].path.ends_with("after.flac"));
         assert!(!tracks[0].missing);
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn recycled_inode_with_new_extension_indexes_as_new() {
+        use std::path::PathBuf;
+        let dir = scratch("recycled");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        // Vanished row whose inode a new, differently-suffixed file could
+        // reuse: identity must not transfer.
+        let vanished = TrackIdentity {
+            id: 7,
+            path: dir.join("gone.flac").to_string_lossy().into_owned(),
+            file_id: Some("9:9".to_owned()),
+            stable_key: "old".to_owned(),
+            missing: true,
+            incomplete: false,
+        };
+        assert!(!is_rename_target(
+            &vanished,
+            &PathBuf::from(dir.join("fresh.ogg"))
+        ));
+        // The live-file twin keeps its own row too.
+        std::fs::write(dir.join("live.flac"), [1u8; 8]).expect("setup works");
+        let live = TrackIdentity {
+            id: 8,
+            path: dir.join("live.flac").to_string_lossy().into_owned(),
+            file_id: Some("9:9".to_owned()),
+            stable_key: "old".to_owned(),
+            missing: false,
+            incomplete: false,
+        };
+        assert!(!is_rename_target(
+            &live,
+            &PathBuf::from(dir.join("live.flac"))
+        ));
+        std::fs::remove_dir_all(&dir).expect("cleanup works");
+    }
+
+    #[test]
+    fn symlinked_and_trailing_slash_spellings_register_one_root() {
+        let dir = scratch("alias");
+        std::fs::create_dir_all(&dir).expect("setup works");
+        std::fs::write(dir.join("a.flac"), [1u8; 8]).expect("setup works");
+        let mut db = open_memory().expect("db opens");
+        scan_folder(&mut db, &dir).expect("plain scan works");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let link = dir.join("alias-link");
+            // Symlink to the directory itself (Unix-only test shape).
+            symlink(&dir, &link).expect("setup works");
+            scan_folder(&mut db, &link).expect("aliased scan works");
+        }
+        let slashed = format!("{}/", dir.display());
+        scan_folder(&mut db, Path::new(&slashed)).expect("slashed scan works");
+        let roots: i64 = db
+            .query_row("SELECT COUNT(*) FROM library_roots", [], |row| row.get(0))
+            .expect("count works");
+        assert_eq!(roots, 1, "one directory is one root under any spelling");
         std::fs::remove_dir_all(&dir).expect("cleanup works");
     }
 

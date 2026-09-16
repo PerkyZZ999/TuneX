@@ -307,8 +307,8 @@ impl LibraryCore {
         state.last_error = None;
         drop(state);
         if self.db_path.is_file() {
-            let db = open_file(&self.db_path)?;
-            let collected = remove_library_root(&db, &removed.to_string_lossy())?;
+            let mut db = open_file(&self.db_path)?;
+            let collected = remove_library_root(&mut db, &removed.to_string_lossy())?;
             tracing::info!(
                 name = "folders.root_removed",
                 root = %removed.display(),
@@ -353,8 +353,16 @@ impl LibraryCore {
         let _ = std::thread::Builder::new()
             .name("tunex-mb".to_owned())
             .spawn(move || {
-                if let Err(err) = tunex_library::enrich::run_missing_pass(&db_path) {
-                    tracing::debug!(name = "library.enrich_failed", error = %err, "musicbrainz pass skipped");
+                match tunex_library::enrich::run_missing_pass(&db_path) {
+                    Ok(stats) => tracing::debug!(
+                        name = "library.enrich_done",
+                        examined = stats.examined,
+                        enriched_tags = stats.enriched_tags,
+                        enriched_art = stats.enriched_art,
+                        skipped = stats.skipped,
+                        "musicbrainz pass finished"
+                    ),
+                    Err(err) => tracing::debug!(name = "library.enrich_failed", error = %err, "musicbrainz pass skipped"),
                 }
             });
     }

@@ -155,18 +155,25 @@ pub fn add_to_playlist(db: &mut Connection, playlist_id: i64, track_id: i64) -> 
         ));
     }
     require_track(db, track_id)?;
-    let position: i64 = db
+    // IMMEDIATE: the MAX+1 read and the INSERT must not interleave with a
+    // concurrent adder on another connection, or both compute one position.
+    let transaction = db
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|err| db_error(&err))?;
+    let position: i64 = transaction
         .query_row(
             "SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_tracks WHERE playlist_id = ?1",
             [playlist_id],
             |row| row.get(0),
         )
         .map_err(|err| db_error(&err))?;
-    db.execute(
-        "INSERT INTO playlist_tracks(playlist_id, track_id, position) VALUES (?1, ?2, ?3)",
-        rusqlite::params![playlist_id, track_id, position],
-    )
-    .map_err(|err| db_error(&err))?;
+    transaction
+        .execute(
+            "INSERT INTO playlist_tracks(playlist_id, track_id, position) VALUES (?1, ?2, ?3)",
+            rusqlite::params![playlist_id, track_id, position],
+        )
+        .map_err(|err| db_error(&err))?;
+    transaction.commit().map_err(|err| db_error(&err))?;
     Ok(())
 }
 
@@ -283,7 +290,8 @@ pub fn move_entries(
 /// Returns [`Error::Database`] when the entry is gone or the update fails.
 pub fn remove_from_playlist(db: &mut Connection, playlist_id: i64, entry_id: i64) -> Result<()> {
     require_playlist(db, playlist_id)?;
-    let removed = db
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    let removed = transaction
         .execute(
             "DELETE FROM playlist_tracks WHERE id = ?1 AND playlist_id = ?2",
             rusqlite::params![entry_id, playlist_id],
@@ -292,7 +300,9 @@ pub fn remove_from_playlist(db: &mut Connection, playlist_id: i64, entry_id: i64
     if removed == 0 {
         return Err(Error::Database("playlist entry is gone".to_owned()));
     }
-    renumber(db, playlist_id)
+    renumber(&transaction, playlist_id)?;
+    transaction.commit().map_err(|err| db_error(&err))?;
+    Ok(())
 }
 
 /// Move one entry to `to` (clamped into range) and renumber.
@@ -379,11 +389,11 @@ pub fn list_entries(db: &Connection, playlist_id: i64) -> Result<Vec<PlaylistEnt
         .map_err(|err| db_error(&err))
 }
 
-/// Renumber one playlist's positions dense from zero (structural changes only
-/// ever call this inside their own transaction discipline — positions are
-/// never left gapped on success).
-fn renumber(db: &Connection, playlist_id: i64) -> Result<()> {
-    let ids: Vec<i64> = db
+/// Renumber one playlist's positions dense from zero. Always runs inside the
+/// caller's transaction (delete, move, and smart-rebuild paths) so positions
+/// are never left gapped on success.
+fn renumber(transaction: &rusqlite::Transaction, playlist_id: i64) -> Result<()> {
+    let ids: Vec<i64> = transaction
         .prepare("SELECT id FROM playlist_tracks WHERE playlist_id = ?1 ORDER BY position")
         .map_err(|err| db_error(&err))?
         .query_map([playlist_id], |row| row.get(0))
@@ -391,7 +401,7 @@ fn renumber(db: &Connection, playlist_id: i64) -> Result<()> {
         .collect::<rusqlite::Result<Vec<i64>>>()
         .map_err(|err| db_error(&err))?;
     for (position, id) in ids.iter().enumerate() {
-        db.execute(
+        transaction.execute(
             "UPDATE playlist_tracks SET position = ?1 WHERE id = ?2",
             rusqlite::params![i64::try_from(position).unwrap_or(i64::MAX), id],
         )
@@ -466,6 +476,11 @@ pub fn create_smart_playlist(db: &mut Connection, name: &str, rule: &SmartRule) 
                 "smart-playlist rule needs a value".to_owned(),
             ));
         }
+        "added_days" if rule.value.trim().parse::<u32>().is_err() => {
+            return Err(Error::Database(
+                "added_days needs a non-negative day count".to_owned(),
+            ));
+        }
         "added_days" | "never_played" | "artist" | "genre" | "composer" => {}
         other => {
             return Err(Error::Database(format!(
@@ -516,11 +531,23 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
     let Some(rule) = smart_rule(db, playlist_id)? else {
         return Ok(());
     };
-    db.execute(
-        "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
-        [playlist_id],
-    )
-    .map_err(|err| db_error(&err))?;
+    if rule.kind == "added_days" && rule.value.trim().parse::<u32>().is_err() {
+        // Stored rules predate creation-time validation: refuse loudly
+        // instead of coercing to 0 days back and matching every track.
+        return Err(Error::Database(
+            "added_days needs a non-negative day count".to_owned(),
+        ));
+    }
+    // One transaction for clear + refill + renumber: a crash mid-rebuild
+    // must not leave a half-filled list. ORDER BY pins entry order so
+    // rebuilds are stable run to run.
+    let transaction = db.transaction().map_err(|err| db_error(&err))?;
+    transaction
+        .execute(
+            "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
+            [playlist_id],
+        )
+        .map_err(|err| db_error(&err))?;
     let missing = if rule.exclude_missing {
         " AND tracks.missing = 0"
     } else {
@@ -532,34 +559,39 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
              SELECT ?1, tracks.id, 0
              FROM tracks
              WHERE tracks.indexed_at >= strftime('%s','now') - (?2 * 86400)
-               AND tracks.indexed_at > 0{missing}"
+               AND tracks.indexed_at > 0{missing}
+             ORDER BY tracks.id"
         ),
         "never_played" => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
              LEFT JOIN play_history ON play_history.track_id = tracks.id
-             WHERE play_history.id IS NULL{missing}"
+             WHERE play_history.id IS NULL{missing}
+             ORDER BY tracks.id"
         ),
         "artist" => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
              JOIN artists ON artists.id = tracks.artist_id
-             WHERE artists.name = ?2{missing}"
+             WHERE artists.name = ?2{missing}
+             ORDER BY tracks.id"
         ),
         "genre" => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
              JOIN genres ON genres.id = tracks.genre_id
-             WHERE genres.name = ?2{missing}"
+             WHERE genres.name = ?2{missing}
+             ORDER BY tracks.id"
         ),
         "composer" => format!(
             "INSERT INTO playlist_tracks(playlist_id, track_id, position)
              SELECT ?1, tracks.id, 0
              FROM tracks
-             WHERE tracks.composer = ?2{missing}"
+             WHERE tracks.composer = ?2{missing}
+             ORDER BY tracks.id"
         ),
         other => {
             return Err(Error::Database(format!(
@@ -568,13 +600,17 @@ pub fn evaluate_smart_playlist(db: &mut Connection, playlist_id: i64) -> Result<
         }
     };
     if rule.kind == "never_played" {
-        db.execute(&sql, rusqlite::params![playlist_id])
+        transaction
+            .execute(&sql, rusqlite::params![playlist_id])
             .map_err(|err| db_error(&err))?;
     } else {
-        db.execute(&sql, rusqlite::params![playlist_id, rule.value])
+        transaction
+            .execute(&sql, rusqlite::params![playlist_id, rule.value])
             .map_err(|err| db_error(&err))?;
     }
-    renumber(db, playlist_id)
+    renumber(&transaction, playlist_id)?;
+    transaction.commit().map_err(|err| db_error(&err))?;
+    Ok(())
 }
 
 fn db_error(err: &rusqlite::Error) -> Error {
@@ -868,5 +904,63 @@ mod tests {
         .expect("create smart");
         let titles = entry_titles(&list_entries(&db, id).expect("entries"));
         assert_eq!(titles, ["Fresh"]);
+    }
+
+    #[test]
+    fn smart_added_days_rejects_non_numeric_value() {
+        let mut db = open_memory().expect("in-memory opens");
+        let err = create_smart_playlist(
+            &mut db,
+            "Broken",
+            &SmartRule {
+                kind: "added_days".to_owned(),
+                value: "recent".to_owned(),
+                exclude_missing: false,
+            },
+        )
+        .expect_err("non-numeric days must fail");
+        assert!(matches!(err, Error::Database(_)));
+    }
+
+    #[test]
+    fn smart_legacy_invalid_rule_refuses_at_evaluation() {
+        let mut db = open_memory().expect("in-memory opens");
+        let _track = seed_track(&mut db, "/m/a.flac", "Heard");
+        let id = create_playlist(&mut db, "Legacy").expect("playlist");
+        // Bypass creation-time validation the way pre-validation rows look.
+        db.execute(
+            "INSERT INTO smart_playlists(playlist_id, rule_kind, rule_value, exclude_missing)
+             VALUES (?1, 'added_days', 'someday', 0)",
+            [id],
+        )
+        .expect("legacy row");
+        let err = evaluate_smart_playlist(&mut db, id).expect_err("must refuse, not match-all");
+        assert!(matches!(err, Error::Database(_)));
+        assert!(
+            list_entries(&db, id).expect("entries").is_empty(),
+            "refused rebuild must leave no rows"
+        );
+    }
+
+    #[test]
+    fn smart_rebuild_order_is_stable() {
+        let mut db = open_memory().expect("in-memory opens");
+        for name in ["C", "A", "B"] {
+            seed_track(&mut db, &format!("/m/{name}.flac"), name);
+        }
+        let id = create_smart_playlist(
+            &mut db,
+            "Heard",
+            &SmartRule {
+                kind: "never_played".to_owned(),
+                value: String::new(),
+                exclude_missing: false,
+            },
+        )
+        .expect("create smart");
+        let first = entry_titles(&list_entries(&db, id).expect("entries"));
+        evaluate_smart_playlist(&mut db, id).expect("rebuild");
+        let second = entry_titles(&list_entries(&db, id).expect("entries"));
+        assert_eq!(first, second, "rebuilds must order identically");
     }
 }
