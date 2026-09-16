@@ -125,6 +125,11 @@ pub(crate) struct Inner {
     seek_generation: u64,
     /// Gapless handoff state, shared between the preload hook, the swap
     /// report ([`connect_source_removed`]), and teardown.
+    ///
+    /// Lock ordering rule: the streaming-thread preload path holds `Inner`
+    /// while acquiring the queue mutex (inside the provider); control paths
+    /// must never hold both at once, or a future combined critical section
+    /// inverts the order into an unjoinable streaming-thread deadlock.
     handoff: Handoff,
     /// URI of the last confirmed gapless swap, awaiting the controller's
     /// cursor commit. The queue cursor moves here — never speculatively at
@@ -310,6 +315,14 @@ impl PlayerEngine {
             self.playbin.set_property("uri", uri);
         }
         self.finish_teardown();
+        if reset.is_err() {
+            // A refused reset leaves no track authoritatively queued: clear
+            // it so queued_uri()/replaygain cannot report the previous track
+            // for a pipeline that never took the new one.
+            if let Ok(mut inner) = self.inner.lock() {
+                inner.queued_uri = None;
+            }
+        }
         reset.map_err(|err| Error::Player(format!("reset before load failed: {err:?}")))?;
         if let Ok(mut inner) = self.inner.lock() {
             inner.has_track = true;
@@ -753,11 +766,24 @@ fn connect_about_to_finish(
 /// Report a finished gapless swap, returning the connection.
 ///
 /// `uridecodebin3` swaps its input over to the preloaded item on that item's
+/// own streaming thread, and takes the element state lock in the
+/// middle of the swap — the same lock a state change holds while it waits
+/// for that very thread to stop. Overlap them and both sides wait forever
+/// (`GStreamer` 1.28; observed as a frozen UI). So: block new handoffs,
+/// then wait out one already in flight. Every call outside `Drop` needs a
+/// matching [`finish_teardown`](Self::finish_teardown) to lift the block.
 /// first buffer and retires the outgoing `urisourcebin` as the last step, so
 /// that element's removal is the swap's completion marker — the one
 /// [`PlayerEngine::begin_teardown`] waits for. The handler stays trivial (one
 /// state update, one notify): it runs on a streaming thread that is holding
 /// pipeline locks.
+///
+/// Swap detection string-matches the internal `urisourcebin` factory name
+/// (tested against GStreamer 1.28 via gstreamer-rs 0.24): if a future
+/// GStreamer renames that element, swaps silently stop reporting and every
+/// teardown degrades to the `HANDOFF_SETTLE` wait plus a warn log. A sudden
+/// run of `player.handoff.unsettled` warnings after a GStreamer upgrade
+/// means this assumption broke.
 fn connect_source_removed(
     playbin: &gst::Bin,
     inner: &Arc<Mutex<Inner>>,
@@ -972,6 +998,14 @@ fn post_flush_seek(
 }
 
 /// Post the latest scrub target once the in-flight flush completes.
+///
+/// Known limitation: any playbin `AsyncDone` (state-change/preroll as well
+/// as seek completions) takes this path, so a stray completion can post the
+/// queued target early. Early posting is harmless — the target is the latest
+/// requested and a refused overlap restores it via `recover_refused_post` —
+/// but matching completions to seeks by generation would be stricter. Left
+/// as is: completions carry no seek identity to match on, and the current
+/// shape is pinned by the seek-while-paused/rapid-seek/EOS tests.
 fn apply_queued_seek(playbin: &gst::Element, inner: &Arc<Mutex<Inner>>) {
     let (start, generation) = {
         let Ok(mut guard) = inner.lock() else {

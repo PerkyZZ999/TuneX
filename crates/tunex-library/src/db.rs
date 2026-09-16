@@ -1276,8 +1276,13 @@ pub fn list_tracks_in_folder(
     sort: TrackSort,
     dir: SortDir,
 ) -> Result<Vec<TrackRow>> {
-    let prefix = format!("{}/%", like_escaped(folder));
-    let nested = format!("{}/%/%", like_escaped(folder));
+    let sep = std::path::MAIN_SEPARATOR;
+    let prefix = format!("{folder}{sep}%", folder = like_escaped(folder));
+    let nested = format!(
+        "{folder}{sep}%{sep}%",
+        folder = like_escaped(folder),
+        sep = std::path::MAIN_SEPARATOR
+    );
     let mut statement = db
         .prepare(&format!(
             "{TRACK_LIST_SELECT}
@@ -1475,7 +1480,11 @@ pub fn delete_track(db: &Connection, id: i64) -> Result<bool> {
 pub fn remove_library_root(db: &mut Connection, root: &str) -> Result<u64> {
     // `LIKE` metacharacters in real paths (`%`, `_`, `\`) must match
     // literally, or one root could garbage-collect its neighbor.
-    let prefix = format!("{}/{}", like_escaped(root), "%");
+    let prefix = format!(
+        "{root}{sep}%",
+        root = like_escaped(root),
+        sep = std::path::MAIN_SEPARATOR
+    );
     // One transaction: a crash between the track sweep and the root-row
     // delete must not orphan rows or strand a trackless root.
     let transaction = db.transaction().map_err(|err| db_error(&err))?;

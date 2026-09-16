@@ -45,6 +45,11 @@ use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QUrl};
 // unresolvable at runtime). Declaring the link explicitly and calling the
 // initializers pulls the whole chain through normal symbol references.
 #[link(name = "tunex-app-cxxqt-generated", kind = "static")]
+/// # Safety
+///
+/// Generated, idempotent initializers: call exactly once, on the main
+/// thread, before any Qt object exists. A second call or a call with live
+/// Qt objects risks double registration.
 unsafe extern "C" {
     fn cxx_qt_init_crate_tunex_app();
     fn cxx_qt_init_qml_module_TuneX();

@@ -164,6 +164,7 @@ impl qobject::FacetListModel {
 mod tests {
     use super::FacetListModelRust;
     use super::qobject::FacetRoles;
+    use crate::bridge::test_support::seeded_index;
     use cxx_qt_lib::{QString, QVariant};
 
     fn model_with_two() -> FacetListModelRust {
@@ -183,5 +184,28 @@ mod tests {
             QVariant::default()
         );
         assert_eq!(model.name_at(99), QString::default());
+    }
+
+    #[test]
+    fn seeded_index_groups_untagged_facets_as_unknown() {
+        use super::{FacetKind, load_facets};
+        let (_guard, path) = seeded_index("facets");
+        let genres = load_facets(&path, FacetKind::Genres);
+        assert_eq!(genres.len(), 1, "untagged tracks share one group");
+        assert_eq!(genres[0].0, QString::from("Unknown"));
+        assert_eq!(genres[0].1, 3);
+        let composers = load_facets(&path, FacetKind::Composers);
+        assert_eq!(composers.len(), 1);
+        assert_eq!(composers[0].0, QString::from("Unknown"));
+        assert_eq!(composers[0].1, 3);
+    }
+
+    #[test]
+    fn missing_index_loads_zero_facet_rows() {
+        use super::{FacetKind, load_facets};
+        let missing =
+            std::env::temp_dir().join(format!("tunex-facets-missing-{}", std::process::id()));
+        assert!(load_facets(&missing.join("library.db"), FacetKind::Genres).is_empty());
+        assert!(load_facets(&missing.join("library.db"), FacetKind::Composers).is_empty());
     }
 }

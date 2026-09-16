@@ -158,6 +158,8 @@ pub fn take_events() -> Vec<TrayEvent> {
 }
 
 /// Serve a `StatusNotifierItem` on a background thread for the process lifetime.
+/// A second call is a no-op: the first hub keeps serving instead of
+/// orphaning a stale twin.
 pub fn spawn() {
     let (events_tx, events_rx) = mpsc::channel(EVENT_CHANNEL_DEPTH);
     let hub = Arc::new(TrayHub {
@@ -167,7 +169,10 @@ pub fn spawn() {
         events: Mutex::new(Some(events_rx)),
         events_tx,
     });
-    let _ = INSTALLED.set(Arc::clone(&hub));
+    if INSTALLED.set(Arc::clone(&hub)).is_err() {
+        tracing::debug!(name: "app.tray.spawn", "tray already serving");
+        return;
+    }
     if std::thread::Builder::new()
         .name("tunex-tray".to_owned())
         .spawn(move || run_server_thread(hub))
@@ -453,5 +458,32 @@ mod tests {
     fn take_events_is_empty_before_spawn() {
         assert!(take_events().is_empty());
         assert!(!is_available());
+    }
+
+    #[test]
+    fn host_event_overflow_drops_newest_in_order() {
+        // Local hub, never installed: no global state, no D-Bus.
+        let (events_tx, mut events_rx) = mpsc::channel(EVENT_CHANNEL_DEPTH);
+        let hub = Arc::new(TrayHub {
+            snapshot: Mutex::new(TraySnapshot::default()),
+            dirty: AtomicBool::new(false),
+            available: AtomicBool::new(false),
+            events: Mutex::new(None),
+            events_tx,
+        });
+        let notifier = StatusNotifier { hub };
+        for index in 0..(EVENT_CHANNEL_DEPTH as i32 + 8) {
+            notifier.push(TrayEvent::Popup { x: index, y: 0 });
+        }
+        let mut seen = Vec::new();
+        while let Ok(TrayEvent::Popup { x, .. }) = events_rx.try_recv() {
+            seen.push(x);
+        }
+        assert_eq!(seen.len(), EVENT_CHANNEL_DEPTH, "bounded at depth");
+        assert_eq!(seen[0], 0, "oldest survives; newest drops");
+        assert_eq!(
+            seen[EVENT_CHANNEL_DEPTH - 1],
+            EVENT_CHANNEL_DEPTH as i32 - 1
+        );
     }
 }

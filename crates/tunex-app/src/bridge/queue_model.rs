@@ -1188,18 +1188,12 @@ impl QueueModelRust {
 
     /// Whether glass should fall back to opaque surfaces.
     fn reduce_transparency(&self) -> bool {
-        tunex_core::load_from(&self.config_path)
-            .unwrap_or_default()
-            .appearance
-            .reduce_transparency
+        self.config_snapshot().appearance.reduce_transparency
     }
 
     /// Whether overlay motion should be instant.
     fn reduce_motion(&self) -> bool {
-        tunex_core::load_from(&self.config_path)
-            .unwrap_or_default()
-            .appearance
-            .reduce_motion
+        self.config_snapshot().appearance.reduce_motion
     }
 
     /// Persist the opaque-surface preference.
@@ -1229,9 +1223,14 @@ impl QueueModelRust {
     }
 
     fn notify_config(&self) -> tunex_core::NotifyConfig {
-        tunex_core::load_from(&self.config_path)
-            .unwrap_or_default()
-            .notify
+        self.config_snapshot().notify
+    }
+
+    /// Config snapshot for poll-rate readers: mtime-guarded, so repeated
+    /// reads within one file state parse once instead of hitting disk per
+    /// tick. Writers keep `load_from`/`update` for read-modify-write.
+    fn config_snapshot(&self) -> tunex_core::TunexConfig {
+        tunex_core::load_cached(&self.config_path)
     }
 
     fn set_window_active(&mut self, active: bool) {
@@ -1287,10 +1286,7 @@ impl QueueModelRust {
     }
 
     fn replaygain_mode(&self) -> i32 {
-        match tunex_core::load_from(&self.config_path)
-            .unwrap_or_default()
-            .playback
-            .replaygain
+        match self.config_snapshot().playback.replaygain
         {
             ReplayGainMode::Off => 0,
             ReplayGainMode::Track => 1,
@@ -1328,10 +1324,7 @@ impl QueueModelRust {
 
     fn crossfade_secs(&self) -> i32 {
         i32::from(
-            tunex_core::load_from(&self.config_path)
-                .unwrap_or_default()
-                .playback
-                .crossfade_secs,
+            self.config_snapshot().playback.crossfade_secs,
         )
     }
 
@@ -1354,9 +1347,7 @@ impl QueueModelRust {
     }
 
     fn playback_config(&self) -> tunex_core::PlaybackConfig {
-        tunex_core::load_from(&self.config_path)
-            .unwrap_or_default()
-            .playback
+        self.config_snapshot().playback
     }
 
     fn apply_live_eq(&mut self, enabled: bool, bands: [f32; 10]) {
@@ -1462,10 +1453,7 @@ impl QueueModelRust {
     }
 
     fn visualizer_mode(&self) -> i32 {
-        match tunex_core::load_from(&self.config_path)
-            .unwrap_or_default()
-            .appearance
-            .visualizer
+        match self.config_snapshot().appearance.visualizer
         {
             VisualizerMode::Artwork => 0,
             VisualizerMode::Spectrum => 1,
@@ -1494,10 +1482,7 @@ impl QueueModelRust {
 
     fn visualizer_fps(&self) -> i32 {
         i32::from(
-            tunex_core::load_from(&self.config_path)
-                .unwrap_or_default()
-                .appearance
-                .visualizer_fps,
+            self.config_snapshot().appearance.visualizer_fps,
         )
     }
 
@@ -1515,10 +1500,7 @@ impl QueueModelRust {
     }
 
     fn output_device(&self) -> String {
-        tunex_core::load_from(&self.config_path)
-            .unwrap_or_default()
-            .playback
-            .output_device
+        self.config_snapshot().playback.output_device
     }
 
     fn set_output_device_id(&mut self, id: &str) {

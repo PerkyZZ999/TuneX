@@ -351,6 +351,9 @@ impl qobject::LibraryManager {
     }
 
     /// Write tags then re-index that path. Returns 1 on success (0 + `errorText`).
+    /// `packed` is eight unit-separator-joined fields; the dialog strips the
+    /// separator from field text first, so a pasted control character cannot
+    /// shift fields into the wrong tags. Extra trailing fields are ignored.
     pub fn save_tags(self: Pin<&mut Self>, track_id: i32, packed: &QString) -> i32 {
         let packed = packed.to_string();
         let mut fields = packed.split('\u{1f}');

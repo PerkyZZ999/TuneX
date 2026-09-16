@@ -44,7 +44,11 @@ GlassDialog {
         }
     }
     onAccepted: {
-        const packed = [titleField.text, artistField.text, albumField.text, trackField.text, discField.text, yearField.text, genreField.text, composerField.text].join("\u001f");
+        // The unit separator below is structural: strip it from field text
+        // first so a pasted control character cannot shift every field after
+        // it into the wrong tag.
+        const strip = text => text.replace(/\u001f/g, "");
+        const packed = [titleField.text, artistField.text, albumField.text, trackField.text, discField.text, yearField.text, genreField.text, composerField.text].map(strip).join("\u001f");
         const ok = root.library.saveTags(root.trackId, packed);
         if (ok > 0)
             root.tagsSaved();

@@ -660,13 +660,20 @@ fn changed_properties(snapshot: &MprisSnapshot) -> Vec<Property> {
 /// into it and drains inbound commands) and emits `PropertiesChanged` /
 /// `Seeked` as shared state moves. The thread (and its single-threaded
 /// async runtime) is intentionally detached: the OS reclaims it on exit.
-/// Qt keeps owning the main thread throughout.
+/// Qt keeps owning the main thread throughout. A second call is a no-op:
+/// the first hub keeps serving instead of orphaning a stale twin.
 pub fn spawn() {
     let (hub, inbox) = MprisHub::with_channel(COMMAND_CHANNEL_DEPTH);
-    let _ = INSTALLED.set(InstalledHub {
-        hub: hub.clone(),
-        inbox: Mutex::new(Some(inbox)),
-    });
+    if INSTALLED
+        .set(InstalledHub {
+            hub: hub.clone(),
+            inbox: Mutex::new(Some(inbox)),
+        })
+        .is_err()
+    {
+        tracing::debug!(name: "app.mpris.spawn", "MPRIS already serving");
+        return;
+    }
     if std::thread::Builder::new()
         .name("tunex-mpris".to_owned())
         .spawn(move || run_server_thread(hub))
